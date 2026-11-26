@@ -2,7 +2,7 @@
   "at": "2026-10-18T20:16:22.766254+00:00",
   "classification": "x86 vocabulary-only QA via already installed translation support; comparison with prior real runner counts",
   "model_identity": [
-    "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
+    "/Users/developer/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
     16777234,
     133260631,
     5629109120,

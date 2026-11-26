@@ -4,7 +4,7 @@
 
 - Role/session: independent Reviewer `/root/kimi_summary_semantic`.
 - Base/reviewed HEAD: `e35a176212366c595ac111c37f30371c3cf1bfd5`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-kimi-summary-aware-semantic-review`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-kimi-summary-aware-semantic-review`.
 - Branch: `codex/task-readiness-kimi-summary-aware-semantic-review`.
 - Date: 2026-10-29.
 - Verdict: **REJECT** for admission of this specific complete positive card; **one P2 finding**, no P0/P1 findings. This is not a finding that the new interview material lacks distinct value or that the model's general ability is disproved.
@@ -12,7 +12,7 @@
 
 ## Frozen material independently checked
 
-`R = /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness`.
+`R = /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness`.
 
 | Material | SHA-256 |
 |---|---|

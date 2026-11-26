@@ -6,13 +6,13 @@
 
 ## 运行边界
 
-- Repository: `/Users/hua/Documents/youtubek agent`
+- Repository: `/Users/developer/Documents/youtubek agent`
 - Branch: `main`
 - Start condition: `TASK-002` assignment sync 已提交且 `git status --short` 无输出
 - Sandbox: `read-only`
 - Repository changes: 必须始终为 `None`
 
-不要在 `/Users/hua/Documents/yia-worktrees/task-002` 中运行，避免读取 Implementer 正在变化的文件。只分析已批准规格和当前 `main`；不假设 TASK-002 实现已经完成。
+不要在 `/Users/developer/Documents/yia-worktrees/task-002` 中运行，避免读取 Implementer 正在变化的文件。只分析已批准规格和当前 `main`；不假设 TASK-002 实现已经完成。
 
 ## 必读上下文
 

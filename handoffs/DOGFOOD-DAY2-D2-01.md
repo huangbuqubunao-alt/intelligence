@@ -1,7 +1,7 @@
 # Dogfood Day 2 D2-01 handoff
 
 Base: main/origin/main ce60189f002270909e5ef234deedb61ceba19b0f.
-Worktree: /Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix.
+Worktree: /Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix.
 Branch: codex/dogfood-day2-local-import-fix. Role: user-authorized sole executor.
 
 Local import was reset when window focus caused Sources refresh and its loading

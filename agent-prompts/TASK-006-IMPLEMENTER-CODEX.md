@@ -3,7 +3,7 @@
 ## Authority and live control plane
 
 - Source base: `main@6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-006`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-006`
 - Branch: `codex/task-006-local-transcription`
 - Main control plane is authoritative. This source worktree intentionally starts from
   the pre-assignment snapshot, where its local task card says `BLOCKED`. Before writing,

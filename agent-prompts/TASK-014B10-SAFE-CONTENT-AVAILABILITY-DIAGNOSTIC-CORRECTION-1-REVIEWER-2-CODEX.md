@@ -10,7 +10,7 @@ Task: TASK-014B10 — safe content availability diagnostic, Correction 1 review
 Role: Independent Reviewer 2
 Control-plane baseline: main@78bb8b402ee47403ed37f38a27f0ffd5a359b719
 Execution main: dynamic clean main at the single-parent Reviewer 2 authorization commit containing this prompt; it must descend from the control-plane baseline and contain no unreviewed product changes
-Reviewed source worktree: /Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic
+Reviewed source worktree: /Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic
 Reviewed source branch: codex/task-014b10-safe-content-availability-diagnostic
 Reviewed Correction HEAD: c65502e3680d14a88ae52a1c27eea47d42b5e8b0
 Required sole parent of Correction: 2ea3455246a596f8304d2b0c00435862f8f3ea9e

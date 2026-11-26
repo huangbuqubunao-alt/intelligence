@@ -5,7 +5,7 @@
 - Task: `TASK-READINESS-SOURCE-INTEREST-CAS`
 - Role: Implementer `local_text_repair_resume`
 - Base: `1aef3e0ec18568bb503a1b8663364cd05ca221d1`，开工时 clean。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-source-interest-cas`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-source-interest-cas`
 - Branch: `codex/task-readiness-source-interest-cas`
 - Reviewer: `local_text_review_resume`，作者提交、clean STOP 后独立审查。
 - 授权：原精确 CAS 提案、2026-10-15 并发补充与持续默认授权；不逐文件重复请求。

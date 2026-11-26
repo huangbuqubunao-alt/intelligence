@@ -4,13 +4,13 @@
     {
       "exception": "ValueError",
       "message": "",
-      "file": "/Users/hua/Documents/yia-worktrees/phase12-live-fix/src/youtube_intel/providers/youtube_channel.py",
+      "file": "/Users/developer/Documents/yia-worktrees/phase12-live-fix/src/youtube_intel/providers/youtube_channel.py",
       "line": 175
     },
     {
       "exception": "TrackingError",
       "message": "METADATA_FAILED",
-      "file": "/Users/hua/Documents/yia-worktrees/phase12-live-fix/src/youtube_intel/providers/youtube_channel.py",
+      "file": "/Users/developer/Documents/yia-worktrees/phase12-live-fix/src/youtube_intel/providers/youtube_channel.py",
       "line": 190
     }
   ],

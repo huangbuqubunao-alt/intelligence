@@ -3,7 +3,7 @@
   "request_id": "tracked-content-retry:v1:ed60ddcda745868ae2902255161e51b83c06429ca23cb3c96d11f37f61282392",
   "diagnostics": {
     "original_frozen": {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-real-failure-frozen-20261019",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-real-failure-frozen-20261019",
       "main_bytes_sha256": "a32b39955e0f6a04ae41c4f7b305b6b9e27fce6c512fc1f7e396bd52d3cc8758",
       "wal_bytes": 0,
       "execution": {

@@ -1,7 +1,7 @@
 # TASK-READINESS-Q4KM-TEXT-DIAGNOSTIC
 Status: IN_REVIEW_CONCRETE_DIAGNOSTIC_ONLY
 Role: QA Implementer /root/model_setup_catalog_bound
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic
 Branch: codex/task-readiness-q4km-text-diagnostic
 Base: root commit containing this task; product unchanged from a2076db / full6003backend and1026frontend.
 Reviewer: /root/long_completion_review_r1, then root actual run.

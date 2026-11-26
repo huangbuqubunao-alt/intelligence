@@ -26,7 +26,7 @@ main 初始 HEAD 必须为 `072511f...`；准备内容必须精确属于这 6 �
 
 ## 必查事实
 
-1. 身份为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+1. 身份为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 2. TASK-003 merge 必须有两个父提交，第一父 `c524a05...`、第二父 `f07795...`；第一父差异精确为 5 个 TASK-003 文件，main 干净，整合后门禁已 PASS。只有这些事实成立才可写 `DONE`。
 3. TASK-004 source worktree 只读且干净、HEAD `54c0ab2...`；correction 相对 `5d66c28...` 精确为 5 文件，完整 Diff 相对 `dcc7d85...` 仍为批准 17 文件。只记录 correction 4 的静态事实；不得预写 Reviewer `APPROVE`、`ACCEPTED` 或 `DONE`。
 4. TASK-005 及后续继续 `BLOCKED`；真实 YouTube、Cookie、登录、remote components、ffmpeg、媒体/字幕下载仍未授权。
@@ -41,10 +41,10 @@ git var GIT_AUTHOR_IDENT
 git var GIT_COMMITTER_IDENT
 git rev-list --parents -n 1 072511f20b587f973b29437d79080f6cb7863f1a
 git diff --name-status 072511f20b587f973b29437d79080f6cb7863f1a^1..072511f20b587f973b29437d79080f6cb7863f1a
-git -C "/Users/hua/Documents/yia-worktrees/task-004" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-004" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-004" rev-list --parents -n 1 54c0ab201388cba35e481d7a511f21575946ad14
-git -C "/Users/hua/Documents/yia-worktrees/task-004" diff --name-status 5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58...54c0ab201388cba35e481d7a511f21575946ad14
+git -C "/Users/developer/Documents/yia-worktrees/task-004" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-004" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-004" rev-list --parents -n 1 54c0ab201388cba35e481d7a511f21575946ad14
+git -C "/Users/developer/Documents/yia-worktrees/task-004" diff --name-status 5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58...54c0ab201388cba35e481d7a511f21575946ad14
 git diff --check
 git diff --cached --check
 git diff --cached --name-only

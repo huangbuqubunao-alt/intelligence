@@ -1,6 +1,6 @@
 {
   "at": "2026-10-26T14:07:19.206813+08:00",
-  "command": "/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/Start-Gemma4-Recovery.command",
+  "command": "/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/Start-Gemma4-Recovery.command",
   "sha256": "2505765b16569cff3e68c311f7c3e7d9ec63a97da2896ac1d2bfe95a3216be74",
   "bytes": 832,
   "source_review": "f73183c1ce9f9e9ea3285247c8c29667e0acdab3",
@@ -14,10 +14,10 @@
   "qualification": false,
   "cold_owner_pid": 67013,
   "result_paths": [
-    "/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/manual-run/recovery-result.json",
-    "/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/real-once-gemma4-e4b-20261026"
+    "/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/manual-run/recovery-result.json",
+    "/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/real-once-gemma4-e4b-20261026"
   ],
-  "global_generation_marker": "/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/generation-start.json",
+  "global_generation_marker": "/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/generation-start.json",
   "old_timeout_and_marker_preserved": true,
   "do_not_relaunch_or_reset_after_actual_claim": true,
   "next_review": "Read only public final/completion/usage/native/cleanup; private thinking opaque; independently inspect before any latercase orqualification/main.",

@@ -39,7 +39,7 @@ from youtube_intel.state import SQLiteStateRepository
 
 PROJECT = Path(__file__).resolve().parents[1]
 SCRIPT = Path(__file__).resolve()
-SOURCE = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-public-diagnostic-20261028')
+SOURCE = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-public-diagnostic-20261028')
 PACKAGE = PROJECT / '.var/bigmodel-public-first-case'
 ATTEMPT = PROJECT / '.var/bigmodel-public-first-case.attempt.json'
 CORPUS = PROJECT / 'docs/validation/end-to-end-user-readiness/INTELLIGENCE_REAL_CORPUS_V2.json'

@@ -5,7 +5,7 @@
   },
   {
     "pid": 89669,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/node_modules/.bin/vite --port 5599 --strictPort"
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/node_modules/.bin/vite --port 5599 --strictPort"
   },
   {
     "pid": 90057,
@@ -13,7 +13,7 @@
   },
   {
     "pid": 90110,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/node_modules/.bin/vite --port 5589 --strictPort"
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/node_modules/.bin/vite --port 5589 --strictPort"
   },
   {
     "pid": 90527,
@@ -21,6 +21,6 @@
   },
   {
     "pid": 90577,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/node_modules/.bin/vite --port 5573 --strictPort"
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/node_modules/.bin/vite --port 5573 --strictPort"
   }
 ]

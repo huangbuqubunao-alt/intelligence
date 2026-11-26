@@ -280,6 +280,7 @@ def _classify_directory_structure(
 
 _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "skip_download": True,
+    "ignore_no_formats_error": True,
     "noplaylist": True,
     "quiet": True,
     "no_warnings": True,
@@ -297,6 +298,45 @@ _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "extract_flat": False,
     "logger": _SilentYtDlpLogger(),
 }
+
+_AUTH_GATE_MARKERS: Final[tuple[str, ...]] = (
+    "sign in to confirm",
+    "confirm you're not a bot",
+    "confirm you\u2019re not a bot",
+    "not a bot",
+    "login_required",
+)
+
+_NETWORK_ERROR_MARKERS: Final[tuple[str, ...]] = (
+    "unable to download",
+    "failed to establish",
+    "connection refused",
+    "connection reset",
+    "connection aborted",
+    "nodename nor servname",
+    "name or service not known",
+    "network is unreachable",
+    "cannot connect to proxy",
+    "proxy error",
+    "proxyerror",
+    "ssl:",
+    "eof occurred in violation of protocol",
+    "getaddrinfo failed",
+)
+
+
+def _resolve_system_proxy_url() -> str | None:
+    try:
+        from youtube_intel.providers.youtube_network import system_http_proxy_url
+
+        proxy_url = system_http_proxy_url()
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(proxy_url, str) or not proxy_url:
+        return None
+    if proxy_url.startswith("/Users/") or "cookie" in proxy_url.lower():
+        return None
+    return proxy_url
 
 
 class _YdlHandle(Protocol):
@@ -608,9 +648,6 @@ def _typed_exception_chain_availability(
 
 
 def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptError:
-    availability = _typed_exception_chain_availability(error)
-    if availability is not _ContentAvailabilityState.UNKNOWN:
-        return _content_unavailable_error(availability, video_id=video_id)
     message = str(error)
     lowered = message.casefold()
     status = _extract_status(message)
@@ -621,6 +658,30 @@ def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptEr
             retryable=True,
             video_id=video_id,
         )
+    if "timeout" in lowered or "timed out" in lowered:
+        return _error(
+            ErrorCode.TRANSIENT_NETWORK,
+            "subtitle track directory request timed out",
+            retryable=True,
+            video_id=video_id,
+        )
+    if any(marker in lowered for marker in _NETWORK_ERROR_MARKERS):
+        return _error(
+            ErrorCode.TRANSIENT_NETWORK,
+            "subtitle track directory network request failed",
+            retryable=True,
+            video_id=video_id,
+        )
+    if any(marker in lowered for marker in _AUTH_GATE_MARKERS):
+        return _error(
+            ErrorCode.PERMISSION_DENIED,
+            "subtitle directory requires youtube authentication",
+            retryable=False,
+            video_id=video_id,
+        )
+    availability = _typed_exception_chain_availability(error)
+    if availability is not _ContentAvailabilityState.UNKNOWN:
+        return _content_unavailable_error(availability, video_id=video_id)
     if status in {401, 403}:
         return _error(
             ErrorCode.PERMISSION_DENIED,
@@ -640,20 +701,12 @@ def _map_directory_error(error: BaseException, *, video_id: str) -> TranscriptEr
             retryable=True,
             video_id=video_id,
         )
-    if "timeout" in lowered or "timed out" in lowered:
-        return _error(
-            ErrorCode.TRANSIENT_NETWORK,
-            "subtitle track directory request timed out",
-            retryable=True,
-            video_id=video_id,
-        )
     if any(
         marker in lowered
         for marker in (
             "not available in your country",
             "geo",
             "region",
-            "sign in to confirm",
         )
     ):
         return _content_unavailable_error(
@@ -1371,6 +1424,13 @@ _SAFE_URL_OPENER: Final = urllib.request.build_opener(_SafeRedirectHandler())
 
 
 def _default_open(request: urllib.request.Request, timeout: float) -> object:
+    proxy_url = _resolve_system_proxy_url()
+    if proxy_url is not None:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"https": proxy_url, "http": proxy_url}),
+            _SafeRedirectHandler(),
+        )
+        return opener.open(request, timeout=timeout)  # noqa: S310
     return _SAFE_URL_OPENER.open(request, timeout=timeout)  # noqa: S310
 
 
@@ -1416,6 +1476,9 @@ class YtDlpSubtitleAdapter:
         started = self._clock()
         opts = dict(_SAFE_YDL_OPTS)
         opts["socket_timeout"] = self._timeout_seconds
+        proxy_url = _resolve_system_proxy_url()
+        if proxy_url is not None:
+            opts["proxy"] = proxy_url
         if self._opts_sink is not None:
             self._opts_sink.append(dict(opts))
         failure: TranscriptError | None = None

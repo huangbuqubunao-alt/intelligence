@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex / TASK-003 sole implementer`
 - Base branch/commit: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-003`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-003`
 - Branch: `codex/task-003-state-store`
 - Head commit: containing implementation commit; exact SHA is reported after commit
 - Started: `2026-07-15 Asia/Shanghai`
@@ -123,8 +123,8 @@
 - Reviewed implementation head：`adab4bb00dd7e917b295c22fd8357a4f11515912`
 - Product base：`dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Main review authorization：`main@9ec416bdf38b4ee97fe4e7e8bd3a20e09f1ed163`
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-003` @ `codex/task-003-state-store`
-- Preflight：HEAD=`adab4bb...`；worktree 干净；身份 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`；相对 base 完整 Diff 精确为批准的 5 文件（`state.py`、`001_initial.sql`、两份 TASK-003 测试、本 handoff）
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-003` @ `codex/task-003-state-store`
+- Preflight：HEAD=`adab4bb...`；worktree 干净；身份 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`；相对 base 完整 Diff 精确为批准的 5 文件（`state.py`、`001_initial.sql`、两份 TASK-003 测试、本 handoff）
 - 审查 evidence commit：见本提交 SHA（仅修改本文件，父提交为 `adab4bb...`，未 amend）
 - 控制面阅读：`AGENTS.md`、`COLLABORATION.md`、`PROJECT_STATUS.md`、PRD/System Design §3/5/8/9/12、`REUSE_REGISTER`、ADR-002 C-05/C-07/C-08、ADR-003 S-01～S-08、TASK-003 任务卡、Implementer 包、Reviewer 包、实现与测试
 

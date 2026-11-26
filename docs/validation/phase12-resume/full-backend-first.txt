@@ -49,6 +49,6 @@ src/youtube_intel/following_tracking.py:199: TrackingError
 =========================== short test summary info ============================
 FAILED tests/integration/test_bilibili_three_provider.py::test_creator_discovered_content_uses_mixed_research_and_intelligence_authority
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/pathlib.py:1311: KeyboardInterrupt
+/Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/pathlib.py:1311: KeyboardInterrupt
 (to show a full traceback on KeyboardInterrupt use --full-trace)
 1 failed, 1500 passed in 489.68s (0:08:09)

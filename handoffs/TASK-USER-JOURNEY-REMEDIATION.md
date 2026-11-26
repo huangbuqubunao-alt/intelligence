@@ -3,7 +3,7 @@
 - Task：2026-10-12 用户截图反馈及普通用户全流程验收。
 - Role：Implementer；主对话 `/root`。
 - 基线：`fa906148aef506bb19ae7036d2309f3cdd7b47ca`。
-- Worktree：`/Users/hua/Documents/yia-worktrees/user-journey-remediation`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/user-journey-remediation`。
 - Branch：`codex/task-user-journey-remediation`。
 - 代码 HEAD：`47b4eb2234f955411131f61eee4cff7bf0618fc7`。
 

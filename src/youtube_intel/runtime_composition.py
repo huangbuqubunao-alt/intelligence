@@ -10,7 +10,10 @@ from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from youtube_intel.youtube_auth_fallback import YouTubeAuthFallbackService
 
 from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.bilibili_content import BilibiliContentProvider
@@ -83,6 +86,62 @@ from youtube_intel.transcripts import (
     build_raw_request_hash,
 )
 
+_YOUTUBE_ERROR_MESSAGES: dict[str, str] = {
+    "YOUTUBE_NETWORK_UNAVAILABLE": "Network or system proxy could not reach YouTube.",
+    "YOUTUBE_AUTH_REQUIRED": "YouTube requested login or bot verification for anonymous access.",
+    "YOUTUBE_RATE_LIMITED": "YouTube temporarily rate-limited requests.",
+    "YOUTUBE_CONTENT_UNAVAILABLE": "This YouTube video is private, deleted, or unavailable.",
+    "YOUTUBE_NO_CAPTIONS": "Video metadata loaded, but no usable YouTube captions are available.",
+    "YOUTUBE_AUTH_RATE_LIMITED": "Authenticated YouTube fallback reached its safety rate limit or cooldown.",
+    "YOUTUBE_AUTH_EXPIRED": "Authorized YouTube login session expired or was rejected.",
+    "YOUTUBE_AUTH_COOKIE_FILTER_FAILED": "Authenticated YouTube cookie filtering failed safely; no authorized request was sent.",
+    "YOUTUBE_IMPORT_FAILED": "YouTube import did not complete.",
+}
+
+
+def _classify_youtube_import_error(
+    error: BaseException,
+    repository: SQLiteStateRepository,
+    video_id: str,
+) -> tuple[str, str]:
+    app_err = getattr(error, "error", None)
+    raw_code = getattr(getattr(app_err, "code", None), "value", None)
+    raw_msg = str(getattr(app_err, "message", "") or str(error)).lower()
+
+    if raw_code is None:
+        job = repository.latest_content_job(video_id)
+        if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
+            raw_code = job.last_error_code
+            raw_msg = (job.last_error_message or "").lower()
+
+    if raw_code == "PERMISSION_DENIED" or any(
+        marker in raw_msg
+        for marker in (
+            "anonymous verification gate",
+            "requires youtube authentication",
+            "sign in to confirm",
+            "not a bot",
+            "login_required",
+        )
+    ):
+        code = "YOUTUBE_AUTH_REQUIRED"
+    elif raw_code in {"TRANSIENT_NETWORK", "PROVIDER_UNAVAILABLE"}:
+        code = "YOUTUBE_NETWORK_UNAVAILABLE"
+    elif raw_code == "RATE_LIMITED":
+        code = "YOUTUBE_RATE_LIMITED"
+    elif raw_code == "CONTENT_UNAVAILABLE":
+        if repository.get_video(video_id) is not None and (
+            "no usable subtitle" in raw_msg or "transcription" in raw_msg
+        ):
+            code = "YOUTUBE_NO_CAPTIONS"
+        else:
+            code = "YOUTUBE_CONTENT_UNAVAILABLE"
+    elif repository.get_video(video_id) is not None and repository.get_verified_timed_transcript(video_id=video_id) is None:
+        code = "YOUTUBE_NO_CAPTIONS"
+    else:
+        code = "YOUTUBE_IMPORT_FAILED"
+    return code, _YOUTUBE_ERROR_MESSAGES[code]
+
 
 class RuntimeSourceRunIngestion:
     """Persist bounded production ingestion for the durable discovery checkpoint."""
@@ -92,10 +151,12 @@ class RuntimeSourceRunIngestion:
         runtime: RuntimeOperations,
         source_policy: SourcePolicyApplicationService,
         source_tracking: FollowingTrackingService | None = None,
+        youtube_auth_fallback: YouTubeAuthFallbackService | None = None,
     ) -> None:
         self._runtime = runtime
         self._source_policy = source_policy
         self._source_tracking = source_tracking
+        self._youtube_auth_fallback = youtube_auth_fallback
 
     def caption_repair_is_waiting(self, run: SourceRunRecord) -> bool:
         """On restart, respect both existing leases before resuming this child."""
@@ -235,6 +296,46 @@ class RuntimeSourceRunIngestion:
                 if self._runtime._repository.get_verified_timed_transcript(video_id=video_id) is None:
                     raise SourceRunDiscoveryError("Content captions need verified source timing")
         except Exception as error:
+            if (
+                source is not None
+                and source.provider == "YOUTUBE"
+                and source.video_id is not None
+                and source.processing_policy.value == "DISCOVER_ONLY"
+            ):
+                code, safe_msg = _classify_youtube_import_error(
+                    error, self._runtime._repository, source.video_id
+                )
+                if code == "YOUTUBE_AUTH_REQUIRED":
+                    fallback = self._youtube_auth_fallback
+                    if fallback is None and getattr(self._runtime, "_root", None) is not None:
+                        from youtube_intel.youtube_auth_fallback import (
+                            YouTubeAuthFallbackService,
+                        )
+
+                        fallback = YouTubeAuthFallbackService(
+                            project_root=self._runtime._root
+                        )
+                    if fallback is not None:
+                        fallback_code = fallback.attempt_authenticated_ingest(
+                            self._runtime, source_id, source.video_id
+                        )
+                        if fallback_code is None:
+                            return
+                        if fallback_code != "YOUTUBE_AUTH_DISABLED":
+                            code = fallback_code
+                            safe_msg = _YOUTUBE_ERROR_MESSAGES.get(
+                                fallback_code, safe_msg
+                            )
+                try:
+                    self._runtime._repository.record_source_check(
+                        source_id,
+                        now=datetime.now(UTC),
+                        succeeded=False,
+                        error_code=code,
+                        error_message=safe_msg,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
             if isinstance(error, SourceRunDiscoveryError):
                 raise
             raise SourceRunDiscoveryError("Source ingestion failed safely") from error
@@ -436,6 +537,7 @@ class LocalSourceRunRuntime:
     worker: DurableSourceRunWorker
     application: LocalApiApplication
     backup_restore: BackupRestoreService
+    youtube_auth_fallback: YouTubeAuthFallbackService | None = None
 
 
 def _deep_analysis_production_capability() -> DeepAnalysisCapability:
@@ -492,6 +594,7 @@ def build_local_source_run_runtime(
     allow_cloud_execution: bool = True,
     probe_local_runtime: bool = True,
     now: Callable[[], datetime] | None = None,
+    youtube_auth_fallback: YouTubeAuthFallbackService | None = None,
 ) -> LocalSourceRunRuntime:
     """Compose the GUI, scheduler, ingestion, and worker onto one durable authority.
 
@@ -676,13 +779,29 @@ def build_local_source_run_runtime(
         now=now_fn,
     )
     from youtube_intel.providers.youtube_channel import YouTubeFollowingProvider
+    from youtube_intel.youtube_auth_fallback import (
+        YouTubeAuthFallbackService as _YouTubeAuthFallbackService,
+    )
+    resolved_yt_auth = (
+        youtube_auth_fallback
+        if youtube_auth_fallback is not None
+        else _YouTubeAuthFallbackService(project_root=project_root, now=now_fn)
+    )
+    reconcile = getattr(resolved_yt_auth, "reconcile_orphan_credentials", None)
+    if callable(reconcile):
+        reconcile(include_in_use=True)
     source_tracking = FollowingTrackingService(repository, BilibiliContentProvider(repository, data_root, now=now_fn), youtube=YouTubeFollowingProvider(enroll_video=runtime.enroll_followed_youtube_video), now=now_fn)
     orchestrator = DurableProcessingOrchestrator(
         repository,
         source_policy=source_policy,
         distillation=distillation,
         discovery=PersistedSourceRunDiscovery(repository),
-        ingestion=RuntimeSourceRunIngestion(runtime, source_policy, source_tracking),
+        ingestion=RuntimeSourceRunIngestion(
+            runtime,
+            source_policy,
+            source_tracking,
+            youtube_auth_fallback=resolved_yt_auth,
+        ),
         preparation=RuntimeSourceRunPreparation(runtime),
         now=now_fn,
     )
@@ -797,4 +916,5 @@ def build_local_source_run_runtime(
         worker=worker,
         application=application,
         backup_restore=backup_restore,
+        youtube_auth_fallback=resolved_yt_auth,
     )

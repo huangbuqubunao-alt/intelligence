@@ -8,7 +8,7 @@
 
 - Main base: `main@74942436607e46a2356553ed0409cdc515dbc6c9`
 - TASK-004 source: `grok/task-004-discovery-metadata@9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
-- TASK-004 source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- TASK-004 source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - TASK-004 prior status: `IN_PROGRESS`
 - Target status: `IN_REVIEW`
 - Active Reviewer: 全新独立 Codex 会话；尚未启动
@@ -41,7 +41,7 @@
 1. main 初始 HEAD 必须为 `7494243...`；初始准备内容精确为上述 5 文件，无预先暂存和无未暂存范围外内容。
 2. TASK-004 source 必须干净、正好为 `9db800f...`，父链包含 `392edfb... -> 10f5ffa... -> 9db800f...`；相对 `dcc7d85...` 完整范围仍为原 TASK-004 17 文件集合。
 3. TASK-004 的第二轮 P1 核验依据必须一致：无非私有 mapper、构造面只有 `timeout_seconds`、private hook 不在公开 Provider surface；这只是进入独立审查的门槛，不能预先写 `APPROVE` 或 `ACCEPTED`。
-4. Git 身份必须为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+4. Git 身份必须为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 5. 不运行 `uv`、pytest、Ruff、mypy、build 或任何真实网络路径。
 
 提交前后执行：

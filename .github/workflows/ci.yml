@@ -22,16 +22,18 @@ jobs:
           uv lock --check
           uv sync --frozen --dev
       - name: Lint with ruff
-        run: uv run --frozen ruff check src tests
+        run: uv run --frozen ruff check src tests scripts
       - name: Type-check with mypy
         run: uv run --frozen mypy src
+      - name: Verify full CI test manifest covers 100% of collected pytest IDs
+        run: uv run --frozen python scripts/ci_test_manifest.py verify
       - name: Install ffmpeg for media integration tests
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Run Public Beta verification suite
         # Scope note: runs contracts, console entry, offline demo showcase, cloud cost/reauth
         # safety, Workspace AI Hub, Fast-Read API, and PO demo E2E checks on the candidate SHA.
-        # Historical sealed TASK-016 trial fixtures (GOV-001) fail closed on current tree hashes
-        # by design and are tracked separately in qa/defects.md.
+        # Full repository unit & integration coverage runs in parallel in python-unit-full and
+        # python-integration-full below.
         run: |
           uv run --frozen python -m pytest \
             tests/unit/test_contracts.py \
@@ -50,6 +52,70 @@ jobs:
             tests/e2e/test_po_demo.py \
             -q --tb=short
 
+  python-unit-full:
+    name: Python Full Unit Suite (Shard ${{ matrix.shard }}/4, ex-GOV-001)
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify lockfile & sync dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --dev --extra mac-whisper
+      - name: Install ffmpeg for media unit tests
+        run: HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install ffmpeg
+      - name: Run full unit test shard ${{ matrix.shard }}
+        # Disclosed exclusions (also enforced by scripts/ci_test_manifest.py verify):
+        # 1) GOV-001 sealed TASK-016 fixture tests fail closed by design against current tree hashes;
+        #    standalone contract tests inside v2/v3/v4/v4_r2/device_continuity still run in CI.
+        # 2) 5 CAPACITY_BASELINE_ROOT functions (20 cases) in test_readiness_qwen35_capacity.py
+        #    read untracked developer-local .var artifacts unavailable on clean CI clones; the
+        #    remaining 17 contract tests in that file still run in CI.
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          TZ: Asia/Shanghai
+        run: uv run --frozen python scripts/ci_test_manifest.py run-unit --shard "${SHARD_INDEX}"
+
+  python-integration-full:
+    name: Python Full Integration & E2E Suite (Shard ${{ matrix.shard }}/8)
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify lockfile & sync dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --dev --extra mac-whisper
+      - name: Install ffmpeg for media integration tests
+        run: HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install ffmpeg
+      - name: Run full integration, e2e & script test shard ${{ matrix.shard }}
+        # Disclosed exclusion: test_all_original_four_inputs_fit_without_truncating_fifteen_evidence
+        # reads CAPACITY_BASELINE_ROOT from an untracked sibling worktree unavailable on clean CI clones.
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          TZ: Asia/Shanghai
+        run: uv run --frozen python scripts/ci_test_manifest.py run-integration --shard "${SHARD_INDEX}"
+
   frontend-ci:
     name: Frontend Build & Vitest
     runs-on: ubuntu-latest
@@ -65,6 +131,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Type-check TypeScript
+        run: npx tsc --noEmit --incremental false
       - name: Build production bundle
         run: npm run build
       - name: Run Vitest suite

@@ -3,7 +3,7 @@
 ## Authority and live control plane
 
 - Source base: `main@6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-007`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-007`
 - Branch: `codex/task-007-local-scoring`
 - Main control plane is authoritative. This source worktree deliberately begins from
   the pre-assignment snapshot. Before writing, resolve

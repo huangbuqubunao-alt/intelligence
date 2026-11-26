@@ -22,6 +22,7 @@
 | **BL-011** | Multimodal/UX | 按需轻量本地视频关键帧抽取 + 感知哈希去重 + 原话字幕对齐融合分析 MVP（`$0` 本机 Ollama + 严格受控 BYOK、防覆盖原子暂存、前端图卡与 Lightbox 键盘预览、`visual-pack.zip` & 全库 Vault `assets/*.jpg` 打包及 Sidecar 备份恢复） | 创始人选型 `A`（Iteration #8 / `FD-007`） | 7 | 2.5 | 0.90 | 0.8 | **19.7** | **DONE (`main@092951b`)** |
 | **BL-012** | UX/DX | Round 19 工作台易用性与冷启动自检可读性打磨：`⌘K` 深入专题洞察（`#Intelligence`）与追问（`#Research`）快捷动作、`#Topics` 搜索/置顶筛与三模式排序工具条、Research 多行输入防遮挡细滚动条、`youtube-intel start --check-only` 一行式就绪结论（`[ALL READY]`/`[READY WITH WARNINGS]`/`[ACTION NEEDED]`/`[BLOCKED]`）与模型数量溢出展示 | Round 19 封存待办 & `FD-008` | 7 | 1.5 | 0.90 | 0.4 | **23.6** | **DONE (`main@c54b818`)** |
 | **BL-013** | Quality/Security | Codex 15 P1 + 7 P2 清零、Claude 三轮复核（`N1`–`N11` / `R2-D1`–`R2-D2`）、`8793`/`8794` 实机浏览器双端走查及第 14 组 CI 守卫全部合流主线并获云端双绿验收 | Codex 审查 + Claude Round 1–3 + `FD-009` | 10 | 3.0 | 0.95 | 1.0 | **28.5** | **DONE (`main@4f3fe70` · CI `#45339507823`)** |
+| **BL-014** | Quality/Security/CI | Codex Round 2 全量闭环（`P0-1`, `P1-1..4`, `P2-1..13`）：逐句/列表/表格清洗与要点引用水合、600 会话 LRU `<300ms`、只读 `.as_uri()`、原子恢复、全形式 SSRF/`4 MiB`/回环直连、GB18030/UTF-16 解码、前端轮询保页与 Demo 引导隔离、当前树 `995` 文件隐私脱敏、`ci.yml` 扩容至 `7,124` 项及 `qwen3.5:9b` `EXP-002` 100% 实测 | Codex Round 2 审查 + 真实 `qwen3.5:9b` 复验 | 10 | 3.0 | 0.95 | 1.0 | **28.5** | **DONE ON BRANCH (`antigravity/task-user-readiness-20261112` · 待合流 `main`)** |
 | **BL-009** | Distribution | 一键桌面打包 / homebrew cask / WSL 极简脚本可行性评估（需待获批真人首测验证安装卡点分布后再定） | Stage B `anything-llm`/`BiliNote` 对照 | 9 | 2.5 | 0.50 | 2.5 | **4.5** | **HOLD (待真人冷启动样本)** |
 
 ---

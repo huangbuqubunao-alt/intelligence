@@ -4,7 +4,7 @@
 
 - Implementer `/root/qa_launch_isolation`; completed 2026-11-05 Asia/Shanghai.
 - Base `f1cc9365ac5eb5dfec8ebf95c326bc0c528c6a26`.
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-synthesis-input-materialization`.
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-synthesis-input-materialization`.
 - Branch `codex/readiness-synthesis-input-materialization`; suggested IN_REVIEW, not self-accepted.
 - Scope: one offline validation script, focused tests and this handoff. No product/frontend/source, schema, dependency, profile or other worktree changes.
 - Reuse DIRECT actual runtime factory, normal review and output-language APIs, existing finite transport/proof builders, repository domain methods, extractive Summary, Backup/Restore and stdlib. No second execution engine or copied external implementation.
@@ -30,7 +30,7 @@ Checks for this narrow delta: complete focused file **9 PASS,14.81s** (`focused-
 
 ## Historical r3 prepared package
 
-`/Users/hua/Documents/yia-worktrees/readiness-synthesis-input-materialization/.var/synthesis-input-materialization/prepared-20261104-r3/`
+`/Users/developer/Documents/yia-worktrees/readiness-synthesis-input-materialization/.var/synthesis-input-materialization/prepared-20261104-r3/`
 
 Manifest SHA256 **`64b6e48b5f82235b6c7c4630f267bed239bb4f98a7a9e534c3c3752e79d50487`**. It remains unchanged after final validation. Status is strictly **PREPARED_NOT_AUTHORIZED**; final budget-integrated source replay remains pending.
 

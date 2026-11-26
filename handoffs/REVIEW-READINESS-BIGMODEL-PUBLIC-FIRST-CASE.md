@@ -2,8 +2,8 @@
 
 - Reviewer `/root/bigmodel_audit_review`, independent/no subagents;2026-10-28.
 - Base `eaff966251231c08c39f9b44cfccf66d9b0252fd`; fixed author `14565034a3c3e20714bc7448c514f43132be86ff`.
-- WT `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-review`, branch `codex/task-readiness-bigmodel-public-first-review`.
-- Concrete package `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case/.var/bigmodel-public-first-case`.
+- WT `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-review`, branch `codex/task-readiness-bigmodel-public-first-review`.
+- Concrete package `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-case/.var/bigmodel-public-first-case`.
 - Prepared SHA256 **`d31ae035ab3f8f7b012e48eb35e8d780a63a7d4455a994f9d64a04960e4dcd14`**.
 - **Verdict: REJECT fixed145 preexecution package pending one P2 test-reproducibility correction. No APPROVE_ONE_PUBLIC_DIAGNOSTIC grant is issued.** No additional confirmed P0/P1/P2 in the bounded script/package safety inspection. Original writer and Root received the finding; Root assigned the smallest offline-test repair. Later repair is not reviewed here.
 
@@ -55,7 +55,7 @@ Only the exact public assistant final and named accounting/status plus optional 
 
 ## Independent checks and limitations
 
-Commands use existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1`, explicit review `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-review/src`. Compile preceded fake tests. Actual public dataset is only read; fake runs clone stock into independent temporary directories and prohibit native/real-wire access.
+Commands use existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1`, explicit review `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-review/src`. Compile preceded fake tests. Actual public dataset is only read; fake runs clone stock into independent temporary directories and prohibit native/real-wire access.
 
 | Check | Independent actual result |
 |---|---|

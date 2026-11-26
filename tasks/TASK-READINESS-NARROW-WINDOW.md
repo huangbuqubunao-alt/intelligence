@@ -2,7 +2,7 @@
 
 Status READY. Implementer /root/caption_resume, Reviewer /root/intel_bounded_review.
 Base a18fd2388a9d8a393f5386fa1226aa3ed141dc6c.
-Worktree /Users/hua/Documents/yia-worktrees/readiness-narrow-window
+Worktree /Users/developer/Documents/yia-worktrees/readiness-narrow-window
 Branch codex/task-readiness-narrow-window
 
 Rootactualheadful5908 atwidth320/height900 on newASRfailurecopy: innerWidth320 clientWidth305 document.scrollWidth320, app/sidebar/mainright320 because workspace/styles.cssbody min-width320px. Native verticalscrollbar leavesclient305 causingwholepagehorizontaloverflow15px. Sidebarownhorizontalnavscrollisintentional; do nothidewholeoverflow orremoveaccessiblebuttons.

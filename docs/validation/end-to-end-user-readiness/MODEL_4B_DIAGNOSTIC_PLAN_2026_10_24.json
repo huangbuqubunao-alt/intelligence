@@ -19,7 +19,7 @@
       "mediaType": "application/vnd.docker.container.image.v1+json",
       "digest": "sha256:788a4d94bc3f431ac0cd067005be4b838a09330427962952420b05d10ecf84db",
       "size": 177,
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-788a4d94bc3f431ac0cd067005be4b838a09330427962952420b05d10ecf84db",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-788a4d94bc3f431ac0cd067005be4b838a09330427962952420b05d10ecf84db",
       "mode": "downloaded official pinned digest"
     },
     {
@@ -27,7 +27,7 @@
       "digest": "sha256:e56a899b1540860385465756dd308c84417410b94dbc1c380adffd20a921ca60",
       "size": 675569120,
       "from": "mmproj.gguf",
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-e56a899b1540860385465756dd308c84417410b94dbc1c380adffd20a921ca60",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-e56a899b1540860385465756dd308c84417410b94dbc1c380adffd20a921ca60",
       "mode": "downloaded official pinned digest"
     },
     {
@@ -35,38 +35,38 @@
       "digest": "sha256:a9d0a3e1d8c91732a3812becd31f8d4a8ff57414903f226306069f0437e2ac50",
       "size": 2648593216,
       "from": "model.gguf",
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-a9d0a3e1d8c91732a3812becd31f8d4a8ff57414903f226306069f0437e2ac50",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-a9d0a3e1d8c91732a3812becd31f8d4a8ff57414903f226306069f0437e2ac50",
       "mode": "downloaded official pinned digest"
     },
     {
       "mediaType": "application/vnd.ollama.image.template",
       "digest": "sha256:b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
       "size": 13,
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
       "mode": "verified existing public blob hardlink; never mutate"
     },
     {
       "mediaType": "application/vnd.ollama.image.license",
       "digest": "sha256:50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
       "size": 11343,
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
       "mode": "verified existing public blob hardlink; never mutate"
     },
     {
       "mediaType": "application/vnd.ollama.image.params",
       "digest": "sha256:9371364b27a52acac9d87f88bd93c9db1174d8d6ec57f6888925cdc1788871ff",
       "size": 65,
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-9371364b27a52acac9d87f88bd93c9db1174d8d6ec57f6888925cdc1788871ff",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-9371364b27a52acac9d87f88bd93c9db1174d8d6ec57f6888925cdc1788871ff",
       "mode": "verified existing public blob hardlink; never mutate"
     }
   ],
   "isolation": "root ignored qwen35-4b-once-20261024/models; new daemon loopback11438 only; global old model/owner data untouched",
-  "original_request": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/original-request.json",
-  "candidate_request": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/candidate-request.json",
+  "original_request": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/original-request.json",
+  "candidate_request": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/candidate-request.json",
   "request_change": "only top-level model 9b→4b; same actual current short prompt/schema/policy/evidence/options/think/shift=false/truncate=false",
-  "freeze": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/diagnostic-freeze.json",
+  "freeze": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/diagnostic-freeze.json",
   "freeze_hash": "8d80c95d0fd29365a338256471a55bc98ea97fafd595cf92f678a2a95ff56387",
-  "harness": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic/diagnostic.py",
+  "harness": "/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic/diagnostic.py",
   "harness_hash": "99b5c01b7c91496f85ba5bc37b408fc9bd0baee9a42007b3c9891e9d49aca253",
   "independent_preflight_review": "PENDING",
   "generation_budget": {

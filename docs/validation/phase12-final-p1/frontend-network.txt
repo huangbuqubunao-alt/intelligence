@@ -3,7 +3,7 @@
 > vitest run src/workspace/CreatorFollowing.test.tsx
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/phase12-final-p1-remediation/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/phase12-final-p1-remediation/frontend
 
  ✓ src/workspace/CreatorFollowing.test.tsx (21 tests) 422ms
 

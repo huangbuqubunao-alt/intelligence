@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import http.client
 import io
 import ipaddress
 import json
@@ -23,19 +24,24 @@ import os
 import platform
 import re
 import shutil
+import socket
 import sqlite3
+import ssl
 import stat
 import sys
 import tempfile
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
 import zipfile
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from http import HTTPStatus
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
@@ -112,8 +118,75 @@ DEFAULT_CLOUD_DAILY_CALL_LIMIT = 30
 
 VALID_MODES = frozenset({"local_ollama", "cloud_byok"})
 VALID_CLOUD_PROVIDERS = frozenset(
-    {"deepseek", "moonshot", "zhipu", "openai_compatible"}
+    {"deepseek", "moonshot", "zhipu", "dashscope", "openai_compatible"}
 )
+
+CURATED_OLLAMA_MODELS: tuple[dict[str, object], ...] = (
+    {
+        "id": "qwen3.5:9b",
+        "label": "qwen3.5:9b",
+        "tier": "recommended",
+        "size_label": "~6.6 GB",
+        "ram_label_zh": "16GB+ 内存推荐",
+        "ram_label_en": "16GB+ RAM",
+        "supports_vision": True,
+        "summary_zh": "默认首选：中文摘要与跨视频有据问答最稳，支持关键帧画面解读",
+        "summary_en": "Recommended: best Chinese synthesis, grounded Q&A, and vision",
+    },
+    {
+        "id": "qwen3.5:4b",
+        "label": "qwen3.5:4b",
+        "tier": "lightweight",
+        "size_label": "~3.4 GB",
+        "ram_label_zh": "8GB 内存推荐",
+        "ram_label_en": "8GB RAM",
+        "supports_vision": True,
+        "summary_zh": "轻量高速：体积更小，8GB 内存 Mac 可流畅运行，支持视觉",
+        "summary_en": "Lightweight: faster download for 8GB RAM Macs, vision ready",
+    },
+    {
+        "id": "qwen2.5:7b",
+        "label": "qwen2.5:7b",
+        "tier": "balanced",
+        "size_label": "~4.7 GB",
+        "ram_label_zh": "12GB+ 内存",
+        "ram_label_en": "12GB+ RAM",
+        "supports_vision": False,
+        "summary_zh": "经典均衡：结构化输出稳定（纯文本，不支持图片解读）",
+        "summary_en": "Classic balanced: steady JSON output (text-only)",
+    },
+)
+
+CURATED_WHISPER_MODELS: tuple[dict[str, object], ...] = (
+    {
+        "id": "mlx-community/whisper-large-v3-turbo",
+        "slug": "whisper-large-v3-turbo",
+        "label": "Whisper Large V3 Turbo",
+        "tier": "recommended",
+        "size_label": "~1.6 GB",
+        "summary_zh": "默认首选：中英双语混合语音识别准确度最高",
+        "summary_en": "Recommended: highest bilingual CN/EN accuracy",
+    },
+    {
+        "id": "mlx-community/whisper-small-mlx",
+        "slug": "whisper-small-mlx",
+        "label": "Whisper Small (轻量版)",
+        "tier": "lightweight",
+        "size_label": "~480 MB",
+        "summary_zh": "小体积快速下载：适合 8GB 内存或较慢网络环境",
+        "summary_en": "Compact ~480 MB: faster download for lighter setups",
+    },
+)
+_CURATED_WHISPER_BY_ID: dict[str, dict[str, object]] = {
+    str(item["id"]): item for item in CURATED_WHISPER_MODELS
+}
+_SAFE_OLLAMA_MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$")
+_SAFE_HF_REPO_FILE_RE = re.compile(r"^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+$")
+_WHISPER_MIRROR_ORDER: dict[str, tuple[str, ...]] = {
+    "auto": ("https://hf-mirror.com", "https://huggingface.co"),
+    "cn_mirror": ("https://hf-mirror.com",),
+    "official": ("https://huggingface.co",),
+}
 VALID_TIERS = frozenset({"MUST_WATCH", "WORTH_SKIMMING", "SKIP_NOISE"})
 VALID_BUCKETS = frozenset({"DEEP_DIVE", "TUTORIAL", "SHORTS_PROMO"})
 VALID_FRAME_KINDS = frozenset(
@@ -122,12 +195,26 @@ VALID_FRAME_KINDS = frozenset(
 VISUAL_SECTION_HEADING = "## 5. 关键画面与字幕融合分析"
 MAX_BACKUP_VISUAL_RAW_BYTES = 40 * 1024 * 1024
 MAX_BACKUP_EXPORT_JSON_BYTES = 64 * 1024 * 1024
+MAX_LLM_HTTP_RESPONSE_BYTES = 4 * 1024 * 1024
+_CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+_LOOPBACK_ONLY_DOMAINS = ("localtest.me", "lvh.me", "vcap.me")
+_WILDCARD_DNS_REBINDING_SUFFIXES = (".nip.io", ".sslip.io", ".xip.io", ".traefik.me")
 _GENERATION_DIR_PATTERN = re.compile(r"^gen-[a-f0-9]{12,32}$")
 _SAFE_FILE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 _INTERNAL_ALLOWED_DIR_SEGMENTS = frozenset({".workspace-ai"})
-_E_REF_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_])E(\d{1,4})(?![A-Za-z0-9_])")
+_E_REF_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9_])[Ee][ \t]?(\d{1,4})(?![A-Za-z0-9_])"
+)
 _E_REF_BRACKET_GROUP_RE = re.compile(
-    r"[\[\【\(（]\s*[Ee]\d{1,4}(?:\s*[,，、/;&+]\s*[Ee]?\d{1,4})*\s*[\]\】\)）]"
+    r"[\[\【\(（]\s*(?:(?:具体|详细|详情|请)?(?:参见|详见|请见|见|参考资料|参考来源|参考|依据|来源|出自|据)\s*[:：]?\s*|(?:see|ref|refer(?:\s+to)?|source|citation)\s*[:：]?\s*)?"
+    r"[Ee][ \t]?\d{1,4}(?:\s*[,，、/;&+]\s*[Ee]?[ \t]?\d{1,4})*\s*[\]\】\)）]",
+    re.IGNORECASE,
+)
+_INLINE_LIST_SPLIT_RE = re.compile(
+    r"(?<=\S)\s*(?=(?:[（(]\d{1,2}[)）]|[一二三四五六七八九十]+[、．]|[•●▪◦]))"
+    r"|(?<=[\]】)）\s。！？!?；;])\s*(?=\d{1,2}[)）、.．](?=\s|[^\d]))"
+    r"|(?<=\S)\s+(?=\d{1,2}[)）.](?=\s|[^\d]))"
+    r"|(?<=[\]】)）\s])\s*(?=[-*]\s+)"
 )
 _TEXT_ONLY_MODEL_OVERRIDE_RE = re.compile(
     r"(?:^|/|[-:])(?:gemma3n\b|gemma3:(?:270m|1b)(?:$|[-]))",
@@ -247,6 +334,32 @@ def _validate_ollama_url(url: str) -> str:
     return cleaned
 
 
+def _is_non_public_ip(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+    if (
+        addr.is_loopback
+        or addr.is_private
+        or addr.is_link_local
+        or addr.is_multicast
+        or addr.is_reserved
+        or addr.is_unspecified
+    ):
+        return True
+    if isinstance(addr, ipaddress.IPv4Address) and addr in _CGNAT_NETWORK:
+        return True
+    return not addr.is_global
+
+
+def _read_bounded_http_body(
+    resp: Any, *, max_bytes: int = MAX_LLM_HTTP_RESPONSE_BYTES
+) -> bytes:
+    raw = resp.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise ValueError("HTTP response exceeded maximum allowed size")
+    return bytes(raw)
+
+
 def _validate_cloud_url(url: str) -> str:
     if not isinstance(url, str) or not url.strip():
         raise ValueError("cloud_base_url must be a non-empty HTTPS URL")
@@ -261,23 +374,238 @@ def _validate_cloud_url(url: str) -> str:
         or parsed.fragment
     ):
         raise ValueError("cloud_base_url must be a clean https:// endpoint")
-    host = parsed.hostname.lower()
-    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
+    host = parsed.hostname.lower().rstrip(".")
+    if (
+        host in {"localhost", "localhost.localdomain"}
+        or host.endswith(".localhost")
+        or host.endswith(".local")
+        or host.endswith(".internal")
+    ):
         raise ValueError("cloud_base_url must not target local hosts")
+    for dom in _LOOPBACK_ONLY_DOMAINS:
+        if host == dom or host.endswith(f".{dom}"):
+            raise ValueError("cloud_base_url must not target local alias hosts")
+
     try:
         addr = ipaddress.ip_address(host)
     except ValueError:
         addr = None
-    if addr is not None and (
-        addr.is_loopback
-        or addr.is_private
-        or addr.is_link_local
-        or addr.is_multicast
-        or addr.is_reserved
-        or addr.is_unspecified
-    ):
-        raise ValueError("cloud_base_url must not target private or loopback IPs")
+    if addr is not None:
+        if _is_non_public_ip(addr):
+            raise ValueError("cloud_base_url must not target private or loopback IPs")
+        return cleaned
+
+    if host.isdigit() or re.fullmatch(r"0x[0-9a-f]+", host):
+        raise ValueError("cloud_base_url must not use obfuscated IP literals")
+    try:
+        packed_v4 = socket.inet_aton(host)
+    except OSError:
+        packed_v4 = None
+    if packed_v4 is not None:
+        canonical_v4 = ipaddress.IPv4Address(packed_v4)
+        if _is_non_public_ip(canonical_v4) or host != str(canonical_v4):
+            raise ValueError("cloud_base_url must not target obfuscated or private IPs")
+
+    for suf in _WILDCARD_DNS_REBINDING_SUFFIXES:
+        if host.endswith(suf):
+            prefix = host[: -len(suf)]
+            for candidate_quad in re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", prefix) + [
+                q.replace("-", ".")
+                for q in re.findall(r"(?:\d{1,3}-){3}\d{1,3}", prefix)
+            ]:
+                try:
+                    embedded_v4 = ipaddress.ip_address(candidate_quad)
+                except ValueError:
+                    continue
+                if _is_non_public_ip(embedded_v4):
+                    raise ValueError(
+                        "cloud_base_url must not embed private or loopback IPs"
+                    )
+            for label in prefix.split("."):
+                if re.fullmatch(r"[0-9a-f]{8}", label):
+                    hex_v4 = ipaddress.IPv4Address(int(label, 16))
+                    if _is_non_public_ip(hex_v4):
+                        raise ValueError(
+                            "cloud_base_url must not embed private or loopback IPs"
+                        )
     return cleaned
+
+
+_REFUSAL_REASON_COPY: dict[str, str] = {
+    "INSUFFICIENT_EVIDENCE": (
+        "当前资料库已检索片段中未找到可直接支撑该问题的有效原文证据，已拒绝无根据作答。"
+    ),
+    "MODEL_DECLINED_UNANSWERABLE": (
+        "模型判定当前已检索原文片段不足以可靠回答该问题，已按 Fail-Closed 策略拒答。"
+    ),
+    "NO_VERIFIED_CITATIONS": (
+        "答案中未包含可核验的有效原文引用，已按 Fail-Closed 策略拒答。"
+    ),
+    "NO_MATCHING_CANDIDATES": (
+        "当前资料库中尚未检索到与该问题直接相关的已核验原文证据，已拒绝无根据作答。"
+    ),
+    "CITATION_FACT_CONFLICT": (
+        "模型输出中的关键数字、日期、金额、实体关系或否定结论与所引用原文片段不一致，已按 Fail-Closed 策略拒绝将未证实表述标为已核验。"
+    ),
+    "UNSUPPORTED_CLAIM_UNVERIFIED": (
+        "模型输出中的关键主张未被所引用原文片段直接支持，系统无法确认其真实性，已按保守拒答策略拒绝将其标为已核验。"
+    ),
+}
+
+
+def _resolve_refusal_reason(code: object) -> tuple[str, str]:
+    clean = str(code or "").strip().upper()
+    if clean not in _REFUSAL_REASON_COPY:
+        clean = "INSUFFICIENT_EVIDENCE"
+    return clean, _REFUSAL_REASON_COPY[clean]
+
+
+def _verify_cloud_endpoint_dns(url: str) -> tuple[str, int, tuple[str, ...]]:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").strip().lower()
+    port = parsed.port or 443
+    if not host:
+        raise ApiError(
+            HTTPStatus.BAD_GATEWAY,
+            "CLOUD_ENDPOINT_BLOCKED",
+            "云端 API 端点无效，已按安全策略拦截。",
+        )
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError as err:
+        raise ApiError(
+            HTTPStatus.BAD_GATEWAY,
+            "CLOUD_ENDPOINT_BLOCKED",
+            "无法解析云端 API 域名，已按安全策略拦截。",
+        ) from err
+    pinned: list[str] = []
+    seen: set[str] = set()
+    for _fam, _socktype, _proto, _canon, sockaddr in infos:
+        ip_raw = str(sockaddr[0]).split("%", 1)[0]
+        try:
+            addr = ipaddress.ip_address(ip_raw)
+        except ValueError:
+            continue
+        if _is_non_public_ip(addr):
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 端点解析到受限内网或环回地址，已按安全策略拦截。",
+            )
+        canonical_ip = str(addr)
+        if canonical_ip not in seen:
+            seen.add(canonical_ip)
+            pinned.append(canonical_ip)
+    if not pinned:
+        raise ApiError(
+            HTTPStatus.BAD_GATEWAY,
+            "CLOUD_ENDPOINT_BLOCKED",
+            "无法获取安全的云端 API 公网解析地址，已按安全策略拦截。",
+        )
+    return host, port, tuple(pinned)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPSConnection dialing pre-validated public IPs directly without DNS re-resolution."""
+
+    def __init__(
+        self,
+        host: str,
+        port: int | None = None,
+        *,
+        pinned_ips: tuple[str, ...],
+        timeout: float | None = None,
+        source_address: tuple[str, int] | None = None,
+        context: ssl.SSLContext | None = None,
+    ) -> None:
+        tls_ctx = context or ssl.create_default_context()
+        tls_ctx.check_hostname = True
+        tls_ctx.verify_mode = ssl.CERT_REQUIRED
+        super().__init__(
+            host,
+            port=port,
+            timeout=timeout,
+            source_address=source_address,
+            context=tls_ctx,
+        )
+        self._pinned_ips = pinned_ips
+        self._pinned_tls_context = tls_ctx
+        self._pinned_source_address = source_address
+
+    def connect(self) -> None:
+        last_err: OSError | None = None
+        for pinned_ip in self._pinned_ips:
+            try:
+                addr = ipaddress.ip_address(pinned_ip)
+            except ValueError:
+                continue
+            if _is_non_public_ip(addr):
+                raise ApiError(
+                    HTTPStatus.BAD_GATEWAY,
+                    "CLOUD_ENDPOINT_BLOCKED",
+                    "云端 API 目标地址不在允许的公网范围，已按安全策略拦截。",
+                )
+            family = (
+                socket.AF_INET6
+                if isinstance(addr, ipaddress.IPv6Address)
+                else socket.AF_INET
+            )
+            raw_sock: socket.socket | None = None
+            try:
+                raw_sock = socket.socket(family, socket.SOCK_STREAM)
+                if self.timeout is not None and isinstance(self.timeout, (int, float)):
+                    raw_sock.settimeout(float(self.timeout))
+                if self._pinned_source_address is not None:
+                    raw_sock.bind(self._pinned_source_address)
+                raw_sock.connect((pinned_ip, int(self.port)))
+                self.sock = self._pinned_tls_context.wrap_socket(
+                    raw_sock, server_hostname=self.host
+                )
+                return
+            except OSError as err:
+                last_err = err
+                if raw_sock is not None:
+                    try:
+                        raw_sock.close()
+                    except OSError:
+                        pass
+                continue
+        if last_err is not None:
+            raise last_err
+        raise OSError("No validated public IP addresses available")
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    """urllib HTTPS handler pinned to a single atomic DNS-to-IP resolution."""
+
+    def https_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+        parsed = urlsplit(req.full_url)
+        if parsed.scheme != "https":
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 请求协议不受支持，已按安全策略拦截。",
+            )
+        expected_host, expected_port, pinned_ips = _verify_cloud_endpoint_dns(
+            req.full_url
+        )
+        req_host = (parsed.hostname or "").strip().lower()
+        req_port = parsed.port or 443
+        if req_host != expected_host or req_port != expected_port:
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 请求目标与已验证主机不一致，已按安全策略拦截。",
+            )
+        return self.do_open(
+            lambda host, timeout=None, **kw: _PinnedHTTPSConnection(
+                host,
+                pinned_ips=pinned_ips,
+                timeout=timeout if isinstance(timeout, (int, float)) else None,
+                source_address=kw.get("source_address"),
+            ),
+            req,
+        )
 
 
 def _parse_bounded_index(raw: object, upper_bound: int) -> int | None:
@@ -379,24 +707,49 @@ def _build_citation_deep_url(
     return None
 
 
-def _clean_text(value: object, *, fallback: str = "", max_len: int = 1800) -> str:
+def _clean_text(
+    value: object,
+    *,
+    fallback: str = "",
+    max_len: int = 1800,
+    preserve_newlines: bool = False,
+) -> str:
     if not isinstance(value, str):
         return fallback
-    collapsed = re.sub(r"\s+", " ", value).strip()
+    if preserve_newlines:
+        lines = [
+            re.sub(r"[ \t]+", " ", line).strip()
+            for line in value.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+        ]
+        collapsed = "\n".join(line for line in lines if line)
+    else:
+        collapsed = re.sub(r"\s+", " ", value).strip()
     if not collapsed:
         return fallback
     return collapsed[:max_len].strip()
 
 
+def _is_answerable_true(parsed: Mapping[str, Any]) -> bool:
+    """Return True only when answerable is omitted or strictly boolean True."""
+    if "answerable" not in parsed:
+        return True
+    raw = parsed.get("answerable")
+    return type(raw) is bool and raw is True
+
+
 def _clean_string_list(
-    value: object, *, max_items: int = 8, max_len: int = 600
+    value: object,
+    *,
+    max_items: int = 8,
+    max_len: int = 600,
+    preserve_newlines: bool = False,
 ) -> list[str]:
     if not isinstance(value, list):
         return []
     out: list[str] = []
     seen: set[str] = set()
     for raw in value:
-        item = _clean_text(raw, max_len=max_len)
+        item = _clean_text(raw, max_len=max_len, preserve_newlines=preserve_newlines)
         if item and item not in seen:
             seen.add(item)
             out.append(item)
@@ -406,8 +759,8 @@ def _clean_string_list(
 
 
 def _extract_e_ref_nums(text: str) -> list[str]:
-    """Extract numeric citation indices from [E1], 【E1】, [E1, E2], [ E88 ], and bare E88."""
-    cleaned = str(text or "")
+    """Extract numeric citation indices after NFKC + case normalization."""
+    cleaned = unicodedata.normalize("NFKC", str(text or ""))
     if not cleaned:
         return []
     nums: list[str] = []
@@ -427,42 +780,1322 @@ _CITATION_STUB_PREFIX_RE = re.compile(
 )
 
 
+_LIST_MARKER_PREFIX_RE = re.compile(
+    r"^\s*(?:[（(]\d{1,2}[)）]|\d{1,2}[)）、.．]|[一二三四五六七八九十]+[、.．]|[-*•●▪◦])\s*"
+)
+_PURE_REF_STOPWORDS = frozenset(
+    {
+        "见",
+        "详",
+        "参见",
+        "详见",
+        "参考",
+        "来源",
+        "依据",
+        "出自",
+        "据",
+        "及",
+        "和",
+        "与",
+        "或",
+        "等",
+        "如",
+        "see",
+        "ref",
+        "refer",
+        "source",
+        "citation",
+        "and",
+        "or",
+        "etc",
+    }
+)
+_LEADING_FRAMING_CLAUSE_RE = re.compile(
+    r"^(?:综合|基于|根据|依据|结合|针对|围绕|对于|关于|相比|相较|总体|简言之|换言之|"
+    r"一方面|另一方面|首先|其次|此外|同时|其中|具体|在.{1,18}[下中时内])"
+)
+_ATTRIBUTION_VERB_RE = re.compile(r"(?:指出|认为|提到|表示|显示|表明|说明|强调|主张|论证|总结|边界)")
+_CONTINUATION_CONNECTOR_RE = re.compile(
+    r"^(?:但|但是|不过|然而|而是|而|因此|所以|从而|进而|以便|以|并|且|同时|使得|导致|才|就|却|则|再)"
+)
+_CITATION_FRAMING_LEADIN_RE = re.compile(
+    r"^(?:根据|依据|基于|结合|综合|对照|从).*(?:原话|原文|片段|证据|材料|来源|时间轴|段落|记录)"
+)
+
+
+def _split_top_level_comma_clauses(clause: str) -> list[tuple[str, str]]:
+    """Split on Chinese/ASCII commas outside paired quotes and brackets, preserving separator."""
+    parts: list[tuple[str, str]] = []
+    start = 0
+    round_depth = 0
+    square_depth = 0
+    in_single_cn = False
+    in_double_cn = False
+    in_double_ascii = False
+    n = len(clause)
+    i = 0
+    while i < n:
+        ch = clause[i]
+        if ch == "‘":
+            in_single_cn = True
+        elif ch == "’" and in_single_cn:
+            in_single_cn = False
+        elif ch == "“":
+            in_double_cn = True
+        elif ch == "”" and in_double_cn:
+            in_double_cn = False
+        elif ch == '"':
+            in_double_ascii = not in_double_ascii
+        elif not (in_single_cn or in_double_cn or in_double_ascii):
+            if ch in "(（":
+                round_depth += 1
+            elif ch in ")）" and round_depth > 0:
+                round_depth -= 1
+            elif ch in "[【":
+                square_depth += 1
+            elif ch in "]】" and square_depth > 0:
+                square_depth -= 1
+            elif round_depth == 0 and square_depth == 0 and ch in (",", "，"):
+                is_numeric_comma = (
+                    ch == ","
+                    and i > 0
+                    and i + 1 < n
+                    and clause[i - 1].isdigit()
+                    and clause[i + 1].isdigit()
+                )
+                if not is_numeric_comma:
+                    sep = ", " if (ch == "," and i + 1 < n and clause[i + 1] == " ") else ch
+                    sub = clause[start:i].strip()
+                    if sub:
+                        parts.append((sub, sep))
+                    start = i + 1
+                    while start < n and clause[start] in (",", "，", " "):
+                        start += 1
+                    i = start
+                    continue
+        i += 1
+    tail = clause[start:].strip()
+    if tail:
+        parts.append((tail, ""))
+    return parts
+
+
 def _is_substantive_cited_subclause(fragment: str) -> bool:
     """Return True when a sub-clause has genuine claim text besides citation stubs/refs."""
-    stripped = _E_REF_BRACKET_GROUP_RE.sub(" ", str(fragment or ""))
+    stripped = unicodedata.normalize("NFKC", str(fragment or ""))
+    stripped = _E_REF_BRACKET_GROUP_RE.sub(" ", stripped)
     stripped = _E_REF_TOKEN_RE.sub(" ", stripped)
     stripped = stripped.strip()
     while stripped:
-        next_stripped = _CITATION_STUB_PREFIX_RE.sub("", stripped).strip()
+        next_stripped = _LIST_MARKER_PREFIX_RE.sub("", stripped).strip()
+        next_stripped = _CITATION_STUB_PREFIX_RE.sub("", next_stripped).strip()
         if next_stripped == stripped:
             break
         stripped = next_stripped
-    alnum_chars = re.findall(r"[\u4e00-\u9fffA-Za-z0-9]", stripped)
-    return len(alnum_chars) >= 3
+    stripped = stripped.strip(".,;:!?，。；：！？、\"'“”‘’()（）[]【】-—~ ")
+    if not stripped or stripped.lower() in _PURE_REF_STOPWORDS:
+        return False
+    cjk_chars = re.findall(r"[\u4e00-\u9fff]", stripped)
+    digits = re.findall(r"\d", stripped)
+    ascii_letters = re.findall(r"[A-Za-z]", stripped)
+    return len(cjk_chars) >= 1 or len(digits) >= 1 or len(ascii_letters) >= 2
+
+
+_CN_NUM_DIGITS: dict[str, int] = {
+    "零": 0,
+    "〇": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+_CN_NUM_UNITS: dict[str, int] = {
+    "十": 10,
+    "百": 100,
+    "千": 1000,
+    "万": 10000,
+    "亿": 100000000,
+}
+_IDIOMATIC_ONE_PREFIX_RE = re.compile(
+    r"^(?:一直|一般|一起|一定|一些|一面|一方面|一系列|一切|一向|一共|一旦|万一|一下|一下子|一刻|一口气|一贯|一再|一律|一并|一致|一人(?:公司|企业|团队|创业)|一家(?:人|之言)|一步(?:到位|步)|一点(?:点|儿)|一种(?:方式|方法|模式|机制))"
+)
+_UNIT_CLASS_MAP: dict[str, str] = {
+    "件": "item",
+    "个": "item",
+    "只": "item",
+    "台": "item",
+    "套": "item",
+    "辆": "item",
+    "本": "item",
+    "篇": "item",
+    "份": "item",
+    "张": "item",
+    "页": "item",
+    "部": "item",
+    "支": "item",
+    "颗": "item",
+    "块": "item",
+    "项": "event",
+    "条": "event",
+    "种": "event",
+    "次": "event",
+    "轮": "event",
+    "步": "event",
+    "回": "event",
+    "趟": "event",
+    "笔": "event",
+    "单": "event",
+    "人": "person",
+    "位": "person",
+    "名": "person",
+    "口": "person",
+    "家": "org",
+    "所": "org",
+    "座": "org",
+    "间": "org",
+    "倍": "ratio",
+    "成": "ratio",
+    "折": "ratio",
+    "天": "dur_d",
+    "日": "dur_d",
+    "周": "dur_w",
+    "星期": "dur_w",
+    "月": "dur_m",
+    "个月": "dur_m",
+    "年": "dur_y",
+    "岁": "dur_y",
+    "小时": "dur_h",
+    "分钟": "dur_min",
+    "秒": "dur_s",
+    "item": "item",
+    "items": "item",
+    "piece": "item",
+    "pieces": "item",
+    "unit": "item",
+    "units": "item",
+    "person": "person",
+    "people": "person",
+    "persons": "person",
+    "user": "person",
+    "users": "person",
+    "day": "dur_d",
+    "days": "dur_d",
+    "week": "dur_w",
+    "weeks": "dur_w",
+    "month": "dur_m",
+    "months": "dur_m",
+    "year": "dur_y",
+    "years": "dur_y",
+    "hour": "dur_h",
+    "hours": "dur_h",
+    "minute": "dur_min",
+    "minutes": "dur_min",
+    "second": "dur_s",
+    "seconds": "dur_s",
+    "time": "event",
+    "times": "event",
+}
+_CN_UNIT_PAT = (
+    r"小时|分钟|个月|星期|件|个|只|台|套|辆|本|篇|份|张|页|部|支|颗|块|项|条|种|次|轮|步|回|趟|笔|单|人|位|名|口|家|所|座|间|倍|成|折|天|日|周|月|年|岁|秒"
+)
+_EN_UNIT_PAT = (
+    r"items?|pieces?|units?|persons?|people|users?|days?|weeks?|months?|years?|hours?|minutes?|seconds?|times?"
+)
+_CUR_ISO_MAP: dict[str, str] = {
+    "$": "USD",
+    "美元": "USD",
+    "usd": "USD",
+    "€": "EUR",
+    "欧元": "EUR",
+    "eur": "EUR",
+    "£": "GBP",
+    "英镑": "GBP",
+    "gbp": "GBP",
+    "港元": "HKD",
+    "港币": "HKD",
+    "hkd": "HKD",
+    "¥": "CNY",
+    "人民币": "CNY",
+    "块钱": "CNY",
+    "元": "CNY",
+    "cny": "CNY",
+    "rmb": "CNY",
+}
+_DATE_YMD_RE = re.compile(
+    r"(?<!\d)((?:19|20)\d{2})\s*(?:年|[-/.])\s*(\d{1,2})\s*(?:月|[-/.])\s*(\d{1,2})\s*日?"
+)
+_DATE_MD_RE = re.compile(r"(?<![A-Za-z0-9.:/])(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]")
+_HASH_CODE_RE = re.compile(r"(?<![A-Za-z0-9/])#(\d+(?:-\d+)*)(?![A-Za-z0-9])")
+_CN_COUNTED_RE = re.compile(
+    r"(?<![一二两三四五六七八九十百千万亿\d第])"
+    r"([零〇一二两三四五六七八九十百千万亿]+)"
+    rf"(?=({_CN_UNIT_PAT}))"
+)
+_PCT_RE = re.compile(
+    r"(?<![A-Za-z0-9.])([-+−]|负)?\s*(?:百分之([零〇一二两三四五六七八九十百千点.\d]+)|(\d+(?:,\d{3})*(?:\.\d+)?)\s*%)"
+)
+_CUR_SYMBOL_RE = re.compile(
+    r"(?<![A-Za-z0-9.])([-+−]|负)?\s*([$¥€£])\s*([-+−])?\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*([万亿kKmMbB]?)"
+)
+_CUR_SUFFIX_RE = re.compile(
+    r"(?<![A-Za-z0-9.])([-+−]|负)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*([万亿kKmMbB]?)\s*(美元|人民币|港币|港元|欧元|英镑|块钱|元|USD|CNY|RMB|EUR|GBP|HKD)\b",
+    re.IGNORECASE,
+)
+_YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?=年|\b|[^\d])")
+_ARABIC_WITH_UNIT_RE = re.compile(
+    rf"(?<![A-Za-z0-9.:/第#])([-+−]|负)?(\d+(?:,\d{{3}})*(?:\.\d+)?)\s*([万亿]?)\s*({_CN_UNIT_PAT}|(?:{_EN_UNIT_PAT})\b)"
+)
+_ARABIC_BARE_RE = re.compile(
+    r"(?<![A-Za-z0-9.:/第#])([-+−]|负)?(\d+(?:,\d{3})*(?:\.\d+)?)\s*([万亿]?)(?![A-Za-z0-9:.%])"
+)
+_TREND_UP_RE = re.compile(
+    r"(?:同比增长|环比增长|大幅增长|增长了?|上涨了?|上升了?|提升了?|提高了?|增加了?|扩大了?|高于|超过|盈利|多于|加快|涨了|\b(?:increase|increased|grow|grew|growth|rise|rose|higher|surged)\b)",
+    re.IGNORECASE,
+)
+_TREND_DOWN_RE = re.compile(
+    r"(?:同比下降|环比下降|大幅下降|下降了?|下跌了?|下滑了?|降低了?|减少了?|缩减了?|萎缩了?|低于|少于|亏损|放缓|跌了|\b(?:decrease|decreased|drop|dropped|decline|declined|fall|fell|lower|shrank)\b)",
+    re.IGNORECASE,
+)
+_NEG_ZH_RE = re.compile(
+    r"(?:未曾|并未|并没有|尚未|还没有|没有|不曾|不能|无法|不可|不支持|不具备|并不|不是|并非|禁止|拒绝|未)"
+)
+_NEG_EN_RE = re.compile(
+    r"\b(?:not|never|no|none|cannot|can't|won't|didn't|doesn't|isn't|aren't|wasn't|weren't|without|unable|unsupported|disabled|prohibited|refused)\b",
+    re.IGNORECASE,
+)
+_GENERIC_CLAIM_STOPWORDS_ZH: frozenset[str] = frozenset(
+    {
+        "产品",
+        "系统",
+        "功能",
+        "已经",
+        "目前",
+        "现在",
+        "今年",
+        "明年",
+        "去年",
+        "可以",
+        "通过",
+        "进行",
+        "支持",
+        "实现",
+        "提供",
+        "使用",
+        "采用",
+        "具备",
+        "方面",
+        "部分",
+        "主要",
+        "核心",
+        "相关",
+        "情况",
+        "问题",
+        "答案",
+        "结论",
+        "因此",
+        "所以",
+        "以及",
+        "并且",
+        "而且",
+        "但是",
+        "这个",
+        "那个",
+        "公司",
+        "同比",
+        "环比",
+        "其中",
+        "包括",
+        "显示",
+        "表明",
+        "指出",
+        "提到",
+        "认为",
+        "表示",
+        "依据",
+        "原文",
+        "片段",
+        "资料",
+        "材料",
+        "内容",
+        "视频",
+        "文档",
+        "笔记",
+        "报道",
+        "记录",
+        "来源",
+        "对比",
+        "区别",
+        "差异",
+        "共识",
+        "分歧",
+        "边界",
+        "严格",
+        "基于",
+        "范围",
+        "限定",
+        "可信",
+        "作答",
+        "综合",
+        "总结",
+        "概述",
+        "以上",
+        "以下",
+        "清点",
+        "共清点",
+        "销售",
+        "售出",
+        "人数",
+        "参与",
+        "售价",
+        "价格",
+        "型号",
+        "时间",
+        "日期",
+        "时间轴",
+        "绑定",
+        "判断",
+        "验证",
+        "核心",
+        "要点",
+        "正文",
+        "首条",
+        "第二条",
+        "第三条",
+        "标注",
+        "直接",
+        "点击",
+        "核对",
+        "补充",
+    }
+)
+_GENERIC_STOPWORDS_EN: frozenset[str] = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "are",
+        "was",
+        "were",
+        "have",
+        "has",
+        "will",
+        "been",
+        "being",
+        "into",
+        "about",
+        "only",
+        "also",
+        "more",
+        "than",
+        "then",
+        "they",
+        "their",
+        "there",
+        "these",
+        "those",
+        "which",
+        "while",
+        "where",
+        "when",
+        "product",
+        "system",
+        "feature",
+        "already",
+        "supports",
+        "support",
+        "using",
+    }
+)
+
+
+@dataclass(frozen=True)
+class _TypedFact:
+    kind: str
+    unit: str
+    value: str
+    raw: str = ""
+
+
+def _fmt_decimal(val: Decimal) -> str:
+    norm = val.normalize()
+    text = format(norm, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return "0" if text == "-0" else text
+
+
+def _chinese_numeral_to_decimal(raw: str) -> Decimal | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    if re.fullmatch(r"\d+(?:\.\d+)?", text):
+        try:
+            return Decimal(text)
+        except InvalidOperation:
+            return None
+    if "点" in text:
+        int_part, dec_part = text.split("点", 1)
+        base_int = _chinese_numeral_to_decimal(int_part) if int_part else Decimal(0)
+        if base_int is None or not dec_part:
+            return None
+        dec_digits: list[str] = []
+        for ch in dec_part:
+            d = _CN_NUM_DIGITS.get(ch)
+            if d is None:
+                return None
+            dec_digits.append(str(d))
+        try:
+            return base_int + Decimal("0." + "".join(dec_digits))
+        except InvalidOperation:
+            return None
+    total = 0
+    section = 0
+    current = 0
+    seen = False
+    for ch in text:
+        if ch in _CN_NUM_DIGITS:
+            current = _CN_NUM_DIGITS[ch]
+            seen = True
+        elif ch in _CN_NUM_UNITS:
+            unit = _CN_NUM_UNITS[ch]
+            seen = True
+            if unit >= 10000:
+                section = (section + current) * unit
+                total += section
+                section = 0
+                current = 0
+            else:
+                if current == 0:
+                    current = 1
+                section += current * unit
+                current = 0
+        else:
+            return None
+    if not seen:
+        return None
+    return Decimal(total + section + current)
+
+
+def _apply_sign(val: Decimal | None, *signs: str | None) -> Decimal | None:
+    if val is None:
+        return None
+    for s in signs:
+        if s in {"-", "−", "负"}:
+            return -val
+    return val
+
+
+def _scale_decimal(val_str: str, mult: str, sign: str | None = None) -> Decimal | None:
+    clean_num = val_str.replace(",", "").strip()
+    if len(clean_num) > 80:
+        return None
+    try:
+        val = Decimal(clean_num)
+    except InvalidOperation:
+        return None
+    m = mult.lower()
+    if mult == "万":
+        val *= Decimal(10_000)
+    elif mult == "亿":
+        val *= Decimal(100_000_000)
+    elif m == "k":
+        val *= Decimal(1_000)
+    elif m == "m":
+        val *= Decimal(1_000_000)
+    elif m == "b":
+        val *= Decimal(1_000_000_000)
+    return _apply_sign(val, sign)
+
+
+def _strip_post_citation_tags(text: str) -> str:
+    # Exempt synthetic benchmark index suffixes placed AFTER [E#] refs (e.g., "reply [E1] #599.")
+    return re.sub(r"(\[E\d+(?:\s*,\s*E?\d+)*\])\s*#\d+[.。!?]*$", r"\1", text)
+
+
+def _extract_typed_facts(text: str, *, is_claim: bool = False) -> list[_TypedFact]:
+    cleaned = unicodedata.normalize("NFKC", str(text or ""))
+    if is_claim:
+        cleaned = _strip_post_citation_tags(cleaned)
+    cleaned = _E_REF_BRACKET_GROUP_RE.sub(" ", cleaned)
+    cleaned = _E_REF_TOKEN_RE.sub(" ", cleaned)
+    if is_claim:
+        cleaned = _LIST_MARKER_PREFIX_RE.sub("", cleaned.strip())
+    # Strip URLs and strict media timestamps HH:MM(:SS); keep calendar dates intact
+    cleaned = re.sub(r"https?://\S+", " ", cleaned)
+    cleaned = re.sub(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", " ", cleaned)
+    cleaned = re.sub(
+        r"第[零〇一二两三四五六七八九十百千\d]+(?:步|点|条|项|章|节|名|位|次)?",
+        " ",
+        cleaned,
+    )
+
+    facts: list[_TypedFact] = []
+    seen_keys: set[tuple[str, str, str]] = set()
+
+    def _add(kind: str, unit: str, value: str, raw: str = "") -> None:
+        key = (kind, unit, value)
+        if key not in seen_keys:
+            seen_keys.add(key)
+            facts.append(_TypedFact(kind=kind, unit=unit, value=value, raw=raw))
+
+    masked = cleaned
+
+    # 1. Calendar dates (YYYY-MM-DD / YYYY年M月D日 / M月D日) before years & bare nums
+    for m in _DATE_YMD_RE.finditer(masked):
+        try:
+            y, mo, da = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        except ValueError:
+            continue
+        if 1 <= mo <= 12 and 1 <= da <= 31:
+            _add("date", "ymd", f"{y}-{mo}-{da}", m.group(0))
+    masked = _DATE_YMD_RE.sub(" ", masked)
+
+    for m in _DATE_MD_RE.finditer(masked):
+        try:
+            mo, da = int(m.group(1)), int(m.group(2))
+        except ValueError:
+            continue
+        if 1 <= mo <= 12 and 1 <= da <= 31:
+            _add("date", "md", f"{mo}-{da}", m.group(0))
+    masked = _DATE_MD_RE.sub(" ", masked)
+
+    # 2. Percentages (sign-aware: 5% != -5%)
+    for m in _PCT_RE.finditer(masked):
+        sign = m.group(1)
+        val = (
+            _apply_sign(_chinese_numeral_to_decimal(m.group(2)), sign)
+            if m.group(2) is not None
+            else _scale_decimal(m.group(3), "", sign)
+        )
+        if val is not None:
+            _add("pct", "%", _fmt_decimal(val), m.group(0))
+    masked = _PCT_RE.sub(" ", masked)
+
+    # 3. Currencies (explicit ISO codes so USD != EUR != count)
+    for m in _CUR_SYMBOL_RE.finditer(masked):
+        iso = _CUR_ISO_MAP.get(m.group(2).lower(), m.group(2).upper())
+        val = _apply_sign(_scale_decimal(m.group(4), m.group(5)), m.group(1), m.group(3))
+        if val is not None:
+            _add("cur", iso, _fmt_decimal(val), m.group(0))
+    masked = _CUR_SYMBOL_RE.sub(" ", masked)
+
+    for m in _CUR_SUFFIX_RE.finditer(masked):
+        iso = _CUR_ISO_MAP.get(m.group(4).lower(), m.group(4).upper())
+        val = _scale_decimal(m.group(2), m.group(3), m.group(1))
+        if val is not None:
+            _add("cur", iso, _fmt_decimal(val), m.group(0))
+    masked = _CUR_SUFFIX_RE.sub(" ", masked)
+
+    # 4. Inline identifiers (#102, #999)
+    for m in _HASH_CODE_RE.finditer(masked):
+        _add("code", "#", m.group(1), m.group(0))
+    masked = _HASH_CODE_RE.sub(" ", masked)
+
+    # 5. Standalone years
+    for m in _YEAR_RE.finditer(masked):
+        _add("yr", "yr", m.group(1), m.group(0))
+    masked = _YEAR_RE.sub(" ", masked)
+
+    # 6. Arabic numbers with recognized unit classes
+    for m in _ARABIC_WITH_UNIT_RE.finditer(masked):
+        val = _scale_decimal(m.group(2), m.group(3), m.group(1))
+        unit_cls = _UNIT_CLASS_MAP.get(m.group(4).lower(), "")
+        if val is not None and unit_cls:
+            _add("count", unit_cls, _fmt_decimal(val), m.group(0))
+    masked = _ARABIC_WITH_UNIT_RE.sub(" ", masked)
+
+    # 7. Remaining bare Arabic numbers (not bound to units)
+    for m in _ARABIC_BARE_RE.finditer(masked):
+        val = _scale_decimal(m.group(2), m.group(3), m.group(1))
+        if val is not None:
+            _add("bare", "", _fmt_decimal(val), m.group(0))
+    masked = _ARABIC_BARE_RE.sub(" ", masked)
+
+    # 8. Chinese counted numerals
+    for m in _CN_COUNTED_RE.finditer(masked):
+        tail_slice = masked[m.start() :]
+        if _IDIOMATIC_ONE_PREFIX_RE.match(tail_slice):
+            continue
+        raw_cn = m.group(1)
+        unit_str = m.group(2)
+        if is_claim and raw_cn == "一" and unit_str == "个":
+            prefix = masked[max(0, m.start() - 4) : m.start()]
+            if not re.search(r"(?:人数|数量|共有|总计|共|为|达|仅|剩)", prefix):
+                continue
+        val = _chinese_numeral_to_decimal(raw_cn)
+        unit_cls = _UNIT_CLASS_MAP.get(unit_str, "")
+        if val is not None and unit_cls:
+            _add("count", unit_cls, _fmt_decimal(val), m.group(0))
+
+    return facts
+
+
+def _fact_matches_in_sentence(
+    claim_fact: _TypedFact, ev_facts: Sequence[_TypedFact]
+) -> bool:
+    for ef in ev_facts:
+        if claim_fact.kind == ef.kind and claim_fact.unit == ef.unit and claim_fact.value == ef.value:
+            return True
+        if claim_fact.kind == "count" and ef.kind == "bare" and claim_fact.value == ef.value:
+            return True
+        if claim_fact.kind == "bare" and ef.kind == "count" and claim_fact.value == ef.value:
+            return True
+    return False
+
+
+def _extract_trend_direction(text: str) -> str | None:
+    norm = unicodedata.normalize("NFKC", str(text or ""))
+    has_up = bool(_TREND_UP_RE.search(norm))
+    has_down = bool(_TREND_DOWN_RE.search(norm))
+    if has_up and not has_down:
+        return "DOWN" if _has_explicit_negation(norm) else "UP"
+    if has_down and not has_up:
+        return "UP" if _has_explicit_negation(norm) else "DOWN"
+    return None
+
+
+def _normalize_anchor_text(text: str) -> str:
+    norm = unicodedata.normalize("NFKC", str(text or "")).lower()
+    norm = _E_REF_BRACKET_GROUP_RE.sub(" ", norm)
+    norm = _E_REF_TOKEN_RE.sub(" ", norm)
+    norm = _NEG_ZH_RE.sub(" ", norm)
+    norm = _NEG_EN_RE.sub(" ", norm)
+    norm = _TREND_UP_RE.sub(" ", norm)
+    norm = _TREND_DOWN_RE.sub(" ", norm)
+    # Canonicalize tight synonyms before anchor/overlap checks
+    for src, dst in (("营收", "收入"), ("销售额", "销售"), ("共销售", "销售"), ("客单价", "售价"), ("价格", "售价"), ("revenue", "income"), ("sales", "sale")):
+        norm = norm.replace(src, dst)
+    return norm
+
+
+_META_STUB_WORDS_ZH_RE = re.compile(
+    r"(?:正文|核心|合法|要点|结论|摘要|依据|原文|原话|来源|材料|资料|记录|片段|时间轴|绑定|标注|首条|第一段|第二段|第三段|第一条|第二条|第三条|证据|已经|目前|现在|通过|进行|点击|核对|补充|直接|基于|严格|范围|限定|可信|作答|验证|根据|以及|判断|只是|仅|只|可|到|了|的|是|为|在|与|和)"
+)
+
+_GLUE_WORDS_ZH_RE = re.compile(
+    r"(?:产品|系统|功能|支持|提供|实现|具备|采用|使用|进行|通过|可以|已经|目前|现在|方面|部分|主要|核心|相关|情况|问题|答案|结论|因此|所以|以及|并且|而且|但是|这个|那个|其中|包括|显示|表明|指出|提到|认为|表示|清点|共清点|销售|售出)"
+)
+
+_ENTITY_KIND_MAP: dict[str, str] = {
+    "product": "product",
+    "产品": "product",
+    "型号": "product",
+    "版本": "product",
+    "方案": "product",
+    "company": "company",
+    "公司": "company",
+    "集团": "company",
+    "企业": "company",
+    "project": "project",
+    "项目": "project",
+    "团队": "project",
+    "team": "project",
+    "model": "model",
+    "plan": "plan",
+    "tier": "tier",
+    "version": "product",
+    "service": "service",
+    "system": "system",
+    "系统": "system",
+    "option": "option",
+    "group": "group",
+    "phase": "phase",
+    "stage": "phase",
+    "vendor": "company",
+    "brand": "brand",
+    "app": "app",
+    "device": "device",
+    "chip": "chip",
+}
+
+_BILINGUAL_CONCEPT_GROUPS: tuple[tuple[str, str], ...] = (
+    ("c:revenue", r"(?:营收|收入|\brevenue\b|\bincome\b|\bearnings?\b)"),
+    ("c:profit", r"(?:利润|盈利|毛利|\bprofits?\b|\bmargins?\b)"),
+    ("c:cost", r"(?:成本|费用|开销|\bcosts?\b|\bexpenses?\b)"),
+    ("c:price", r"(?:售价|价格|客单价|\bpric(?:e|es|ing)\b)"),
+    ("c:temp", r"(?:温度|气温|\btemperature\b|\bcelsius\b)"),
+    ("c:perf", r"(?:性能|提速|吞吐|延迟|\bperformances?\b|\blatency\b|\bthroughput\b|\bspeed\b)"),
+    ("c:search", r"(?:搜索|检索|查询|\bsearch(?:es|ing)?\b|\bretriev(?:e|al)\b|\bquer(?:y|ies)\b)"),
+    ("c:index", r"(?:索引|\bindex(?:ing|ed|es)?\b)"),
+    ("c:local", r"(?:本地|本机|离线|单机|\blocal(?:ly)?\b|\boffline\b)"),
+    ("c:collab", r"(?:协作|协同|多人|\bcollab(?:oration|orate|orative)?\b|\bmultiplayer\b)"),
+    ("c:realtime", r"(?:实时|\breal[- ]?time\b)"),
+    ("c:document", r"(?:文档|文稿|文本|\bdocuments?\b|\btexts?\b|\blines?\b)"),
+    ("c:deterministic", r"(?:确定性|\bdeterministic(?:ally)?\b)"),
+    ("c:invariant", r"(?:不变量|\binvariants?\b|\bguarantees?\b)"),
+    ("c:zero_loss", r"(?:零丢失|\bzero[- ]?loss\b)"),
+    ("c:checkpoint", r"(?:检查点|\bcheckpoints?\b)"),
+    ("c:ai", r"(?:\bai\b|\bllm\b|大模型|人工智能|智能体|\bagents?\b)"),
+    ("c:workflow", r"(?:工作流|\bworkflows?\b)"),
+    ("c:autonomous", r"(?:自主(?:执行|运行|完成)?|全自动|\bautonomous(?:ly)?\b)"),
+    ("c:manual", r"(?:人工|手动|\bmanual(?:ly)?\b)"),
+    ("c:patent", r"(?:专利|\bpatents?\b)"),
+    ("c:recovery", r"(?:恢复|还原|\brecover(?:y|ies|ed)?\b|\brestor(?:e|ed|ation)\b)"),
+    ("c:security", r"(?:安全|隐私|脱敏|\bsecur(?:e|ity)\b|\bprivacy\b)"),
+    ("c:auth", r"(?:授权|登录|认证|\bauth(?:oriz(?:e|ation)|enticat(?:e|ion))?\b|\blogin\b|\bcookies?\b)"),
+    ("c:video", r"(?:视频|\bvideos?\b)"),
+    ("c:audio", r"(?:音频|语音|\baudio\b|\bvoice\b|\bspeech\b)"),
+    ("c:transcript", r"(?:字幕|转录|\btranscripts?\b|\bcaptions?\b)"),
+    ("c:model", r"(?:模型|\bmodels?\b)"),
+    ("c:cache", r"(?:缓存|\bcache\b|\bcaching\b)"),
+    ("c:database", r"(?:数据库|\bsqlite\b|\bdatabase\b)"),
+    ("c:network", r"(?:网络|代理|\bnetwork\b|\bproxy\b)"),
+    ("c:limit", r"(?:限额|上限|熔断|\blimit\b|\bcaps?\b|\bcircuit\b)"),
+    ("c:ingest", r"(?:摄取|采集|导入|\bingest(?:ion|ed|ing)?\b)"),
+    ("c:infer", r"(?:推理|推断|\binfer(?:ence|red|ring)?\b|\breason(?:ing)?\b)"),
+    ("c:crash", r"(?:崩溃|宕机|\bcrash(?:es|ed|ing)?\b)"),
+    ("c:repro", r"(?:复现|重放|\breproduc(?:e|ible|ibility)\b|\breplay\b)"),
+    ("c:schema", r"(?:校验|约束|\bschema\b|\bvalidat(?:e|ion)\b)"),
+)
+_COMPILED_CONCEPTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (tag, re.compile(pat, re.IGNORECASE)) for tag, pat in _BILINGUAL_CONCEPT_GROUPS
+)
+_OPPOSITE_CONCEPT_PAIRS: tuple[tuple[str, str], ...] = (("c:autonomous", "c:manual"),)
+_RELATED_CONCEPT_FAMILIES: tuple[frozenset[str], ...] = (
+    frozenset({"c:ai", "c:workflow"}),
+)
+_STRICT_SPECIFIC_CONCEPTS: frozenset[str] = frozenset(
+    {
+        "c:realtime",
+        "c:collab",
+        "c:zero_loss",
+        "c:autonomous",
+        "c:patent",
+        "c:revenue",
+        "c:profit",
+        "c:cost",
+        "c:price",
+        "c:temp",
+        "c:perf",
+        "c:security",
+        "c:auth",
+    }
+)
+
+
+def _extract_concept_tags(text: str) -> set[str]:
+    norm = _E_REF_TOKEN_RE.sub(
+        " ", _E_REF_BRACKET_GROUP_RE.sub(" ", unicodedata.normalize("NFKC", str(text or "")))
+    )
+    tags: set[str] = set()
+    for tag, pattern in _COMPILED_CONCEPTS:
+        if pattern.search(norm):
+            tags.add(tag)
+    return tags
+
+
+def _extract_named_entities(text: str) -> set[tuple[str, str]]:
+    """Extract canonical named entity pairs like ('product', 'a') / ('company', '甲')."""
+    norm = _normalize_anchor_text(text)
+    entities: set[tuple[str, str]] = set()
+    for m in re.finditer(
+        r"\b(product|company|model|plan|version|tier|team|project|service|system|option|group|phase|stage|vendor|brand|app|device|chip)\s+([a-z0-9]{1,6})\b",
+        norm,
+    ):
+        kind = _ENTITY_KIND_MAP.get(m.group(1), m.group(1))
+        ident = m.group(2).strip()
+        if ident not in _GENERIC_STOPWORDS_EN and ident not in {"is", "are", "was", "to", "in", "on", "of", "at", "by", "or", "an", "as"}:
+            entities.add((kind, ident))
+        elif len(ident) == 1 and ident in {"a", "b", "c", "x", "y", "z"}:
+            entities.add((kind, ident))
+    for m in re.finditer(
+        r"([甲乙丙丁戊己庚辛a-z0-9]{1,3})\s*(公司|集团|企业|团队|项目|产品|型号|版本|方案|系统)",
+        norm,
+    ):
+        ident = m.group(1).strip()
+        kind = _ENTITY_KIND_MAP.get(m.group(2), m.group(2))
+        if ident:
+            entities.add((kind, ident))
+    return entities
+
+
+def _extract_domain_terms(
+    text: str,
+    *,
+    include_metric_nouns: bool = False,
+    strip_meta: bool = False,
+    strip_glue: bool = False,
+) -> set[str]:
+    norm = _normalize_anchor_text(text)
+    if strip_meta:
+        norm = _META_STUB_WORDS_ZH_RE.sub(" ", norm)
+    if strip_glue:
+        norm = _GLUE_WORDS_ZH_RE.sub(" ", norm)
+    terms: set[str] = set()
+    for word in re.findall(r"[a-z]{3,}", norm):
+        if word not in _GENERIC_STOPWORDS_EN:
+            terms.add(word[:5])
+    stops = _GENERIC_CLAIM_STOPWORDS_ZH
+    if include_metric_nouns:
+        stops = stops - {"价格", "售价", "销量", "销售", "营收", "收入", "利润"}
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", norm):
+        if len(run) <= 4 and run not in stops:
+            terms.add(run)
+        for i in range(len(run) - 1):
+            bg = run[i : i + 2]
+            if bg not in stops:
+                terms.add(bg)
+    return terms
+
+
+def _extract_subject_metric_anchors(text: str) -> set[str]:
+    """Extract distinguishing subject/entity/metric words (e.g. 甲公司, 乙公司, 收入, 利润, 型号)."""
+    norm = _normalize_anchor_text(text)
+    norm = _DATE_YMD_RE.sub(" ", norm)
+    norm = _DATE_MD_RE.sub(" ", norm)
+    norm = _PCT_RE.sub(" ", norm)
+    norm = _CUR_SYMBOL_RE.sub(" ", norm)
+    norm = _CUR_SUFFIX_RE.sub(" ", norm)
+    norm = _HASH_CODE_RE.sub(" ", norm)
+    norm = _YEAR_RE.sub(" ", norm)
+    norm = _ARABIC_WITH_UNIT_RE.sub(" ", norm)
+    norm = _ARABIC_BARE_RE.sub(" ", norm)
+    norm = _CN_COUNTED_RE.sub(" ", norm)
+    norm = _GLUE_WORDS_ZH_RE.sub(" ", norm)
+    anchors: set[str] = set()
+    for word in re.findall(r"[a-z]{3,}", norm):
+        if word not in _GENERIC_STOPWORDS_EN:
+            anchors.add(word[:5])
+    anchor_stops = _GENERIC_CLAIM_STOPWORDS_ZH - {"营收", "收入", "利润", "售价", "价格", "人数", "型号"}
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", norm):
+        # Extract named company/product chunks or 2-char metric nouns
+        for comp in re.findall(r"[\u4e00-\u9fff](?:公司|集团|企业|团队|项目|产品|系统|版本|阶段|方案)", run):
+            anchors.add(comp)
+        for i in range(len(run) - 1):
+            bg = run[i : i + 2]
+            if bg not in anchor_stops:
+                anchors.add(bg)
+    return anchors
+
+
+def _polarity_content_terms(text: str) -> set[str]:
+    return _extract_domain_terms(text, include_metric_nouns=True, strip_glue=True)
+
+
+def _has_explicit_negation(text: str) -> bool:
+    norm = unicodedata.normalize("NFKC", str(text or ""))
+    return bool(_NEG_ZH_RE.search(norm) or _NEG_EN_RE.search(norm))
+
+
+def _atomic_sentence_supports_claim(
+    *,
+    claim_facts: Sequence[_TypedFact],
+    claim_trend: str | None,
+    claim_neg: bool,
+    claim_anchors: set[str],
+    claim_concepts: set[str],
+    claim_entities: set[tuple[str, str]],
+    all_ev_anchors: set[str],
+    ev_sent: str,
+) -> bool:
+    ev_facts = _extract_typed_facts(ev_sent, is_claim=False)
+    for cf in claim_facts:
+        if not _fact_matches_in_sentence(cf, ev_facts):
+            return False
+
+    ev_trend = _extract_trend_direction(ev_sent)
+    if claim_trend is not None and ev_trend is not None and claim_trend != ev_trend:
+        return False
+
+    ev_neg = _has_explicit_negation(ev_sent)
+    if claim_trend is None and ev_trend is None and claim_neg != ev_neg:
+        return False
+    if (claim_trend is None) != (ev_trend is None) and claim_neg != ev_neg:
+        return False
+
+    # 1. Named entity conflict (Product A vs Product B, 甲公司 vs 乙公司, 甲产品 vs 乙产品)
+    ev_entities = _extract_named_entities(ev_sent)
+    for kind, ident in claim_entities:
+        if (kind, ident) not in ev_entities:
+            if any(ek == kind and ei != ident for ek, ei in ev_entities):
+                return False
+
+    # 2. Subject / metric binding within the SAME atomic evidence sentence.
+    ev_anchors = _extract_subject_metric_anchors(ev_sent)
+    ev_concepts = _extract_concept_tags(ev_sent)
+    if claim_anchors:
+        missing_in_sent = claim_anchors - ev_anchors
+        extra_in_sent = ev_anchors - claim_anchors
+        named_claim = {
+            a for a in missing_in_sent
+            if a in all_ev_anchors and (len(a) >= 3 or a in {"收入", "利润", "成本", "售价"})
+        }
+        named_ev = {
+            a for a in extra_in_sent
+            if len(a) >= 3 or a in {"收入", "利润", "成本", "售价"}
+        }
+        if named_claim and named_ev:
+            return False
+        unseen_named_claim = {
+            a for a in missing_in_sent
+            if re.search(r"(?:公司|集团|企业|项目|产品|型号)$", a)
+        }
+        if unseen_named_claim and named_ev:
+            return False
+
+    # 3. Positive subject/topic support inside the SAME atomic evidence sentence (F1: 营收 vs 环境温度 5%)
+    claim_support = claim_anchors | claim_concepts
+    ev_support = ev_anchors | ev_concepts
+    if claim_support and ev_support and not (claim_support & ev_support):
+        return False
+
+    return True
+
+
+_EXACT_LEADIN_ZH_RE = re.compile(
+    r"^(?:根据(?:当前)?(?:原文|文档|材料|资料|记录|证据)(?:显示|指出|提到|说明|确认)?|"
+    r"原文(?:明确)?(?:提到|指出|说明|显示|确认)|"
+    r"文档(?:明确)?(?:提到|指出|说明|显示|确认))[：:，,\s]*"
+)
+_EXACT_CANON_PAIRS: tuple[tuple[str, str], ...] = (
+    ("营收", "收入"),
+    ("上涨", "增长"),
+    ("上升", "增长"),
+    ("提升", "增长"),
+    ("下滑", "下降"),
+    ("下跌", "下降"),
+    ("减少", "下降"),
+)
+_EXACT_GLUE_CHARS_RE = re.compile(r"(?:为|是|的)")
+
+
+def _normalize_for_exact_match(text: str, *, strip_leadin: bool = False) -> str:
+    norm = unicodedata.normalize("NFKC", str(text or "")).strip()
+    norm = _E_REF_BRACKET_GROUP_RE.sub(" ", norm)
+    norm = _E_REF_TOKEN_RE.sub(" ", norm)
+    if strip_leadin:
+        norm = _EXACT_LEADIN_ZH_RE.sub("", norm.strip())
+    norm = _CN_COUNTED_RE.sub(
+        lambda m: _fmt_decimal(v) if (v := _chinese_numeral_to_decimal(m.group(1))) is not None else m.group(0),
+        norm,
+    ).lower()
+    for src, dst in _EXACT_CANON_PAIRS:
+        norm = norm.replace(src, dst)
+    return re.sub(r"[^\u4e00-\u9fff0-9a-z%$€¥£#.-]+", "", norm)
+
+
+def _exact_sentence_contains_claim(clause: str, ev_sent: str) -> bool:
+    c_norm = _normalize_for_exact_match(clause, strip_leadin=True)
+    e_norm = _normalize_for_exact_match(ev_sent, strip_leadin=False)
+    if not c_norm or not e_norm:
+        return False
+    if c_norm in e_norm:
+        return True
+    c_compact = _EXACT_GLUE_CHARS_RE.sub("", c_norm)
+    e_compact = _EXACT_GLUE_CHARS_RE.sub("", e_norm)
+    return len(c_compact) >= 3 and c_compact in e_compact
+
+
+def _compose_fact_verification_state(*, has_pruned: bool, has_heuristic: bool) -> str:
+    if has_pruned and has_heuristic:
+        return "PARTIAL_PRUNED_HEURISTIC"
+    if has_pruned:
+        return "PARTIAL_PRUNED"
+    if has_heuristic:
+        return "HEURISTIC_ONLY"
+    return "SUPPORTED"
+
+
+def _evaluate_clause_against_cited_evidence(
+    clause: str,
+    cited_excerpts: Sequence[str],
+    *,
+    check_domain_support: bool = True,
+    session_excerpts: Sequence[str] | None = None,
+) -> tuple[bool, str | None, str]:
+    """Verify atomic fact-relation, unit/currency/date, entity, polarity & support grade.
+
+    Returns ``(ok, error_code, grade)`` where ``grade`` is one of
+    ``EXACT_SUPPORTED``, ``HEURISTIC_ONLY``, or ``REJECTED``.
+    """
+    excerpts = [str(e or "").strip() for e in cited_excerpts if str(e or "").strip()]
+    if not excerpts:
+        return False, "NO_VERIFIED_CITATIONS", "REJECTED"
+
+    ev_sentences: list[str] = []
+    for exc in excerpts:
+        parts = [s.strip() for s in re.split(r"[。！？!?；;，,\n]+", exc) if s.strip()]
+        ev_sentences.extend(parts if parts else [exc])
+
+    claim_facts = _extract_typed_facts(clause, is_claim=True)
+    claim_trend = _extract_trend_direction(clause)
+    claim_neg = _has_explicit_negation(clause)
+    claim_anchors = _extract_subject_metric_anchors(clause)
+    claim_concepts = _extract_concept_tags(clause)
+    claim_entities = _extract_named_entities(clause)
+    all_ev_anchors: set[str] = set()
+    all_ev_concepts: set[str] = set()
+    for s in ev_sentences:
+        all_ev_anchors.update(_extract_subject_metric_anchors(s))
+        all_ev_concepts.update(_extract_concept_tags(s))
+
+    # 0. Opposite-capability contradiction check (e.g. autonomous vs manual)
+    for tag_a, tag_b in _OPPOSITE_CONCEPT_PAIRS:
+        if (
+            tag_a in claim_concepts
+            and tag_b in all_ev_concepts
+            and tag_a not in all_ev_concepts
+        ) or (
+            tag_b in claim_concepts
+            and tag_a in all_ev_concepts
+            and tag_b not in all_ev_concepts
+        ):
+            return False, "CITATION_FACT_CONFLICT", "REJECTED"
+
+    clean_clause_probe = _E_REF_TOKEN_RE.sub(
+        " ", _E_REF_BRACKET_GROUP_RE.sub(" ", str(clause or ""))
+    )
+    claim_has_zh_probe = bool(re.search(r"[\u4e00-\u9fff]", clean_clause_probe))
+    ev_has_zh_probe = any(re.search(r"[\u4e00-\u9fff]", exc) for exc in excerpts)
+    claim_has_en_probe = len(re.findall(r"[A-Za-z]{3,}", clean_clause_probe)) >= 2
+    ev_has_en_probe = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 2 for exc in excerpts)
+    ev_has_en_sentence_probe = any(
+        len(re.findall(r"[A-Za-z]{3,}", exc)) >= 4 for exc in excerpts
+    )
+    same_script_excerpts = (
+        claim_has_zh_probe
+        and ev_has_zh_probe
+        and not (ev_has_en_sentence_probe and not claim_has_en_probe)
+    ) or (claim_has_en_probe and not claim_has_zh_probe and ev_has_en_probe)
+
+    # 1. Quantitative / identifier / date claims must be POSITIVELY supported by ONE atomic evidence sentence
+    if claim_facts:
+        if check_domain_support and (
+            (claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - all_ev_concepts
+        ):
+            return False, "CITATION_FACT_CONFLICT", "REJECTED"
+        matched_atomic_sents = [
+            ev_sent
+            for ev_sent in ev_sentences
+            if _atomic_sentence_supports_claim(
+                claim_facts=claim_facts,
+                claim_trend=claim_trend,
+                claim_neg=claim_neg,
+                claim_anchors=claim_anchors,
+                claim_concepts=claim_concepts,
+                claim_entities=claim_entities,
+                all_ev_anchors=all_ev_anchors,
+                ev_sent=ev_sent,
+            )
+        ]
+        if matched_atomic_sents:
+            if not check_domain_support:
+                return True, None, "HEURISTIC_ONLY"
+            is_exact = same_script_excerpts and any(
+                _exact_sentence_contains_claim(clause, s) for s in matched_atomic_sents
+            )
+            return True, None, ("EXACT_SUPPORTED" if is_exact else "HEURISTIC_ONLY")
+        return False, "CITATION_FACT_CONFLICT", "REJECTED"
+
+    # 2. Named-entity conflict & trend/negation checks on non-numeric claims
+    if claim_entities:
+        all_ev_entities: set[tuple[str, str]] = set()
+        for s in ev_sentences:
+            all_ev_entities.update(_extract_named_entities(s))
+        for kind, ident in claim_entities:
+            if (kind, ident) not in all_ev_entities and any(
+                ek == kind and ei != ident for ek, ei in all_ev_entities
+            ):
+                return False, "CITATION_FACT_CONFLICT", "REJECTED"
+
+    claim_terms = _polarity_content_terms(clause)
+    if len(claim_terms) >= 2:
+        matched_sents: list[str] = []
+        for s in ev_sentences:
+            if len(claim_terms & _polarity_content_terms(s)) >= 2:
+                matched_sents.append(s)
+        if matched_sents:
+            if claim_trend is not None:
+                ev_trends = [_extract_trend_direction(s) for s in matched_sents]
+                concrete_trends = [t for t in ev_trends if t is not None]
+                if concrete_trends and all(t != claim_trend for t in concrete_trends):
+                    return False, "CITATION_FACT_CONFLICT", "REJECTED"
+            if all(_has_explicit_negation(s) != claim_neg for s in matched_sents):
+                return False, "CITATION_FACT_CONFLICT", "REJECTED"
+
+    if not check_domain_support:
+        return True, None, "HEURISTIC_ONLY"
+
+    # 3. Positive domain/concept/entity support guard (same-script AND concept-aligned cross-lingual)
+    pool_excerpts = list(excerpts)
+    if session_excerpts:
+        pool_excerpts.extend(
+            str(e or "").strip() for e in session_excerpts if str(e or "").strip()
+        )
+    pool_sentences: list[str] = []
+    for exc in pool_excerpts:
+        parts = [s.strip() for s in re.split(r"[。！？!?；;，,\n]+", exc) if s.strip()]
+        pool_sentences.extend(parts if parts else [exc])
+
+    claim_has_zh = bool(re.search(r"[\u4e00-\u9fff]", clean_clause_probe))
+    ev_has_zh = any(re.search(r"[\u4e00-\u9fff]", exc) for exc in pool_excerpts)
+    claim_has_en = len(re.findall(r"[A-Za-z]{3,}", clean_clause_probe)) >= 2
+    ev_has_en = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 2 for exc in pool_excerpts)
+    ev_has_en_sentence = any(
+        len(re.findall(r"[A-Za-z]{3,}", exc)) >= 4 for exc in pool_excerpts
+    )
+    same_script = (
+        claim_has_zh and ev_has_zh and not (ev_has_en_sentence and not claim_has_en)
+    ) or (claim_has_en and not claim_has_zh and ev_has_en)
+
+    claim_domain = _extract_domain_terms(
+        clause, include_metric_nouns=True, strip_meta=True, strip_glue=True
+    )
+    claim_support = claim_domain | claim_concepts
+    has_substantive_claim = bool(claim_concepts) or len(claim_domain) >= 2
+    if same_script:
+        pool_concepts: set[str] = set()
+        for s in pool_sentences:
+            pool_concepts.update(_extract_concept_tags(s))
+        if (claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - pool_concepts:
+            return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+        if not has_substantive_claim:
+            is_exact = any(
+                _exact_sentence_contains_claim(clause, s) for s in ev_sentences
+            )
+            return True, None, ("EXACT_SUPPORTED" if is_exact else "HEURISTIC_ONLY")
+        supported = False
+        for s in pool_sentences:
+            ev_dom = _extract_domain_terms(
+                s, include_metric_nouns=True, strip_meta=True, strip_glue=True
+            )
+            ev_support = ev_dom | _extract_concept_tags(s)
+            if claim_support & ev_support:
+                supported = True
+                break
+        if not supported:
+            return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+        is_exact = any(_exact_sentence_contains_claim(clause, s) for s in ev_sentences)
+        return True, None, ("EXACT_SUPPORTED" if is_exact else "HEURISTIC_ONLY")
+
+    ev_concepts: set[str] = set()
+    ev_en: set[str] = set()
+    for s in pool_sentences:
+        ev_concepts.update(_extract_concept_tags(s))
+        for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(s)):
+            if w not in _GENERIC_STOPWORDS_EN:
+                ev_en.add(w[:5])
+    claim_en = {
+        w[:5]
+        for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(clause))
+        if w not in _GENERIC_STOPWORDS_EN
+    }
+    if ev_concepts and ((claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - ev_concepts):
+        return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+    overlap = (claim_concepts | claim_en) & (ev_concepts | ev_en)
+    family_related = any(
+        bool(claim_concepts & fam) and bool(ev_concepts & fam)
+        for fam in _RELATED_CONCEPT_FAMILIES
+    )
+    if not overlap:
+        if claim_concepts and ev_concepts and not family_related:
+            return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+        return True, None, "HEURISTIC_ONLY"
+    return True, None, "HEURISTIC_ONLY"
+
+
+def _check_clause_against_cited_evidence(
+    clause: str,
+    cited_excerpts: Sequence[str],
+    *,
+    check_domain_support: bool = True,
+    session_excerpts: Sequence[str] | None = None,
+) -> tuple[bool, str | None]:
+    """Verify atomic fact-relation, unit/currency/date, entity, polarity & positive claim support."""
+    ok, code, _ = _evaluate_clause_against_cited_evidence(
+        clause,
+        cited_excerpts,
+        check_domain_support=check_domain_support,
+        session_excerpts=session_excerpts,
+    )
+    return ok, code
+
+
+def _is_substantive_note_claim(text: str) -> bool:
+    clean = str(text or "").strip()
+    if not clean:
+        return False
+    if (
+        _extract_typed_facts(clean, is_claim=True)
+        or _extract_concept_tags(clean)
+        or _extract_named_entities(clean)
+    ):
+        return True
+    dom = _extract_domain_terms(
+        clean, include_metric_nouns=True, strip_meta=True, strip_glue=True
+    )
+    if len(dom) >= 2:
+        return True
+    en_words = [
+        w
+        for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(clean))
+        if w not in _GENERIC_STOPWORDS_EN
+    ]
+    return bool(en_words)
+
+
+def _sanitize_citation_note_with_grade(note_zh: str, excerpt: str) -> tuple[str, bool, str]:
+    """Verify citation note_zh and return ``(safe_note, was_pruned, grade)``."""
+    clean_note = str(note_zh or "").strip()
+    if not clean_note:
+        return "", False, ""
+    if not str(excerpt or "").strip():
+        return "", True, "REJECTED"
+    ok, _, grade = _evaluate_clause_against_cited_evidence(
+        clean_note,
+        [excerpt],
+        check_domain_support=True,
+        session_excerpts=None,
+    )
+    if not ok:
+        return "", True, "REJECTED"
+    if not _is_substantive_note_claim(clean_note):
+        return clean_note, False, "NON_CLAIM_STUB"
+    return clean_note, False, grade
+
+
+def _sanitize_citation_note(note_zh: str, excerpt: str) -> tuple[str, bool]:
+    """Verify citation note_zh against its bound evidence excerpt across all exits."""
+    safe_note, was_pruned, _ = _sanitize_citation_note_with_grade(note_zh, excerpt)
+    return safe_note, was_pruned
 
 
 def _prune_ungrounded_ref_clauses(
     text: str,
     valid_labels: set[str],
     *,
-    require_valid_ref_per_sentence: bool = False,
+    require_valid_ref_per_sentence: bool = True,
+    cited_excerpts: Mapping[str, str] | None = None,
+    conflict_tracker: list[str] | None = None,
+    grade_tracker: list[str] | None = None,
+    check_domain_support: bool = True,
+    session_excerpts: Sequence[str] | None = None,
 ) -> str:
-    """Drop whole sentences tied to unissued E<n> refs (or missing refs under mixed output).
+    """Enforce per-sentence/list-item/comma-fact/table-row valid E<n> citation & fact consistency.
 
-    When a single period-delimited sentence mixes grounded and ungrounded comma sub-clauses,
-    only keep sub-clauses that explicitly carry a valid E<n> ref, have zero invalid refs,
-    and contain substantive claim text (never leaving dangling un-cited claims or stubs).
+    Drops any sentence, inline list item, uncited comma fact, or table row lacking a
+    valid E<n> citation (or contaminated by unissued/invalid refs or contradicting cited facts).
     """
     cleaned = str(text or "").strip()
     if not cleaned:
         return ""
     raw_nums = _extract_e_ref_nums(cleaned)
     has_invalid_anywhere = any(f"E{num}" not in valid_labels for num in raw_nums)
-    if not has_invalid_anywhere and not require_valid_ref_per_sentence:
+    if not require_valid_ref_per_sentence and not has_invalid_anywhere:
         return cleaned
 
     tokens = re.split(r"([。！？!?；;\n]+|(?<!\d)\.(?=\s|$))", cleaned)
-    kept_clauses: list[tuple[str, str]] = []
+    expanded_clauses: list[tuple[str, str]] = []
     idx = 0
     while idx < len(tokens):
         clause = tokens[idx].strip()
@@ -470,36 +2103,195 @@ def _prune_ungrounded_ref_clauses(
         idx += 2
         if not clause:
             continue
+        sub_items = _INLINE_LIST_SPLIT_RE.split(clause)
+        if len(sub_items) > 1:
+            non_empty = [s.strip() for s in sub_items if s.strip()]
+            for sub_i, sub_clean in enumerate(non_empty):
+                sub_delim = delim if sub_i == len(non_empty) - 1 else " "
+                expanded_clauses.append((sub_clean, sub_delim))
+        else:
+            expanded_clauses.append((clause, delim))
+
+    kept_clauses: list[tuple[str, str]] = []
+    for clause, delim in expanded_clauses:
+        nfkc_clause = unicodedata.normalize("NFKC", clause).strip()
+        if "|" in nfkc_clause and re.fullmatch(r"[\s|:-]+", nfkc_clause):
+            continue
         clause_nums = _extract_e_ref_nums(clause)
         has_invalid = any(f"E{num}" not in valid_labels for num in clause_nums)
         has_valid_ref = any(f"E{num}" in valid_labels for num in clause_nums)
-        if not has_invalid:
-            if require_valid_ref_per_sentence and not has_valid_ref:
+        if not has_valid_ref:
+            continue
+        if "|" in nfkc_clause:
+            if has_invalid or not _is_substantive_cited_subclause(clause):
                 continue
             kept_clauses.append((clause, delim))
             continue
-        if not has_valid_ref:
+
+        top_subs = _split_top_level_comma_clauses(clause)
+        if len(top_subs) <= 1:
+            if has_invalid or (
+                require_valid_ref_per_sentence and not _is_substantive_cited_subclause(clause)
+            ):
+                continue
+            kept_clauses.append((clause, delim))
             continue
-        # Mixed valid + invalid refs inside one sentence: split on commas and retain ONLY
-        # self-contained sub-clauses that carry a valid ref and substantive claim text.
-        sub_clauses = [
-            sub.strip()
-            for sub in re.split(r"[,，]+", clause)
-            if sub.strip()
-        ]
-        kept_subs: list[str] = []
-        for sub in sub_clauses:
+
+        # Multi-subclause sentence: prune every comma sub-clause lacking valid citation
+        # (including valid+uncited mixes as well as valid+invalid mixes).
+        kept_subs: list[tuple[str, str]] = []
+        seen_substantive_cited = False
+        attach_next_as_leadin_claim = False
+        for sub_i, (sub, sub_sep) in enumerate(top_subs):
             sub_nums = _extract_e_ref_nums(sub)
             sub_has_invalid = any(f"E{num}" not in valid_labels for num in sub_nums)
             sub_has_valid = any(f"E{num}" in valid_labels for num in sub_nums)
-            if sub_has_invalid or not sub_has_valid:
+            if sub_has_invalid:
+                attach_next_as_leadin_claim = False
                 continue
-            if not _is_substantive_cited_subclause(sub):
+            if attach_next_as_leadin_claim and not sub_has_valid:
+                attach_next_as_leadin_claim = False
+                if _is_substantive_cited_subclause(sub):
+                    kept_subs.append((sub, sub_sep))
+                    seen_substantive_cited = True
                 continue
-            kept_subs.append(sub)
-        if not kept_subs:
+            attach_next_as_leadin_claim = False
+            if sub_has_valid:
+                if _CITATION_FRAMING_LEADIN_RE.search(sub) and not seen_substantive_cited:
+                    kept_subs.append((sub, sub_sep))
+                    attach_next_as_leadin_claim = True
+                    continue
+                if not _is_substantive_cited_subclause(sub):
+                    continue
+                kept_subs.append((sub, sub_sep))
+                seen_substantive_cited = True
+                continue
+
+            # Uncited comma sub-clause: NEVER keep after a substantive cited clause
+            if seen_substantive_cited or not require_valid_ref_per_sentence:
+                continue
+            next_sub_has_valid_continuation = False
+            if sub_i + 1 < len(top_subs):
+                nxt_text, _ = top_subs[sub_i + 1]
+                nxt_nums = _extract_e_ref_nums(nxt_text)
+                if (
+                    any(f"E{num}" in valid_labels for num in nxt_nums)
+                    and all(f"E{num}" in valid_labels for num in nxt_nums)
+                    and _CONTINUATION_CONNECTOR_RE.search(nxt_text.strip()) is not None
+                ):
+                    next_sub_has_valid_continuation = True
+            if (
+                _LEADING_FRAMING_CLAUSE_RE.search(sub.strip())
+                or _ATTRIBUTION_VERB_RE.search(sub)
+                or next_sub_has_valid_continuation
+            ):
+                kept_subs.append((sub, sub_sep))
+
+        has_any_valid_in_kept = any(
+            any(f"E{num}" in valid_labels for num in _extract_e_ref_nums(s_txt))
+            and _is_substantive_cited_subclause(s_txt)
+            for s_txt, _ in kept_subs
+        )
+        if not kept_subs or not has_any_valid_in_kept:
             continue
-        kept_clauses.append(("，".join(kept_subs), delim))
+        if cited_excerpts is not None:
+            # Verify each substantive cited sub-clause independently so a valid fact survives
+            # while an adjacent contradicting/unverified sub-clause (G11) is cleanly isolated.
+            checked_subs: list[tuple[str, str]] = []
+            pending_prefix: list[tuple[str, str]] = []
+            for s_txt, s_sep in kept_subs:
+                s_refs = _extract_e_ref_nums(s_txt)
+                s_has_substantive_ref = (
+                    any(f"E{num}" in valid_labels for num in s_refs)
+                    and _is_substantive_cited_subclause(s_txt)
+                    and not _CITATION_FRAMING_LEADIN_RE.search(s_txt)
+                )
+                if not s_has_substantive_ref:
+                    pending_prefix.append((s_txt, s_sep))
+                    continue
+                prefix_str = "".join(
+                    p_txt + (p_sep or "，") for p_txt, p_sep in pending_prefix
+                )
+                sub_probe = f"{prefix_str}{s_txt}".strip()
+                clause_ref_texts = [
+                    cited_excerpts[f"E{num}"]
+                    for num in _extract_e_ref_nums(sub_probe)
+                    if f"E{num}" in cited_excerpts
+                ]
+                ok_sub, conflict_sub, grade_sub = _evaluate_clause_against_cited_evidence(
+                    sub_probe,
+                    clause_ref_texts,
+                    check_domain_support=check_domain_support,
+                    session_excerpts=session_excerpts,
+                )
+                if ok_sub:
+                    if grade_tracker is not None:
+                        grade_tracker.append(grade_sub)
+                    checked_subs.extend(pending_prefix)
+                    checked_subs.append((s_txt, s_sep))
+                else:
+                    if conflict_tracker is not None and conflict_sub:
+                        conflict_tracker.append(conflict_sub)
+                pending_prefix = []
+            if pending_prefix:
+                pending_probe = "".join(
+                    p_txt + (p_sep or "，") for p_txt, p_sep in pending_prefix
+                ).strip()
+                pending_refs = _extract_e_ref_nums(pending_probe)
+                if any(f"E{num}" in valid_labels for num in pending_refs):
+                    pending_ref_texts = [
+                        cited_excerpts[f"E{num}"]
+                        for num in pending_refs
+                        if f"E{num}" in cited_excerpts
+                    ]
+                    ok_pend, conflict_pend, grade_pend = _evaluate_clause_against_cited_evidence(
+                        pending_probe,
+                        pending_ref_texts,
+                        check_domain_support=check_domain_support,
+                        session_excerpts=session_excerpts,
+                    )
+                    if ok_pend:
+                        if grade_tracker is not None:
+                            grade_tracker.append(grade_pend)
+                        checked_subs.extend(pending_prefix)
+                    elif conflict_tracker is not None and conflict_pend:
+                        conflict_tracker.append(conflict_pend)
+            kept_subs = checked_subs
+            if not kept_subs:
+                continue
+        rejoined = ""
+        for k_i, (s_txt, s_sep) in enumerate(kept_subs):
+            rejoined += s_txt
+            if k_i < len(kept_subs) - 1:
+                rejoined += s_sep or "，"
+        kept_clauses.append((rejoined, delim))
+
+    # Also enforce consistency for single-subclause sentences and table rows before joining
+    if cited_excerpts is not None:
+        verified_kept: list[tuple[str, str]] = []
+        for c_txt, c_delim in kept_clauses:
+            if len(_split_top_level_comma_clauses(c_txt)) > 1:
+                verified_kept.append((c_txt, c_delim))
+                continue
+            clause_ref_texts = [
+                cited_excerpts[f"E{num}"]
+                for num in _extract_e_ref_nums(c_txt)
+                if f"E{num}" in cited_excerpts
+            ]
+            ok_consistent, conflict_code, grade_consistent = _evaluate_clause_against_cited_evidence(
+                c_txt,
+                clause_ref_texts,
+                check_domain_support=check_domain_support,
+                session_excerpts=session_excerpts,
+            )
+            if not ok_consistent:
+                if conflict_tracker is not None and conflict_code:
+                    conflict_tracker.append(conflict_code)
+                continue
+            if grade_tracker is not None:
+                grade_tracker.append(grade_consistent)
+            verified_kept.append((c_txt, c_delim))
+        kept_clauses = verified_kept
 
     if not kept_clauses:
         return ""
@@ -507,14 +2299,22 @@ def _prune_ungrounded_ref_clauses(
     for c_i, (c_text, c_delim) in enumerate(kept_clauses):
         out_parts.append(c_text)
         if c_i < len(kept_clauses) - 1:
-            norm_mid = c_delim.strip()
-            out_parts.append(norm_mid if norm_mid else "。")
+            if "\n" in c_delim:
+                out_parts.append("\n")
+            elif c_delim == " ":
+                out_parts.append(" ")
+            else:
+                norm_mid = c_delim.strip()
+                out_parts.append(norm_mid if norm_mid else "。")
         elif c_delim:
-            norm_end = c_delim.strip()
-            if norm_end in {";", "；"}:
-                out_parts.append("。")
-            elif norm_end:
-                out_parts.append(norm_end)
+            if "\n" in c_delim:
+                pass
+            else:
+                norm_end = c_delim.strip()
+                if norm_end in {";", "；"}:
+                    out_parts.append("。")
+                elif norm_end:
+                    out_parts.append(norm_end)
         elif cleaned[-1] in "。！？!?.":
             out_parts.append(cleaned[-1])
     result = re.sub(r"[ \t]+", " ", "".join(out_parts)).strip()
@@ -523,16 +2323,52 @@ def _prune_ungrounded_ref_clauses(
     return result
 
 
-def _filter_ungrounded_items(items: Sequence[str], valid_labels: set[str]) -> list[str]:
+def _filter_ungrounded_items(
+    items: Sequence[str],
+    valid_labels: set[str],
+    *,
+    cited_excerpts: Mapping[str, str] | None = None,
+    conflict_tracker: list[str] | None = None,
+    grade_tracker: list[str] | None = None,
+    check_domain_support: bool = True,
+    session_excerpts: Sequence[str] | None = None,
+) -> list[str]:
     out: list[str] = []
     for item in items:
-        cleaned = str(item or "").strip()
-        if not cleaned:
+        raw_item = str(item or "").strip()
+        if not raw_item:
             continue
-        nums = _extract_e_ref_nums(cleaned)
-        if any(f"E{num}" not in valid_labels for num in nums):
-            continue
-        out.append(cleaned)
+        lines = [line.strip() for line in raw_item.splitlines() if line.strip()]
+        if len(lines) > 1:
+            kept_lines: list[str] = []
+            for line in lines:
+                pruned_line = _prune_ungrounded_ref_clauses(
+                    line,
+                    valid_labels,
+                    require_valid_ref_per_sentence=True,
+                    cited_excerpts=cited_excerpts,
+                    conflict_tracker=conflict_tracker,
+                    grade_tracker=grade_tracker,
+                    check_domain_support=check_domain_support,
+                    session_excerpts=session_excerpts,
+                )
+                if pruned_line:
+                    kept_lines.append(pruned_line)
+            if kept_lines:
+                out.append("\n".join(kept_lines))
+        else:
+            pruned = _prune_ungrounded_ref_clauses(
+                raw_item,
+                valid_labels,
+                require_valid_ref_per_sentence=True,
+                cited_excerpts=cited_excerpts,
+                conflict_tracker=conflict_tracker,
+                grade_tracker=grade_tracker,
+                check_domain_support=check_domain_support,
+                session_excerpts=session_excerpts,
+            )
+            if pruned:
+                out.append(pruned)
     return out
 
 
@@ -648,10 +2484,12 @@ def _probe_ollama_model_vision_http(
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        active_opener = opener or urllib.request.build_opener(_NoCloudRedirect)
+        active_opener = opener or urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _NoCloudRedirect
+        )
         ctx = active_opener.open(req, timeout=2.0)
         with ctx as resp:
-            data = json.loads(resp.read(262_144).decode("utf-8"))
+            data = json.loads(_read_bounded_http_body(resp, max_bytes=262_144).decode("utf-8"))
         if isinstance(data, Mapping):
             caps = data.get("capabilities")
             if isinstance(caps, list):
@@ -675,9 +2513,11 @@ def _probe_ollama_models_default(base_url: str) -> tuple[bool, tuple[str, ...]]:
     try:
         validated = _validate_ollama_url(base_url)
         req = urllib.request.Request(f"{validated}/api/tags", method="GET")
-        ctx = urllib.request.build_opener(_NoCloudRedirect).open(req, timeout=2.5)
+        ctx = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _NoCloudRedirect
+        ).open(req, timeout=2.5)
         with ctx as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
         models = tuple(
             str(m["name"])
             for m in data.get("models", [])
@@ -1107,9 +2947,22 @@ class _FastOfflineMlxLectureTranscriber:
         )
 
 
-def _discover_default_mlx_transcriber(project_root: Path) -> MediaTranscriber | None:
+def _discover_default_mlx_model_dir(project_root: Path) -> Path | None:
+    model_json = project_root / ".local-transcription" / "model.json"
+    if model_json.is_file() and not model_json.is_symlink():
+        try:
+            raw_cfg = json.loads(model_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw_cfg = None
+        if isinstance(raw_cfg, Mapping) and isinstance(raw_cfg.get("model_path"), str):
+            configured = Path(raw_cfg["model_path"])
+            if configured.is_dir() and (configured / "config.json").is_file():
+                return configured
     candidate_roots = [
-        project_root / ".local-transcription" / "models" / "whisper-large-v3-turbo",
+        *(
+            project_root / ".local-transcription" / "models" / str(item["slug"])
+            for item in CURATED_WHISPER_MODELS
+        ),
         project_root.parent
         / "v1x-acoustic-qualification"
         / ".var"
@@ -1131,6 +2984,11 @@ def _discover_default_mlx_transcriber(project_root: Path) -> MediaTranscriber | 
                     break
         if model_dir is not None:
             break
+    return model_dir
+
+
+def _discover_default_mlx_transcriber(project_root: Path) -> MediaTranscriber | None:
+    model_dir = _discover_default_mlx_model_dir(project_root)
     if model_dir is None:
         return None
     temp_root = project_root / ".local-transcription" / "tmp"
@@ -1155,6 +3013,9 @@ class WorkspaceIntelligenceHub:
         installed_ollama_probe: Callable[[str], tuple[bool, tuple[str, ...]]] | None = None,
         http_opener: urllib.request.OpenerDirector | None = None,
         now: Callable[[], datetime] | None = None,
+        ollama_pull_runner: Callable[[str, str, Callable[[dict[str, object]], None]], None] | None = None,
+        whisper_download_runner: Callable[[str, str, str, Callable[[dict[str, object]], None]], Path] | None = None,
+        cloud_test_runner: Callable[[str, str], dict[str, object]] | None = None,
     ) -> None:
         self._repository = repository
         self._data_root = data_root
@@ -1181,8 +3042,42 @@ class WorkspaceIntelligenceHub:
         )
         self._ollama_probe = installed_ollama_probe or _probe_ollama_models_default
         self._http_opener = http_opener
-        self._default_no_redirect_opener = urllib.request.build_opener(_NoCloudRedirect)
         self._now = now or (lambda: datetime.now(UTC))
+        self._ollama_pull_runner = ollama_pull_runner
+        self._whisper_download_runner = whisper_download_runner
+        self._cloud_test_runner = cloud_test_runner
+        self._default_no_redirect_opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            _NoCloudRedirect,
+            _PinnedHTTPSHandler(),
+        )
+        self._loopback_direct_opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _NoCloudRedirect
+        )
+        self._model_download_lock = threading.Lock()
+        self._ollama_pull_state: dict[str, object] = {
+            "state": "idle",
+            "model": "",
+            "status_text": "",
+            "completed_bytes": 0,
+            "total_bytes": 0,
+            "percent": 0,
+            "error": None,
+        }
+        self._ollama_pull_thread: threading.Thread | None = None
+        self._whisper_download_state: dict[str, object] = {
+            "state": "idle",
+            "model_id": "",
+            "slug": "",
+            "mirror": "auto",
+            "mirror_used": "",
+            "current_file": "",
+            "completed_files": 0,
+            "total_files": 0,
+            "percent": 0,
+            "error": None,
+        }
+        self._whisper_download_thread: threading.Thread | None = None
         self._db_lock = threading.RLock()
         self._visual_locks_guard = threading.Lock()
         self._visual_video_locks: dict[str, threading.Lock] = {}
@@ -1190,6 +3085,13 @@ class WorkspaceIntelligenceHub:
         self._transcribe_jobs: dict[str, dict[str, Any]] = {}
         self._schema_ready_token: tuple[int, int] | None = None
         self._last_snapshot_mono: float = 0.0
+        self._evidence_verify_cache_lock = threading.Lock()
+        self._evidence_verify_cache: OrderedDict[tuple[str, str], Any] = OrderedDict()
+        self._evidence_verify_cache_fp: tuple[int, int, int, int, int, int] | None = None
+
+    def is_demo_showcase_workspace(self) -> bool:
+        """Return True when this hub runs inside an isolated Demo Showcase directory."""
+        return (self._project_root / ".demo-showcase-v1.json").is_file()
 
     def _visual_lock_for(self, video_id: str) -> threading.Lock:
         with self._visual_locks_guard:
@@ -1204,11 +3106,43 @@ class WorkspaceIntelligenceHub:
             return self._http_opener.open(req, timeout=timeout)
         return self._default_no_redirect_opener.open(req, timeout=timeout)
 
+    def _open_pinned_cloud_url(
+        self,
+        req: urllib.request.Request,
+        *,
+        validated_url: str,
+        timeout: float,
+    ) -> Any:
+        req_parts = urlsplit(req.full_url)
+        val_parts = urlsplit(validated_url)
+        req_host = (req_parts.hostname or "").strip().lower()
+        val_host = (val_parts.hostname or "").strip().lower()
+        if (
+            req_parts.scheme != "https"
+            or val_parts.scheme != "https"
+            or not req_host
+            or req_host != val_host
+            or (req_parts.port or 443) != (val_parts.port or 443)
+        ):
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 请求目标与已验证主机不一致，已按安全策略拦截。",
+            )
+        if self._http_opener is not None:
+            return self._http_opener.open(req, timeout=timeout)
+        return self._default_no_redirect_opener.open(req, timeout=timeout)
+
+    def _open_loopback_url(self, req: urllib.request.Request, *, timeout: float) -> Any:
+        if self._http_opener is not None:
+            return self._http_opener.open(req, timeout=timeout)
+        return self._loopback_direct_opener.open(req, timeout=timeout)
+
     def _probe_ollama_model_vision(self, base_url: str, model: str) -> bool | None:
         active_opener = (
             self._http_opener
             if self._http_opener is not None
-            else self._default_no_redirect_opener
+            else self._loopback_direct_opener
         )
         return _probe_ollama_model_vision_http(base_url, model, opener=active_opener)
 
@@ -1252,7 +3186,7 @@ class WorkspaceIntelligenceHub:
         conn: sqlite3.Connection | None = None
         try:
             conn = sqlite3.connect(
-                f"file:{self.db_path}?mode=ro", uri=True, timeout=10.0
+                f"{self.db_path.resolve().as_uri()}?mode=ro", uri=True, timeout=10.0
             )
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA busy_timeout=5000")
@@ -1537,6 +3471,15 @@ class WorkspaceIntelligenceHub:
         except CredentialStoreError:
             return False
 
+    def _current_whisper_slug(self) -> str | None:
+        if self._media_transcriber is None:
+            return None
+        model_path = getattr(self._media_transcriber, "model_path", None)
+        if isinstance(model_path, Path):
+            return model_path.name
+        discovered = _discover_default_mlx_model_dir(self._project_root)
+        return discovered.name if discovered is not None else "whisper-large-v3-turbo"
+
     def get_settings(self) -> dict[str, object]:
         cfg = self._raw_engine_config()
         reachable, installed = self._ollama_probe(cfg["ollama_base_url"])
@@ -1556,16 +3499,65 @@ class WorkspaceIntelligenceHub:
             "cloud_model": cfg["cloud_model"],
             "cloud_key_configured": self._has_byok_key(),
             "local_mlx_Whisper_ready": self._media_transcriber is not None,
+            "active_whisper_slug": self._current_whisper_slug(),
+            "curated_ollama_models": [dict(item) for item in CURATED_OLLAMA_MODELS],
+            "curated_whisper_models": [dict(item) for item in CURATED_WHISPER_MODELS],
             "background_auto_sync_cloud_allowed": False,
             "cloud_daily_call_limit": daily_limit,
             "cloud_calls_used_today": self._count_cloud_calls_today(),
             "cloud_reauth_required": reauth_required,
         }
 
-    def update_settings(
-        self, payload: Mapping[str, object], *, from_restore: bool = False
-    ) -> dict[str, object]:
-        current = self._raw_engine_config()
+    @staticmethod
+    def _restore_payload_error(
+        message: str = "备份快照格式或字段类型无效，已拒绝恢复。",
+    ) -> ApiError:
+        return ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "RESTORE_INVALID_PAYLOAD", message)
+
+    @classmethod
+    def _require_restore_int(
+        cls, value: object, *, default: int | None = None
+    ) -> int:
+        if value is None and default is not None:
+            return default
+        if isinstance(value, bool) or isinstance(value, float):
+            raise cls._restore_payload_error()
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            token = value.strip()
+            if token and token.lstrip("+-").isdigit():
+                return int(token)
+        raise cls._restore_payload_error()
+
+    @classmethod
+    def _require_restore_float(
+        cls, value: object, *, default: float | None = None
+    ) -> float:
+        if value is None and default is not None:
+            return default
+        if isinstance(value, bool):
+            raise cls._restore_payload_error()
+        if isinstance(value, (int, float)):
+            num = float(value)
+            if math.isfinite(num):
+                return num
+        elif isinstance(value, str):
+            try:
+                num = float(value.strip())
+                if math.isfinite(num):
+                    return num
+            except ValueError:
+                pass
+        raise cls._restore_payload_error()
+
+    def _prepare_engine_config_update(
+        self,
+        payload: Mapping[str, object],
+        current: Mapping[str, str],
+        *,
+        from_restore: bool = False,
+    ) -> tuple[str, str, str, str, str, str, str, int, bool]:
         requested_mode = str(payload.get("active_mode", current["active_mode"])).strip()
         if requested_mode not in VALID_MODES:
             raise ValueError("active_mode must be 'local_ollama' or 'cloud_byok'")
@@ -1608,18 +3600,7 @@ class WorkspaceIntelligenceHub:
                 raise ValueError("cloud_daily_call_limit must be an integer between 1 and 500")
             daily_limit = parsed_limit
 
-        if not from_restore and "cloud_api_key" in payload:
-            raw_key = payload["cloud_api_key"]
-            if raw_key is None or (isinstance(raw_key, str) and not raw_key.strip()):
-                self._byok_store.delete()
-            elif isinstance(raw_key, str):
-                secret = raw_key.strip()
-                if len(secret) > 512 or any(ord(c) < 32 for c in secret):
-                    raise ValueError("cloud_api_key format is invalid")
-                self._byok_store.save(secret)
-            else:
-                raise ValueError("cloud_api_key must be a string or null")
-
+        reauth_required = False
         if from_restore:
             if (
                 requested_mode == "cloud_byok"
@@ -1628,6 +3609,7 @@ class WorkspaceIntelligenceHub:
             ):
                 active_mode = "local_ollama"
                 cloud_authorized_endpoint = ""
+                reauth_required = True
             else:
                 cloud_authorized_endpoint = current.get("cloud_authorized_endpoint", "")
         else:
@@ -1645,41 +3627,92 @@ class WorkspaceIntelligenceHub:
             else:
                 cloud_authorized_endpoint = current.get("cloud_authorized_endpoint", "")
 
+        return (
+            active_mode,
+            ollama_base_url,
+            ollama_model,
+            cloud_provider,
+            cloud_base_url,
+            cloud_model,
+            cloud_authorized_endpoint,
+            daily_limit,
+            reauth_required,
+        )
+
+    @staticmethod
+    def _upsert_engine_config(
+        conn: sqlite3.Connection,
+        prepared: tuple[str, str, str, str, str, str, str, int, bool],
+        ts: str,
+    ) -> None:
+        (
+            active_mode,
+            ollama_base_url,
+            ollama_model,
+            cloud_provider,
+            cloud_base_url,
+            cloud_model,
+            cloud_authorized_endpoint,
+            daily_limit,
+            _reauth,
+        ) = prepared
+        conn.execute(
+            """
+            INSERT INTO engine_config (
+                singleton_id, active_mode, ollama_base_url, ollama_model,
+                cloud_provider, cloud_base_url, cloud_model, updated_at,
+                cloud_authorized_endpoint, cloud_daily_call_limit
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(singleton_id) DO UPDATE SET
+                active_mode = excluded.active_mode,
+                ollama_base_url = excluded.ollama_base_url,
+                ollama_model = excluded.ollama_model,
+                cloud_provider = excluded.cloud_provider,
+                cloud_base_url = excluded.cloud_base_url,
+                cloud_model = excluded.cloud_model,
+                updated_at = excluded.updated_at,
+                cloud_authorized_endpoint = excluded.cloud_authorized_endpoint,
+                cloud_daily_call_limit = excluded.cloud_daily_call_limit
+            """,
+            (
+                active_mode,
+                ollama_base_url,
+                ollama_model,
+                cloud_provider,
+                cloud_base_url,
+                cloud_model,
+                ts,
+                cloud_authorized_endpoint,
+                daily_limit,
+            ),
+        )
+
+    def update_settings(
+        self, payload: Mapping[str, object], *, from_restore: bool = False
+    ) -> dict[str, object]:
+        current = self._raw_engine_config()
+        prepared = self._prepare_engine_config_update(
+            payload, current, from_restore=from_restore
+        )
+
+        if not from_restore and "cloud_api_key" in payload:
+            raw_key = payload["cloud_api_key"]
+            if raw_key is None or (isinstance(raw_key, str) and not raw_key.strip()):
+                self._byok_store.delete()
+            elif isinstance(raw_key, str):
+                secret = raw_key.strip()
+                if len(secret) > 512 or any(ord(c) < 32 for c in secret):
+                    raise ValueError("cloud_api_key format is invalid")
+                self._byok_store.save(secret)
+            else:
+                raise ValueError("cloud_api_key must be a string or null")
+
         ts = format_utc_datetime(self._now())
         with self._db_lock:
             conn = self._connect_write()
             try:
                 with conn:
-                    conn.execute(
-                        """
-                        INSERT INTO engine_config (
-                            singleton_id, active_mode, ollama_base_url, ollama_model,
-                            cloud_provider, cloud_base_url, cloud_model, updated_at,
-                            cloud_authorized_endpoint, cloud_daily_call_limit
-                        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(singleton_id) DO UPDATE SET
-                            active_mode = excluded.active_mode,
-                            ollama_base_url = excluded.ollama_base_url,
-                            ollama_model = excluded.ollama_model,
-                            cloud_provider = excluded.cloud_provider,
-                            cloud_base_url = excluded.cloud_base_url,
-                            cloud_model = excluded.cloud_model,
-                            updated_at = excluded.updated_at,
-                            cloud_authorized_endpoint = excluded.cloud_authorized_endpoint,
-                            cloud_daily_call_limit = excluded.cloud_daily_call_limit
-                        """,
-                        (
-                            active_mode,
-                            ollama_base_url,
-                            ollama_model,
-                            cloud_provider,
-                            cloud_base_url,
-                            cloud_model,
-                            ts,
-                            cloud_authorized_endpoint,
-                            daily_limit,
-                        ),
-                    )
+                    self._upsert_engine_config(conn, prepared, ts)
             finally:
                 conn.close()
         return self.get_settings()
@@ -1891,8 +3924,10 @@ class WorkspaceIntelligenceHub:
                         "Authorization": f"Bearer {secret}",
                     },
                 )
-                with self._open_url(req, timeout=90) as resp:
-                    raw_resp = json.loads(resp.read().decode("utf-8"))
+                with self._open_pinned_cloud_url(
+                    req, validated_url=validated_cloud_base, timeout=90
+                ) as resp:
+                    raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
                 self._finalize_cloud_call(call_id, status="SUCCEEDED")
@@ -1956,8 +3991,8 @@ class WorkspaceIntelligenceHub:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with self._open_url(req, timeout=180) as resp:
-                raw_resp = json.loads(resp.read().decode("utf-8"))
+            with self._open_loopback_url(req, timeout=180) as resp:
+                raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
             content = str(raw_resp["message"]["content"])
             return _extract_json_object(content), provider, model
         except (urllib.error.URLError, KeyError, ValueError, TimeoutError) as err:
@@ -2031,8 +4066,10 @@ class WorkspaceIntelligenceHub:
                         "Authorization": f"Bearer {secret}",
                     },
                 )
-                with self._open_url(req, timeout=120) as resp:
-                    raw_resp = json.loads(resp.read().decode("utf-8"))
+                with self._open_pinned_cloud_url(
+                    req, validated_url=validated_cloud_base, timeout=120
+                ) as resp:
+                    raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
                 self._finalize_cloud_call(call_id, status="SUCCEEDED")
@@ -2115,8 +4152,8 @@ class WorkspaceIntelligenceHub:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with self._open_url(req, timeout=240) as resp:
-                raw_resp = json.loads(resp.read().decode("utf-8"))
+            with self._open_loopback_url(req, timeout=240) as resp:
+                raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
             content = str(raw_resp["message"]["content"])
             return _extract_json_object(content), provider, model
         except urllib.error.HTTPError as err:
@@ -5497,6 +7534,146 @@ class WorkspaceIntelligenceHub:
                     tokens |= cls._tokenize_query(syn)
         return tokens
 
+    @staticmethod
+    def _excerpt_matches_verified(verified: Any, expected_excerpt: str | None) -> bool:
+        if verified is None:
+            return False
+        if expected_excerpt is None:
+            return True
+        norm_expected = re.sub(r"\s+", " ", str(expected_excerpt)).strip()
+        norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
+        if not norm_expected:
+            return True
+        if not norm_actual:
+            return False
+        return (
+            norm_actual == norm_expected
+            or (len(norm_expected) >= 12 and norm_actual.startswith(norm_expected))
+            or (len(norm_expected) >= 6 and norm_expected in norm_actual)
+            or (len(norm_actual) >= 6 and norm_actual in norm_expected)
+        )
+
+    def _core_repo_fingerprint(self) -> tuple[int, int, int, int, int, int] | None:
+        raw_path = getattr(self._repository, "_database_path", None)
+        if raw_path is None:
+            return None
+        db_file = Path(str(raw_path))
+        if str(db_file) == ":memory:":
+            return None
+        try:
+            st = os.stat(db_file)
+            db_sig = (st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size)
+        except OSError:
+            return None
+        wal_file = Path(f"{db_file}-wal")
+        try:
+            wal_st = os.stat(wal_file)
+            wal_sig = (wal_st.st_mtime_ns, wal_st.st_size)
+        except OSError:
+            wal_sig = (0, 0)
+        return (*db_sig, *wal_sig)
+
+    def _batch_resolve_authoritative_evidence(
+        self, pairs: Sequence[tuple[str, str]]
+    ) -> dict[tuple[str, str], Any]:
+        """Resolve many (video_id, evidence_id) bindings over 1 core DB connection + cache."""
+        unique_pairs = list(
+            dict.fromkeys(
+                (str(vid or "").strip(), str(eid or "").strip())
+                for vid, eid in pairs
+                if str(vid or "").strip() and str(eid or "").strip()
+            )
+        )
+        if not unique_pairs:
+            return {}
+
+        fp = self._core_repo_fingerprint()
+        resolved: dict[tuple[str, str], Any] = {}
+        missing: list[tuple[str, str]] = []
+        with self._evidence_verify_cache_lock:
+            if fp is None or fp != self._evidence_verify_cache_fp:
+                self._evidence_verify_cache.clear()
+                self._evidence_verify_cache_fp = fp
+            for key in unique_pairs:
+                if fp is not None and key in self._evidence_verify_cache:
+                    val = self._evidence_verify_cache[key]
+                    self._evidence_verify_cache.move_to_end(key)
+                    resolved[key] = val
+                else:
+                    missing.append(key)
+
+        if missing:
+            unique_eids = list(dict.fromkeys(eid for _, eid in missing))
+            unique_vids = list(dict.fromkeys(vid for vid, _ in missing))
+            fetched_by_eid: dict[str, Any] = {}
+            provider_by_vid: dict[str, str] = {}
+            conn: sqlite3.Connection | None = None
+            try:
+                conn = self._repository._connect()
+                for start in range(0, len(unique_vids), 100):
+                    v_chunk = tuple(unique_vids[start : start + 100])
+                    v_marks = ",".join("?" for _ in v_chunk)
+                    for v_row in conn.execute(
+                        f"SELECT video_id, provider FROM videos WHERE video_id IN ({v_marks})",
+                        v_chunk,
+                    ).fetchall():
+                        provider_by_vid[str(v_row[0])] = str(v_row[1] or "").upper()
+                for start in range(0, len(unique_eids), 24):
+                    chunk = tuple(unique_eids[start : start + 24])
+                    chunk_map = (
+                        self._repository.resolve_verified_evidence_text_batch_in_transaction(
+                            conn, chunk
+                        )
+                    )
+                    if not chunk_map:
+                        for eid in chunk:
+                            item = self._repository._resolve_verified_evidence_text_in_transaction(
+                                conn, eid
+                            )
+                            if item is not None:
+                                chunk_map[eid] = item
+                    fetched_by_eid.update(chunk_map)
+            except Exception:
+                fetched_by_eid = {}
+            finally:
+                if conn is not None:
+                    conn.close()
+
+            cacheable_resolved: dict[tuple[str, str], Any] = {}
+            for vid, eid in missing:
+                candidate = fetched_by_eid.get(eid)
+                if (
+                    candidate is None
+                    or candidate.video_id != vid
+                    or candidate.evidence_id != eid
+                ):
+                    candidate = None
+                resolved[(vid, eid)] = candidate
+                # Disk-backed sources (LOCAL / BILIBILI) depend on mutable files outside
+                # state.sqlite3/WAL; keep them request-scoped and never cache across calls.
+                prov = provider_by_vid.get(vid, "")
+                is_disk_backed = (
+                    prov in {"LOCAL", "BILIBILI"}
+                    or vid.startswith(("local-", "bili-"))
+                    or not prov
+                )
+                if not is_disk_backed:
+                    cacheable_resolved[(vid, eid)] = candidate
+
+            if fp is not None and cacheable_resolved and self._core_repo_fingerprint() == fp:
+                with self._evidence_verify_cache_lock:
+                    if self._core_repo_fingerprint() == fp:
+                        if self._evidence_verify_cache_fp != fp:
+                            self._evidence_verify_cache.clear()
+                            self._evidence_verify_cache_fp = fp
+                        for key, val in cacheable_resolved.items():
+                            self._evidence_verify_cache[key] = val
+                            self._evidence_verify_cache.move_to_end(key)
+                        while len(self._evidence_verify_cache) > 2048:
+                            self._evidence_verify_cache.popitem(last=False)
+
+        return resolved
+
     def _resolve_authoritative_evidence(
         self,
         video_id: str,
@@ -5522,20 +7699,8 @@ class WorkspaceIntelligenceHub:
             or verified.evidence_id != clean_eid
         ):
             return None
-        if expected_excerpt is not None:
-            norm_expected = re.sub(r"\s+", " ", str(expected_excerpt)).strip()
-            norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
-            if norm_expected:
-                if not norm_actual:
-                    return None
-                matched = (
-                    norm_actual == norm_expected
-                    or (len(norm_expected) >= 12 and norm_actual.startswith(norm_expected))
-                    or (len(norm_expected) >= 6 and norm_expected in norm_actual)
-                    or (len(norm_actual) >= 6 and norm_actual in norm_expected)
-                )
-                if not matched:
-                    return None
+        if not self._excerpt_matches_verified(verified, expected_excerpt):
+            return None
         return verified
 
     @staticmethod
@@ -5847,6 +8012,26 @@ class WorkspaceIntelligenceHub:
         seen_ev_ids: set[str] = set()
 
         def _make_candidate(seg: _TextEvidenceSegment, *, point_zh: str) -> dict[str, Any]:
+            raw_text = str(seg.text or "")
+            snippet = raw_text
+            if len(raw_text) > 280 and expanded_tokens:
+                lowered = raw_text.lower()
+                match_positions = [
+                    lowered.find(tok.lower())
+                    for tok in expanded_tokens
+                    if (len(tok) >= 3 or any("\u4e00" <= ch <= "\u9fff" for ch in tok))
+                    and lowered.find(tok.lower()) >= 200
+                ]
+                if match_positions:
+                    earliest = min(match_positions)
+                    start = max(0, earliest - 40)
+                    snap = max(
+                        raw_text.rfind(" ", max(0, start - 40), earliest + 1),
+                        raw_text.rfind("\n", max(0, start - 40), earliest + 1),
+                    )
+                    if snap > 0:
+                        start = snap + 1
+                    snippet = raw_text[start:]
             return {
                 "video_id": video.video_id,
                 "video_title": video.title or video.video_id,
@@ -5865,7 +8050,7 @@ class WorkspaceIntelligenceHub:
                 "timestamp_label": seg.locator_label,
                 "citation_url": None,
                 "point_zh": point_zh,
-                "excerpt": _clean_text(seg.text, max_len=280),
+                "excerpt": _clean_text(snippet, max_len=280),
             }
 
         if brief is not None and brief.get("core_points"):
@@ -6006,7 +8191,7 @@ class WorkspaceIntelligenceHub:
                 include_markdown=False, repo_conn=conn
             )
             videos = self._load_all_videos(repo_conn=conn)
-            grounded_timed_ids = {
+            grounded_timed_candidates = {
                 str(row[0])
                 for row in conn.execute(
                     "SELECT DISTINCT t.video_id FROM timed_transcripts t "
@@ -6016,6 +8201,19 @@ class WorkspaceIntelligenceHub:
                     ")"
                 )
             }
+            snapshot_vids = {
+                str(row[0])
+                for row in conn.execute(
+                    "SELECT DISTINCT content_id FROM content_source_snapshots"
+                )
+            }
+            grounded_timed_ids: set[str] = set()
+            for vid in grounded_timed_candidates:
+                if vid in snapshot_vids:
+                    src = verify_source(self._repository, conn, vid)
+                    if src is None or src["status"] != "READY":
+                        continue
+                grounded_timed_ids.add(vid)
             candidate_text_ids = [
                 str(row[0])
                 for row in conn.execute(
@@ -6127,6 +8325,7 @@ class WorkspaceIntelligenceHub:
             "channels": channels,
             "topic_clusters": clusters,
             "videos": cleaned_videos,
+            "candidate_source_count": len(grounded_videos),
         }
 
     def ask_research_question(self, payload: Mapping[str, object]) -> dict[str, object]:
@@ -6385,16 +8584,18 @@ class WorkspaceIntelligenceHub:
 
         system_prompt = (
             "你是跨视频 AI 产品与商业研究顾问（RESEARCH_QA_SCHEMA）。"
-            "请严格依据候选证据编号 [E1]..[En] 用简体中文深度回答用户问题，并在行文中用 [E1] 等标注出处。"
-            "如果候选证据不足以直接回答问题，或只是字面无关/缺乏核心依据，必须把 answerable 设为 false 并保持 citations 为空数组，严禁硬凑或编造。"
+            "请严格依据候选证据编号 [E1]..[En] 用简体中文深度回答用户问题：answer_zh 中的每一句话/列表项/表格行、"
+            "key_takeaways_zh 中的每一条、action_items_zh 中的每一条都必须附带对应的 [E1]..[En] 引用标记；"
+            "没有有效引用支撑的句子或条目禁止输出。"
+            "如果候选证据不足以直接回答问题，或只是字面无关/缺乏核心依据，必须把 answerable 设为布尔值 false 并保持 citations 为空数组，严禁硬凑或编造。"
             "严禁编造候选列表之外的编号或时间戳。\n"
             "输出 JSON 契约：\n"
             "{\n"
-            '  "answerable": true 或 false,\n'
+            '  "answerable": true 或 false（严格 JSON 布尔值）,\n'
             '  "refusal_reason_zh": "仅当 answerable 为 false 时填写：简明说明当前候选证据缺什么依据",\n'
-            '  "answer_zh": "结构清晰的跨视频综合中文解答（150-450字，内含 [E1] 等引用标记；若 answerable 为 false 则说明证据不足）",\n'
-            '  "key_takeaways_zh": ["2-4条跨视频核心共识或分歧洞察"],\n'
-            '  "action_items_zh": ["2-3条可直接执行的下一步产品/研究动作"],\n'
+            '  "answer_zh": "结构清晰的跨视频综合中文解答（150-450字，每句均含 [E1] 等引用标记；若 answerable 为 false 则说明证据不足）",\n'
+            '  "key_takeaways_zh": ["2-4条跨视频核心共识或分歧洞察（每条末尾标注对应 [E1] 等引用）"],\n'
+            '  "action_items_zh": ["2-3条可直接执行的下一步产品/研究动作（每条末尾标注对应 [E1] 等引用）"],\n'
             '  "citations": [{"ref": "E1", "note_zh": "该证据支撑的核心论据说明"}]\n'
             "}"
         )
@@ -6420,43 +8621,67 @@ class WorkspaceIntelligenceHub:
             parsed.get("answer_zh"),
             fallback="已根据跨视频证据完成综合梳理。",
             max_len=2400,
+            preserve_newlines=True,
         )
         takeaways = _clean_string_list(
-            parsed.get("key_takeaways_zh"), max_items=6, max_len=400
+            parsed.get("key_takeaways_zh"),
+            max_items=6,
+            max_len=400,
+            preserve_newlines=True,
         )
         actions = _clean_string_list(
-            parsed.get("action_items_zh"), max_items=6, max_len=400
+            parsed.get("action_items_zh"),
+            max_items=6,
+            max_len=400,
+            preserve_newlines=True,
         )
 
         valid_labels = set(candidates.keys())
+        candidate_excerpts = {
+            ref_k: str(ref_v.get("excerpt") or "")
+            for ref_k, ref_v in candidates.items()
+        }
+        fact_conflicts: list[str] = []
         raw_cites = parsed.get("citations")
-        raw_cite_invalid_refs: list[str] = []
-        if isinstance(raw_cites, list):
-            for entry in raw_cites:
-                if isinstance(entry, dict):
-                    ref_raw = str(entry.get("ref", "")).strip().upper()
-                    if ref_raw and ref_raw not in valid_labels:
-                        raw_cite_invalid_refs.append(ref_raw)
-        ungrounded_refs_found = [
+        answerable_ok = _is_answerable_true(parsed)
+        # Unconditionally enforce per-sentence/item citation grounding AND fact consistency BEFORE hydrating citations.
+        cited_session_refs = {
             f"E{num}"
-            for frag in (answer_zh, *takeaways, *actions)
-            for num in _extract_e_ref_nums(frag)
-            if f"E{num}" not in valid_labels
-        ] + raw_cite_invalid_refs
-        has_any_ungrounded = bool(ungrounded_refs_found)
-        # Prune ungrounded sentences/items BEFORE deciding whether grounded content survives.
-        if has_any_ungrounded and parsed.get("answerable") is not False:
+            for txt in (answer_zh, *takeaways, *actions)
+            for num in _extract_e_ref_nums(txt)
+            if f"E{num}" in candidate_excerpts
+        }
+        cited_session_excerpts = [
+            candidate_excerpts[r] for r in sorted(cited_session_refs)
+        ]
+        if answerable_ok:
             answer_zh = _prune_ungrounded_ref_clauses(
                 answer_zh,
                 valid_labels,
                 require_valid_ref_per_sentence=True,
+                cited_excerpts=candidate_excerpts,
+                conflict_tracker=fact_conflicts,
+                session_excerpts=cited_session_excerpts,
             )
-            takeaways = _filter_ungrounded_items(takeaways, valid_labels)
-            actions = _filter_ungrounded_items(actions, valid_labels)
+            takeaways = _filter_ungrounded_items(
+                takeaways,
+                valid_labels,
+                cited_excerpts=candidate_excerpts,
+                conflict_tracker=fact_conflicts,
+                session_excerpts=cited_session_excerpts,
+            )
+            actions = _filter_ungrounded_items(
+                actions,
+                valid_labels,
+                cited_excerpts=candidate_excerpts,
+                conflict_tracker=fact_conflicts,
+                check_domain_support=False,
+            )
 
-        # Hydrate citations strictly from backend-issued `candidates`!
+        # Hydrate citations strictly from backend-issued `candidates` & verify every note_zh!
         hydrated_citations: list[dict[str, Any]] = []
         seen_refs: set[str] = set()
+        note_pruned_count = 0
         if isinstance(raw_cites, list):
             for entry in raw_cites:
                 if not isinstance(entry, dict):
@@ -6465,62 +8690,155 @@ class WorkspaceIntelligenceHub:
                 if ref in candidates and ref not in seen_refs:
                     seen_refs.add(ref)
                     base = dict(candidates[ref])
-                    base["note_zh"] = _clean_text(entry.get("note_zh"), max_len=240)
+                    raw_note = _clean_text(entry.get("note_zh"), max_len=240)
+                    safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
+                        raw_note, str(base.get("excerpt") or "")
+                    )
+                    if was_pruned:
+                        note_pruned_count += 1
+                    base["note_zh"] = safe_note
+                    if safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                        base["note_verification_grade"] = note_grade
                     hydrated_citations.append(base)
-        for num in _extract_e_ref_nums(answer_zh):
-            inline_ref = f"E{num}"
-            if inline_ref in candidates and inline_ref not in seen_refs:
-                seen_refs.add(inline_ref)
-                base = dict(candidates[inline_ref])
-                base["note_zh"] = base.get("point_zh", "")
-                hydrated_citations.append(base)
+        inline_sources = (
+            (answer_zh, *takeaways, *actions) if answerable_ok else (answer_zh,)
+        )
+        for inline_text in inline_sources:
+            for num in _extract_e_ref_nums(inline_text):
+                inline_ref = f"E{num}"
+                if inline_ref in candidates and inline_ref not in seen_refs:
+                    seen_refs.add(inline_ref)
+                    base = dict(candidates[inline_ref])
+                    safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
+                        str(base.get("point_zh") or ""), str(base.get("excerpt") or "")
+                    )
+                    if was_pruned:
+                        note_pruned_count += 1
+                    base["note_zh"] = safe_note
+                    if safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                        base["note_verification_grade"] = note_grade
+                    hydrated_citations.append(base)
 
         surviving_inline_valid = {
             f"E{num}"
             for num in _extract_e_ref_nums(answer_zh)
             if f"E{num}" in valid_labels
         }
-        model_refused = parsed.get("answerable") is False
-        no_grounded_answer_left = not answer_zh.strip() or (
-            has_any_ungrounded and not surviving_inline_valid
-        )
+        model_refused = not answerable_ok
+        no_grounded_answer_left = not answer_zh.strip() or not surviving_inline_valid
         refused = model_refused or len(hydrated_citations) == 0 or no_grounded_answer_left
         answer_status = "REFUSED_INSUFFICIENT_EVIDENCE" if refused else "GROUNDED"
+        refusal_reason_code = ""
         if refused:
             hydrated_citations = []
             takeaways = []
             actions = []
-            refusal_reason_zh = _clean_text(
-                parsed.get("refusal_reason_zh"),
-                fallback="当前资料库已检索片段中未找到可直接支撑该问题的有效原文证据，已拒绝无根据作答。",
-                max_len=400,
+            if not candidates:
+                refusal_reason_code = "NO_MATCHING_CANDIDATES"
+            elif model_refused:
+                refusal_reason_code = "MODEL_DECLINED_UNANSWERABLE"
+            elif "CITATION_FACT_CONFLICT" in fact_conflicts:
+                refusal_reason_code = "CITATION_FACT_CONFLICT"
+            elif "UNSUPPORTED_CLAIM_UNVERIFIED" in fact_conflicts:
+                refusal_reason_code = "UNSUPPORTED_CLAIM_UNVERIFIED"
+            elif len(hydrated_citations) == 0 or no_grounded_answer_left:
+                refusal_reason_code = "NO_VERIFIED_CITATIONS"
+            refusal_reason_code, refusal_reason_zh = _resolve_refusal_reason(
+                refusal_reason_code
             )
             answer_zh = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
             related_excerpts: list[dict[str, Any]] = [
                 dict(item) for item in list(candidates.values())[:3]
             ]
+            scope_meta["contains_heuristic_claims"] = False
+            scope_meta["fact_verification_state"] = refusal_reason_code
         else:
             refusal_reason_zh = ""
             related_excerpts = []
+            extra_conflicts: list[str] = []
+            fact_grades: list[str] = []
             answer_zh = _prune_ungrounded_ref_clauses(
                 answer_zh,
                 valid_labels,
-                require_valid_ref_per_sentence=has_any_ungrounded,
+                require_valid_ref_per_sentence=True,
+                cited_excerpts=candidate_excerpts,
+                conflict_tracker=extra_conflicts,
+                grade_tracker=fact_grades,
+                session_excerpts=cited_session_excerpts,
             ).strip()
-            takeaways = _filter_ungrounded_items(takeaways, valid_labels)
-            actions = _filter_ungrounded_items(actions, valid_labels)
+            takeaways = _filter_ungrounded_items(
+                takeaways,
+                valid_labels,
+                cited_excerpts=candidate_excerpts,
+                conflict_tracker=extra_conflicts,
+                grade_tracker=fact_grades,
+                session_excerpts=cited_session_excerpts,
+            )
+            actions = _filter_ungrounded_items(
+                actions,
+                valid_labels,
+                cited_excerpts=candidate_excerpts,
+                conflict_tracker=extra_conflicts,
+                check_domain_support=False,
+            )
+            all_conflicts = fact_conflicts + extra_conflicts
+            note_grades = [
+                str(c.get("note_verification_grade"))
+                for c in hydrated_citations
+                if str(c.get("note_zh") or "").strip()
+                and c.get("note_verification_grade") in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}
+            ]
             if not answer_zh:
                 refused = True
                 answer_status = "REFUSED_INSUFFICIENT_EVIDENCE"
                 hydrated_citations = []
                 takeaways = []
                 actions = []
-                refusal_reason_zh = "答案中未包含可核验的有效原文引用，已按 Fail-Closed 策略拒答。"
+                inferred_code = (
+                    "CITATION_FACT_CONFLICT"
+                    if "CITATION_FACT_CONFLICT" in all_conflicts
+                    else (
+                        "UNSUPPORTED_CLAIM_UNVERIFIED"
+                        if "UNSUPPORTED_CLAIM_UNVERIFIED" in all_conflicts
+                        else "NO_VERIFIED_CITATIONS"
+                    )
+                )
+                refusal_reason_code, refusal_reason_zh = _resolve_refusal_reason(
+                    inferred_code
+                )
                 answer_zh = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
                 related_excerpts = [dict(item) for item in list(candidates.values())[:3]]
+                scope_meta["contains_heuristic_claims"] = False
+                scope_meta["fact_verification_state"] = refusal_reason_code
+            else:
+                all_grades = fact_grades + note_grades
+                has_pruned = bool(all_conflicts or note_pruned_count > 0)
+                has_heuristic = ("HEURISTIC_ONLY" in all_grades) or (not fact_grades)
+                if has_pruned:
+                    scope_meta["partial_pruned"] = True
+                    if all_conflicts:
+                        scope_meta["pruned_reasons"] = sorted(set(all_conflicts))
+                    if note_pruned_count > 0:
+                        scope_meta["note_pruned_count"] = note_pruned_count
+                scope_meta["contains_heuristic_claims"] = has_heuristic
+                scope_meta["fact_verification_state"] = _compose_fact_verification_state(
+                    has_pruned=has_pruned,
+                    has_heuristic=has_heuristic,
+                )
 
+        source_integrity_status = "REFUSED" if refused else "VERIFIED"
+        fact_verification_state = str(
+            scope_meta.get("fact_verification_state")
+            or ("NO_VERIFIED_CITATIONS" if refused else "SUPPORTED")
+        )
+        contains_heuristic_claims = bool(scope_meta.get("contains_heuristic_claims", False))
+        scope_meta["source_integrity_status"] = source_integrity_status
+        scope_meta["fact_verification_state"] = fact_verification_state
+        scope_meta["contains_heuristic_claims"] = contains_heuristic_claims
+        scope_meta["action_items_advisory"] = True
         scope_meta["answer_status"] = answer_status
         scope_meta["refused"] = refused
+        scope_meta["refusal_reason_code"] = refusal_reason_code
         scope_meta["refusal_reason_zh"] = refusal_reason_zh
         scope_meta["related_excerpts"] = related_excerpts
         scope_meta["covered_sources"] = covered_sources
@@ -6551,6 +8869,8 @@ class WorkspaceIntelligenceHub:
             related_excerpts=related_excerpts,
             covered_sources=covered_sources,
             scope_label_zh=scope_label_zh,
+            source_integrity_status=source_integrity_status,
+            fact_verification_state=fact_verification_state,
         )
 
         with self._db_lock:
@@ -6588,6 +8908,10 @@ class WorkspaceIntelligenceHub:
             "session_id": session_id,
             "question": question,
             "answer_status": answer_status,
+            "source_integrity_status": source_integrity_status,
+            "fact_verification_state": fact_verification_state,
+            "contains_heuristic_claims": contains_heuristic_claims,
+            "action_items_advisory": True,
             "refused": refused,
             "refusal_reason_zh": refusal_reason_zh,
             "answer_zh": answer_zh,
@@ -6624,9 +8948,21 @@ class WorkspaceIntelligenceHub:
         related_excerpts: Sequence[Mapping[str, Any]],
         covered_sources: Sequence[Mapping[str, Any]],
         scope_label_zh: str,
+        source_integrity_status: str = "",
+        fact_verification_state: str = "",
     ) -> str:
         needs_reverify = (
             str(answer_status or "").strip().upper() == "NEEDS_REVERIFICATION"
+        )
+        resolved_integrity = source_integrity_status or (
+            "REFUSED"
+            if refused
+            else ("NEEDS_REVERIFICATION" if needs_reverify else "VERIFIED")
+        )
+        resolved_fact_state = fact_verification_state or (
+            "NO_VERIFIED_CITATIONS"
+            if refused
+            else ("NEEDS_REVERIFICATION" if needs_reverify else "SUPPORTED")
         )
         md_lines = [
             "---",
@@ -6634,6 +8970,8 @@ class WorkspaceIntelligenceHub:
             f"created_at: {_yaml_quoted(created_at)}",
             f"ai_engine: {_yaml_quoted(f'{provider_label}/{model_label}')}",
             f"answer_status: {_yaml_quoted(answer_status)}",
+            f"source_integrity_status: {_yaml_quoted(resolved_integrity)}",
+            f"fact_verification_state: {_yaml_quoted(resolved_fact_state)}",
             "tags:",
             "  - youtube-intel/research",
             "---",
@@ -6655,7 +8993,14 @@ class WorkspaceIntelligenceHub:
                 f"{loc_md} ({c.get('channel_name') or '未知频道'}){ev_tag}"
             )
             if with_note:
-                note_str = str(c.get("note_zh") or c.get("point_zh") or "").strip()
+                if "note_zh" in c:
+                    note_str = str(c.get("note_zh") or "").strip()
+                else:
+                    fallback_note, _ = _sanitize_citation_note(
+                        str(c.get("point_zh") or ""),
+                        str(c.get("excerpt") or ""),
+                    )
+                    note_str = fallback_note
                 return f"{head}：{note_str}" if note_str else head
             return head
 
@@ -6666,6 +9011,21 @@ class WorkspaceIntelligenceHub:
                     "",
                 ]
             )
+        elif not refused:
+            if resolved_fact_state in {"PARTIAL_PRUNED", "PARTIAL_PRUNED_HEURISTIC"}:
+                md_lines.extend(
+                    [
+                        "> [!WARNING] 部分内容已裁剪：原回答中存在未被引用原文支持的句子或引用说明，已按 Fail-Closed 策略裁剪。",
+                        "",
+                    ]
+                )
+            if resolved_fact_state in {"HEURISTIC_ONLY", "PARTIAL_PRUNED_HEURISTIC"}:
+                md_lines.extend(
+                    [
+                        "> [!NOTE] 启发式相关性提示：本回答引用的出处已通过主库核验，但部分跨语种、概括性表述或引用说明仅通过启发式相关性检查，请结合下方原始摘录核对细节。",
+                        "",
+                    ]
+                )
         if scope_label_zh:
             md_lines.extend([f"> **研究范围**：{scope_label_zh}", ""])
         if covered_sources:
@@ -6715,7 +9075,7 @@ class WorkspaceIntelligenceHub:
                 md_lines.extend(f"- {item}" for item in takeaways)
                 md_lines.append("")
             if actions:
-                md_lines.append("## 下一步行动建议")
+                md_lines.append("## 下一步行动建议（AI 推断建议，非原文直接事实）")
                 md_lines.extend(f"- {item}" for item in actions)
                 md_lines.append("")
             has_text_cites = any(
@@ -6745,13 +9105,26 @@ class WorkspaceIntelligenceHub:
                     md_lines.append(f"  > {c['excerpt']}")
         return "\n".join(md_lines) + "\n"
 
-    def _reverify_serialized_citation(self, raw_cite: Mapping[str, Any]) -> dict[str, Any]:
+    def _reverify_serialized_citation(
+        self,
+        raw_cite: Mapping[str, Any],
+        *,
+        pre_resolved: Mapping[tuple[str, str], Any] | None = None,
+    ) -> dict[str, Any]:
         """Re-verify one persisted citation dict against core SQLiteStateRepository."""
         cite = dict(raw_cite)
         vid = str(cite.get("video_id") or "").strip()
         eid = str(cite.get("evidence_id") or "").strip()
         expected = str(cite.get("excerpt") or "").strip() or None
-        verified = self._resolve_authoritative_evidence(vid, eid, expected_excerpt=expected)
+        if pre_resolved is not None and vid and eid:
+            candidate = pre_resolved.get((vid, eid))
+            verified = (
+                candidate
+                if self._excerpt_matches_verified(candidate, expected)
+                else None
+            )
+        else:
+            verified = self._resolve_authoritative_evidence(vid, eid, expected_excerpt=expected)
         if verified is None:
             cite["verified"] = False
             cite["verification_status"] = "NEEDS_REVERIFICATION"
@@ -6759,7 +9132,17 @@ class WorkspaceIntelligenceHub:
             cite["evidence_id"] = ""
             return cite
         cite["evidence_id"] = verified.evidence_id
-        cite["excerpt"] = _clean_text(verified.excerpt, max_len=280)
+        norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
+        norm_expected = re.sub(r"\s+", " ", str(expected or "")).strip()
+        pos = (
+            norm_actual.find(norm_expected)
+            if len(norm_expected) >= 6 and norm_actual
+            else -1
+        )
+        cite["excerpt"] = _clean_text(
+            norm_actual[pos:] if pos > 0 else verified.excerpt,
+            max_len=280,
+        )
         if verified.locator_type == "TEXT_RANGE":
             cite["locator_type"] = "TEXT_RANGE"
             cite["start_seconds"] = None
@@ -6784,7 +9167,12 @@ class WorkspaceIntelligenceHub:
         cite["verification_status"] = "VERIFIED"
         return cite
 
-    def _row_to_research_session_dto(self, row: sqlite3.Row) -> dict[str, object]:
+    def _row_to_research_session_dto(
+        self,
+        row: sqlite3.Row,
+        *,
+        pre_resolved: Mapping[tuple[str, str], Any] | None = None,
+    ) -> dict[str, object]:
         row_keys = set(row.keys())
         raw_scope_json = (
             str(row["scope_json"])
@@ -6808,10 +9196,32 @@ class WorkspaceIntelligenceHub:
         except ValueError:
             raw_citations = []
         citations: list[dict[str, Any]] = []
+        note_pruned_hist = False
+        note_grades_hist: list[str] = []
         if isinstance(raw_citations, list):
             for entry in raw_citations:
                 if isinstance(entry, Mapping):
-                    citations.append(self._reverify_serialized_citation(entry))
+                    rev_c = self._reverify_serialized_citation(entry, pre_resolved=pre_resolved)
+                    if rev_c.get("verified"):
+                        orig_note = str(rev_c.get("note_zh") or "").strip()
+                        safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
+                            orig_note, str(rev_c.get("excerpt") or "")
+                        )
+                        if was_pruned:
+                            rev_c["note_zh"] = safe_note
+                            note_pruned_hist = True
+                            rev_c.pop("note_verification_grade", None)
+                        elif safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                            rev_c["note_verification_grade"] = note_grade
+                            note_grades_hist.append(note_grade)
+                        else:
+                            rev_c.pop("note_verification_grade", None)
+                    else:
+                        if str(rev_c.get("note_zh") or "").strip():
+                            rev_c["note_zh"] = ""
+                            note_pruned_hist = True
+                        rev_c.pop("note_verification_grade", None)
+                    citations.append(rev_c)
 
         verified_citation_count = sum(1 for c in citations if bool(c.get("verified")))
         all_citations_verified = bool(citations) and verified_citation_count == len(citations)
@@ -6838,12 +9248,11 @@ class WorkspaceIntelligenceHub:
         if isinstance(raw_related, list):
             for entry in raw_related:
                 if isinstance(entry, Mapping):
-                    related_excerpts.append(self._reverify_serialized_citation(entry))
+                    related_excerpts.append(
+                        self._reverify_serialized_citation(entry, pre_resolved=pre_resolved)
+                    )
         if "related_excerpts" in parsed_scope or related_excerpts:
             parsed_scope["related_excerpts"] = related_excerpts
-        has_unverified_related = any(
-            not bool(c.get("verified")) for c in related_excerpts
-        )
         raw_covered = parsed_scope.get("covered_sources")
         covered_sources = raw_covered if isinstance(raw_covered, list) else []
         covered_source_count = (
@@ -6855,36 +9264,131 @@ class WorkspaceIntelligenceHub:
         answer_str = str(row["answer_zh"])
         takeaways_list = json.loads(str(row["key_takeaways_json"]))
         actions_list = json.loads(str(row["action_items_json"]))
+        if refused:
+            code, refusal_reason_zh = _resolve_refusal_reason(
+                parsed_scope.get("refusal_reason_code")
+            )
+            parsed_scope["refusal_reason_code"] = code
+            parsed_scope["refusal_reason_zh"] = refusal_reason_zh
+            answer_str = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
+            citations = []
+            verified_citation_count = 0
+            takeaways_list = []
+            actions_list = []
+        elif answer_status == "GROUNDED":
+            valid_ref_excerpts = {
+                str(c.get("ref_label") or c.get("ref") or "").strip().upper(): str(
+                    c.get("excerpt") or ""
+                )
+                for c in citations
+                if isinstance(c, Mapping)
+                and bool(c.get("verified"))
+                and str(c.get("ref_label") or c.get("ref") or "").strip()
+            }
+            valid_ref_labels = set(valid_ref_excerpts.keys())
+            hist_conflicts: list[str] = []
+            hist_grades: list[str] = []
+            orig_takeaways = list(takeaways_list) if isinstance(takeaways_list, list) else []
+            orig_actions = list(actions_list) if isinstance(actions_list, list) else []
+            answer_str = _prune_ungrounded_ref_clauses(
+                answer_str,
+                valid_ref_labels,
+                require_valid_ref_per_sentence=True,
+                cited_excerpts=valid_ref_excerpts,
+                conflict_tracker=hist_conflicts,
+                grade_tracker=hist_grades,
+                session_excerpts=list(valid_ref_excerpts.values()),
+            )
+            takeaways_list = _filter_ungrounded_items(
+                [str(x) for x in orig_takeaways],
+                valid_ref_labels,
+                cited_excerpts=valid_ref_excerpts,
+                conflict_tracker=hist_conflicts,
+                grade_tracker=hist_grades,
+                session_excerpts=list(valid_ref_excerpts.values()),
+            )
+            actions_list = _filter_ungrounded_items(
+                [str(x) for x in orig_actions],
+                valid_ref_labels,
+                cited_excerpts=valid_ref_excerpts,
+                conflict_tracker=hist_conflicts,
+                check_domain_support=False,
+            )
+            if not answer_str.strip():
+                answer_status = "NEEDS_REVERIFICATION"
+                verification_status = "NEEDS_REVERIFICATION"
+                if "CITATION_FACT_CONFLICT" in hist_conflicts:
+                    answer_str = "原历史回答存在与所引用核验原文不一致的表述，已按 Fail-Closed 策略降级为待核验状态。"
+                    parsed_scope["fact_verification_state"] = "CITATION_FACT_CONFLICT"
+                elif "UNSUPPORTED_CLAIM_UNVERIFIED" in hist_conflicts:
+                    answer_str = "原历史回答未被所引用核验原文直接支持，已按保守策略降级为待核验状态。"
+                    parsed_scope["fact_verification_state"] = "UNSUPPORTED_CLAIM_UNVERIFIED"
+                else:
+                    answer_str = "原历史回答未通过逐句可核验引用检查，已按 Fail-Closed 策略降级为待核验状态。"
+                parsed_scope["contains_heuristic_claims"] = False
+            else:
+                all_hist_grades = hist_grades + note_grades_hist
+                has_pruned_hist = bool(
+                    hist_conflicts or note_pruned_hist or parsed_scope.get("partial_pruned")
+                )
+                has_heuristic_hist = ("HEURISTIC_ONLY" in all_hist_grades) or (not hist_grades)
+                if has_pruned_hist:
+                    parsed_scope["partial_pruned"] = True
+                    if hist_conflicts:
+                        parsed_scope["pruned_reasons"] = sorted(set(hist_conflicts))
+                parsed_scope["contains_heuristic_claims"] = has_heuristic_hist
+                parsed_scope["fact_verification_state"] = _compose_fact_verification_state(
+                    has_pruned=has_pruned_hist,
+                    has_heuristic=has_heuristic_hist,
+                )
+        source_integrity_status = (
+            "REFUSED"
+            if refused
+            else ("NEEDS_REVERIFICATION" if answer_status == "NEEDS_REVERIFICATION" else "VERIFIED")
+        )
+        fact_verification_state = str(
+            parsed_scope.get("fact_verification_state")
+            or (
+                parsed_scope.get("refusal_reason_code") or "NO_VERIFIED_CITATIONS"
+                if refused
+                else ("NEEDS_REVERIFICATION" if answer_status == "NEEDS_REVERIFICATION" else "HEURISTIC_ONLY")
+            )
+        )
+        contains_heuristic_hist = bool(parsed_scope.get("contains_heuristic_claims", False))
+        parsed_scope["source_integrity_status"] = source_integrity_status
+        parsed_scope["fact_verification_state"] = fact_verification_state
+        parsed_scope["contains_heuristic_claims"] = contains_heuristic_hist
+        parsed_scope["action_items_advisory"] = True
         provider_str = str(row["provider"])
         model_str = str(row["model"])
         created_at_str = str(row["created_at"])
-        obsidian_md = str(row["obsidian_markdown"])
-        if (
-            answer_status == "NEEDS_REVERIFICATION"
-            or bool(parsed_scope.get("restored_from_backup"))
-            or has_unverified_related
-        ):
-            obsidian_md = self._build_research_session_obsidian_markdown(
-                question=question_str,
-                created_at=created_at_str,
-                provider_label=provider_str,
-                model_label=model_str,
-                answer_status=answer_status,
-                refused=refused,
-                answer_zh=answer_str,
-                takeaways=takeaways_list if isinstance(takeaways_list, list) else [],
-                actions=actions_list if isinstance(actions_list, list) else [],
-                citations=citations,
-                related_excerpts=related_excerpts,
-                covered_sources=[
-                    c for c in covered_sources if isinstance(c, Mapping)
-                ],
-                scope_label_zh=scope_label_zh,
-            )
+        obsidian_md = self._build_research_session_obsidian_markdown(
+            question=question_str,
+            created_at=created_at_str,
+            provider_label=provider_str,
+            model_label=model_str,
+            answer_status=answer_status,
+            refused=refused,
+            answer_zh=answer_str,
+            takeaways=takeaways_list if isinstance(takeaways_list, list) else [],
+            actions=actions_list if isinstance(actions_list, list) else [],
+            citations=citations,
+            related_excerpts=related_excerpts,
+            covered_sources=[
+                c for c in covered_sources if isinstance(c, Mapping)
+            ],
+            scope_label_zh=scope_label_zh,
+            source_integrity_status=source_integrity_status,
+            fact_verification_state=fact_verification_state,
+        )
         return {
             "session_id": str(row["session_id"]),
             "question": question_str,
             "answer_status": answer_status,
+            "source_integrity_status": source_integrity_status,
+            "fact_verification_state": fact_verification_state,
+            "contains_heuristic_claims": contains_heuristic_hist,
+            "action_items_advisory": True,
             "verification_status": verification_status,
             "verified_citation_count": verified_citation_count,
             "refused": refused,
@@ -6947,21 +9451,72 @@ class WorkspaceIntelligenceHub:
 
     def list_research_sessions(self) -> dict[str, object]:
         conn = self._connect_read()
-        sessions: list[dict[str, object]] = []
+        selected_rows: list[sqlite3.Row] = []
         if conn is not None:
             try:
-                rows = conn.execute(
-                    "SELECT rowid AS _rowid, * FROM research_qa_sessions "
+                meta_rows = conn.execute(
+                    "SELECT rowid AS _rowid, scope_json FROM research_qa_sessions "
                     "ORDER BY created_at DESC, rowid DESC"
                 ).fetchall()
-                for row in rows:
-                    sessions.append(self._row_to_research_session_dto(row))
-                sessions.sort(key=lambda item: not bool(item.get("pinned", False)))
-                sessions = sessions[:30]
+                ranked_meta: list[tuple[int, bool]] = []
+                for mrow in meta_rows:
+                    is_pinned = False
+                    raw_scope = mrow["scope_json"]
+                    if raw_scope:
+                        try:
+                            parsed_meta = json.loads(str(raw_scope))
+                            if isinstance(parsed_meta, Mapping):
+                                is_pinned = bool(parsed_meta.get("pinned", False))
+                        except ValueError:
+                            is_pinned = False
+                    ranked_meta.append((int(mrow["_rowid"]), is_pinned))
+                ranked_meta.sort(key=lambda pair: not pair[1])
+                top_rowids = [rowid for rowid, _ in ranked_meta[:30]]
+                if top_rowids:
+                    marks = ",".join("?" for _ in top_rowids)
+                    fetched = conn.execute(
+                        f"SELECT rowid AS _rowid, * FROM research_qa_sessions WHERE rowid IN ({marks})",
+                        top_rowids,
+                    ).fetchall()
+                    by_rowid = {int(r["_rowid"]): r for r in fetched}
+                    selected_rows = [by_rowid[rid] for rid in top_rowids if rid in by_rowid]
             except sqlite3.Error:
-                sessions = []
+                selected_rows = []
             finally:
                 conn.close()
+
+        pairs_to_verify: list[tuple[str, str]] = []
+        for srow in selected_rows:
+            try:
+                raw_cites = json.loads(str(srow["citations_json"]))
+            except ValueError:
+                raw_cites = []
+            if isinstance(raw_cites, list):
+                for entry in raw_cites:
+                    if isinstance(entry, Mapping):
+                        v = str(entry.get("video_id") or "").strip()
+                        e = str(entry.get("evidence_id") or "").strip()
+                        if v and e:
+                            pairs_to_verify.append((v, e))
+            raw_scope_s = srow["scope_json"]
+            if raw_scope_s:
+                try:
+                    sc = json.loads(str(raw_scope_s))
+                    if isinstance(sc, Mapping) and isinstance(sc.get("related_excerpts"), list):
+                        for entry in sc["related_excerpts"]:
+                            if isinstance(entry, Mapping):
+                                v = str(entry.get("video_id") or "").strip()
+                                e = str(entry.get("evidence_id") or "").strip()
+                                if v and e:
+                                    pairs_to_verify.append((v, e))
+                except ValueError:
+                    pass
+
+        pre_resolved = self._batch_resolve_authoritative_evidence(pairs_to_verify)
+        sessions: list[dict[str, object]] = [
+            self._row_to_research_session_dto(srow, pre_resolved=pre_resolved)
+            for srow in selected_rows
+        ]
         scope_options = self._build_research_scope_options()
         return {
             "sessions": sessions,
@@ -8677,6 +11232,9 @@ class WorkspaceIntelligenceHub:
             "cloud_provider": cfg.get("cloud_provider", DEFAULT_CLOUD_PROVIDER),
             "cloud_base_url": cfg.get("cloud_base_url", DEFAULT_CLOUD_BASE_URL),
             "cloud_model": cfg.get("cloud_model", DEFAULT_CLOUD_MODEL),
+            "cloud_daily_call_limit": self._parse_daily_limit(
+                cfg.get("cloud_daily_call_limit")
+            ),
         }
         briefs: list[dict[str, object]] = []
         sessions: list[dict[str, object]] = []
@@ -8693,7 +11251,35 @@ class WorkspaceIntelligenceHub:
                 for row in conn.execute(
                     "SELECT * FROM research_qa_sessions ORDER BY created_at DESC, session_id ASC"
                 ).fetchall():
-                    sessions.append(dict(row))
+                    s_row = dict(row)
+                    verified_dto = self._row_to_research_session_dto(row)
+                    dto_scope = verified_dto.get("scope")
+                    exp_scope = dict(dto_scope) if isinstance(dto_scope, Mapping) else {}
+                    exp_scope["archive_status"] = "EXPORTED_SNAPSHOT_UNVERIFIED_UNTIL_RESTORE"
+                    exp_scope["source_integrity_status"] = verified_dto.get(
+                        "source_integrity_status", "NEEDS_REVERIFICATION"
+                    )
+                    exp_scope["fact_verification_state"] = verified_dto.get(
+                        "fact_verification_state", "HEURISTIC_ONLY"
+                    )
+                    exp_scope["contains_heuristic_claims"] = bool(
+                        verified_dto.get("contains_heuristic_claims", False)
+                    )
+                    s_row["answer_zh"] = str(verified_dto.get("answer_zh") or "")
+                    s_row["key_takeaways_json"] = json.dumps(
+                        verified_dto.get("key_takeaways_zh") or [], ensure_ascii=False
+                    )
+                    s_row["action_items_json"] = json.dumps(
+                        verified_dto.get("action_items_zh") or [], ensure_ascii=False
+                    )
+                    s_row["citations_json"] = json.dumps(
+                        verified_dto.get("citations") or [], ensure_ascii=False
+                    )
+                    s_row["obsidian_markdown"] = str(
+                        verified_dto.get("obsidian_markdown") or ""
+                    )
+                    s_row["scope_json"] = json.dumps(exp_scope, ensure_ascii=False)
+                    sessions.append(s_row)
                 for row in conn.execute(
                     "SELECT * FROM weekly_ai_briefs ORDER BY created_at DESC, brief_id ASC"
                 ).fetchall():
@@ -8919,9 +11505,32 @@ class WorkspaceIntelligenceHub:
             cites_obj = []
 
         reverified_cites: list[dict[str, Any]] = []
+        note_pruned_restored = False
         for c in cites_obj:
             if isinstance(c, Mapping):
-                reverified_cites.append(self._reverify_serialized_citation(c))
+                rev_c = self._reverify_serialized_citation(c)
+                if rev_c.get("verified"):
+                    orig_note = str(rev_c.get("note_zh") or "").strip()
+                    safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
+                        orig_note,
+                        str(rev_c.get("excerpt") or ""),
+                    )
+                    rev_c["note_zh"] = safe_note
+                    if was_pruned:
+                        note_pruned_restored = True
+                        rev_c.pop("note_verification_grade", None)
+                    elif safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                        rev_c["note_verification_grade"] = note_grade
+                    else:
+                        rev_c.pop("note_verification_grade", None)
+                else:
+                    if str(rev_c.get("note_zh") or "").strip():
+                        note_pruned_restored = True
+                    rev_c["note_zh"] = ""
+                    rev_c.pop("note_verification_grade", None)
+                reverified_cites.append(rev_c)
+        if note_pruned_restored:
+            scope_obj["partial_pruned"] = True
 
         raw_related = scope_obj.get("related_excerpts")
         if isinstance(raw_related, list):
@@ -8954,11 +11563,17 @@ class WorkspaceIntelligenceHub:
     def restore_backup_snapshot(
         self, payload: Mapping[str, object]
     ) -> dict[str, object]:
-        if payload.get("schema_version") != "workspace-ai-backup-v1":
-            raise ValueError("Unsupported workspace AI backup schema_version.")
+        if (
+            not isinstance(payload, Mapping)
+            or payload.get("schema_version") != "workspace-ai-backup-v1"
+        ):
+            raise self._restore_payload_error("不支持的备份快照版本或格式，已拒绝恢复。")
         cloud_reauth_required = False
+        prepared_cfg: tuple[str, str, str, str, str, str, str, int, bool] | None = None
         raw_cfg = payload.get("engine_config")
-        if isinstance(raw_cfg, Mapping):
+        if raw_cfg is not None:
+            if not isinstance(raw_cfg, Mapping):
+                raise self._restore_payload_error("备份快照中的引擎配置格式无效，已拒绝恢复。")
             current_cfg = self._raw_engine_config()
             cfg_patch: dict[str, object] = {}
             for key in (
@@ -8969,41 +11584,36 @@ class WorkspaceIntelligenceHub:
                 "cloud_base_url",
                 "cloud_model",
             ):
-                if isinstance(raw_cfg.get(key), str):
+                if key in raw_cfg and raw_cfg[key] is not None:
+                    if not isinstance(raw_cfg[key], str):
+                        raise self._restore_payload_error("备份快照中的引擎配置字段类型无效，已拒绝恢复。")
                     cfg_patch[key] = raw_cfg[key]
-            if (
-                isinstance(raw_cfg.get("cloud_daily_call_limit"), (int, str))
-                and not isinstance(raw_cfg.get("cloud_daily_call_limit"), bool)
-            ):
-                cfg_patch["cloud_daily_call_limit"] = raw_cfg["cloud_daily_call_limit"]
+            if "cloud_daily_call_limit" in raw_cfg and raw_cfg["cloud_daily_call_limit"] is not None:
+                raw_limit = raw_cfg["cloud_daily_call_limit"]
+                if isinstance(raw_limit, bool) or not isinstance(raw_limit, (int, str)):
+                    raise self._restore_payload_error("备份快照中的云端日调用上限格式无效，已拒绝恢复。")
+                cfg_patch["cloud_daily_call_limit"] = raw_limit
             if cfg_patch:
-                req_mode = str(
-                    cfg_patch.get("active_mode", current_cfg["active_mode"])
-                ).strip()
-                req_base = str(
-                    cfg_patch.get("cloud_base_url", current_cfg["cloud_base_url"])
-                ).strip().rstrip("/")
-                req_prov = str(
-                    cfg_patch.get("cloud_provider", current_cfg["cloud_provider"])
-                ).strip()
-                if (
-                    req_mode == "cloud_byok"
-                    or req_base != current_cfg["cloud_base_url"]
-                    or req_prov != current_cfg["cloud_provider"]
-                ):
-                    cloud_reauth_required = True
-                self.update_settings(cfg_patch, from_restore=True)
+                try:
+                    prepared_cfg = self._prepare_engine_config_update(
+                        cfg_patch, current_cfg, from_restore=True
+                    )
+                except ValueError as err:
+                    raise self._restore_payload_error(
+                        "备份快照中的引擎配置参数无效，已拒绝恢复。"
+                    ) from err
+                cloud_reauth_required = prepared_cfg[8]
 
         # Decode and SHA-256 verify all bundled visual keyframe JPEGs BEFORE mutating DB or files.
         raw_assets = payload.get("visual_keyframe_assets")
         verified_assets_by_key: dict[tuple[str, str], tuple[str, str, bytes]] = {}
         if raw_assets is not None:
             if not isinstance(raw_assets, list):
-                raise ValueError("visual_keyframe_assets must be a list.")
+                raise self._restore_payload_error("备份快照中的关键帧资源列表格式无效，已拒绝恢复。")
             total_decoded = 0
             for entry in raw_assets:
                 if not isinstance(entry, Mapping):
-                    raise ValueError("Each visual_keyframe_assets entry must be an object.")
+                    raise self._restore_payload_error("备份快照中的关键帧资源条目格式无效，已拒绝恢复。")
                 vid = str(entry.get("video_id") or "").strip()
                 fid = str(entry.get("frame_id") or "").strip()
                 fname = _validate_single_segment(Path(str(entry.get("filename") or "")).name)
@@ -9016,25 +11626,27 @@ class WorkspaceIntelligenceHub:
                     or len(declared_sha) != 64
                     or not isinstance(b64, str)
                 ):
-                    raise ValueError("Invalid visual_keyframe_assets metadata entry.")
+                    raise self._restore_payload_error("备份快照中的关键帧元数据无效，已拒绝恢复。")
                 try:
                     raw_img = base64.b64decode(b64.encode("ascii"), validate=True)
                 except Exception as err:
-                    raise ValueError("Invalid base64 keyframe image in backup.") from err
+                    raise self._restore_payload_error("备份快照中的关键帧图片编码无效，已拒绝恢复。") from err
                 if (
                     len(raw_img) <= 2
                     or len(raw_img) > MAX_SINGLE_FRAME_BYTES
                     or raw_img[:2] != b"\xff\xd8"
                 ):
-                    raise ValueError("Restored keyframe asset is empty, oversized, or not JPEG.")
+                    raise self._restore_payload_error("备份快照中的关键帧图片大小或格式无效，已拒绝恢复。")
                 total_decoded += len(raw_img)
                 if total_decoded > MAX_BACKUP_VISUAL_RAW_BYTES:
-                    raise ValueError("Restored keyframe assets exceed bounded total size.")
-                if entry.get("byte_count") is not None and int(cast(int, entry["byte_count"])) != len(raw_img):
-                    raise ValueError("Restored keyframe byte_count mismatch.")
+                    raise self._restore_payload_error("备份快照中的关键帧总容量超出限制，已拒绝恢复。")
+                if entry.get("byte_count") is not None:
+                    declared_bytes = self._require_restore_int(entry["byte_count"])
+                    if declared_bytes != len(raw_img):
+                        raise self._restore_payload_error("备份快照中的关键帧字节计数不匹配，已拒绝恢复。")
                 actual_sha = hashlib.sha256(raw_img).hexdigest()
                 if actual_sha != declared_sha:
-                    raise ValueError("Restored keyframe SHA-256 integrity mismatch.")
+                    raise self._restore_payload_error("备份快照中的关键帧 SHA-256 校验失败，已拒绝恢复。")
                 verified_assets_by_key[(vid, fid)] = (fname, actual_sha, raw_img)
 
         raw_briefs = payload.get("video_ai_briefs")
@@ -9042,6 +11654,71 @@ class WorkspaceIntelligenceHub:
         raw_weekly = payload.get("weekly_ai_briefs")
         raw_curation = payload.get("video_curation_states")
         raw_visual = payload.get("video_visual_analyses")
+        for section_name, section_val in (
+            ("video_ai_briefs", raw_briefs),
+            ("research_qa_sessions", raw_sessions),
+            ("weekly_ai_briefs", raw_weekly),
+            ("video_curation_states", raw_curation),
+            ("video_visual_analyses", raw_visual),
+        ):
+            if section_val is not None and not isinstance(section_val, list):
+                raise self._restore_payload_error(
+                    f"备份快照字段类型无效（{section_name}），已拒绝恢复。"
+                )
+
+        # Up-front validate scalar/numeric types across ALL sections before touching disk or DB.
+        parsed_brief_nums: dict[int, tuple[float, int | None]] = {}
+        if isinstance(raw_briefs, list):
+            for idx_b, item in enumerate(raw_briefs):
+                if not isinstance(item, Mapping):
+                    raise self._restore_payload_error("备份快照中的视频摘要条目格式无效，已拒绝恢复。")
+                if not item.get("video_id"):
+                    continue
+                b_score = self._require_restore_float(item.get("score"), default=6.0)
+                b_dur = (
+                    None
+                    if item.get("duration_seconds") is None
+                    else self._require_restore_int(item["duration_seconds"])
+                )
+                parsed_brief_nums[idx_b] = (b_score, b_dur)
+        parsed_session_counts: dict[int, int] = {}
+        if isinstance(raw_sessions, list):
+            for idx_s, item in enumerate(raw_sessions):
+                if not isinstance(item, Mapping):
+                    raise self._restore_payload_error("备份快照中的研究问答条目格式无效，已拒绝恢复。")
+                if not item.get("session_id"):
+                    continue
+                parsed_session_counts[idx_s] = self._require_restore_int(
+                    item.get("video_count"), default=0
+                )
+        parsed_visual_counts: dict[int, tuple[int, int]] = {}
+        if isinstance(raw_visual, list):
+            for idx_v, item in enumerate(raw_visual):
+                if not isinstance(item, Mapping):
+                    raise self._restore_payload_error("备份快照中的视觉分析条目格式无效，已拒绝恢复。")
+                if not item.get("video_id"):
+                    continue
+                fc = self._require_restore_int(item.get("frame_count"), default=0)
+                ifc = self._require_restore_int(
+                    item.get("informative_frame_count"), default=0
+                )
+                try:
+                    raw_frames = json.loads(str(item.get("frames_json", "[]")))
+                except ValueError as err:
+                    raise self._restore_payload_error("备份快照中的视觉帧数据损坏，已拒绝恢复。") from err
+                if isinstance(raw_frames, list):
+                    vid_chk = str(item["video_id"])
+                    for frame in raw_frames:
+                        if isinstance(frame, Mapping):
+                            fid_chk = str(frame.get("frame_id") or "")
+                            asset_chk = verified_assets_by_key.get((vid_chk, fid_chk))
+                            if asset_chk is not None:
+                                exp_sha = str(frame.get("sha256") or "").strip().lower()
+                                if exp_sha and exp_sha != asset_chk[1]:
+                                    raise self._restore_payload_error(
+                                        "备份快照中的关键帧校验与元数据不一致，已拒绝恢复。"
+                                    )
+                parsed_visual_counts[idx_v] = (fc, ifc)
 
         restored_briefs = 0
         restored_sessions = 0
@@ -9057,10 +11734,10 @@ class WorkspaceIntelligenceHub:
         conn: sqlite3.Connection | None = None
         try:
             # Stage and materialize verified keyframe JPEG assets before DB commit
-            visual_rows_to_write: list[tuple[dict[str, object], str, str | None]] = []
+            visual_rows_to_write: list[tuple[dict[str, object], str, tuple[int, int]]] = []
             if isinstance(raw_visual, list):
                 kf_root = self._keyframes_root()
-                for item in raw_visual:
+                for idx_v, item in enumerate(raw_visual):
                     if not isinstance(item, Mapping) or not item.get("video_id"):
                         continue
                     vid = str(item["video_id"])
@@ -9132,14 +11809,18 @@ class WorkspaceIntelligenceHub:
                         (
                             dict(item),
                             json.dumps(updated_frames, ensure_ascii=False),
-                            gen_id,
+                            parsed_visual_counts[idx_v],
                         )
                     )
 
             conn = self._connect_write()
             with conn:
+                if prepared_cfg is not None:
+                    self._upsert_engine_config(
+                        conn, prepared_cfg, format_utc_datetime(self._now())
+                    )
                 if isinstance(raw_briefs, list):
-                    for item in raw_briefs:
+                    for idx_b, item in enumerate(raw_briefs):
                         if not isinstance(item, Mapping) or not item.get("video_id"):
                             continue
                         b_vid = str(item["video_id"])
@@ -9213,17 +11894,12 @@ class WorkspaceIntelligenceHub:
                         b_model = str(item.get("model", DEFAULT_OLLAMA_MODEL))
                         b_headline = str(item.get("headline_zh", ""))
                         b_summary = str(item.get("summary_zh", ""))
-                        b_score = float(cast(float, item.get("score", 6.0)))
+                        b_score, b_dur = parsed_brief_nums[idx_b]
                         b_score_reason = str(item.get("score_reason_zh", ""))
                         b_tier = str(item.get("recommendation_tier", "WORTH_SKIMMING"))
                         b_bucket = str(item.get("content_bucket", "DEEP_DIVE"))
                         b_cluster = str(
                             item.get("topic_cluster_zh", CANONICAL_TOPIC_CLUSTERS[0])
-                        )
-                        b_dur = (
-                            None
-                            if item.get("duration_seconds") is None
-                            else int(cast(int, item["duration_seconds"]))
                         )
                         b_source_basis = str(item.get("source_basis") or "TRANSCRIPT")
                         regenerated_brief_md = self._build_video_obsidian_markdown(
@@ -9338,7 +12014,7 @@ class WorkspaceIntelligenceHub:
                         restored_briefs += 1
 
                 if isinstance(raw_sessions, list):
-                    for item in raw_sessions:
+                    for idx_s, item in enumerate(raw_sessions):
                         if not isinstance(item, Mapping) or not item.get("session_id"):
                             continue
                         (
@@ -9379,6 +12055,132 @@ class WorkspaceIntelligenceHub:
                                 else "NEEDS_REVERIFICATION"
                             )
                         )
+                        if s_refused or s_answer_status == "REFUSED_INSUFFICIENT_EVIDENCE":
+                            s_refused = True
+                            s_answer_status = "REFUSED_INSUFFICIENT_EVIDENCE"
+                            r_code, r_reason_zh = _resolve_refusal_reason(
+                                reverified_scope_obj.get("refusal_reason_code")
+                            )
+                            reverified_scope_obj["refused"] = True
+                            reverified_scope_obj["answer_status"] = s_answer_status
+                            reverified_scope_obj["refusal_reason_code"] = r_code
+                            reverified_scope_obj["refusal_reason_zh"] = r_reason_zh
+                            clean_scope_json = json.dumps(
+                                reverified_scope_obj, ensure_ascii=False
+                            )
+                            s_answer = f"证据不足，无法基于当前资料库可靠回答：{r_reason_zh}"
+                            reverified_cites_list = []
+                            s_takeaways = []
+                            s_actions = []
+                        elif s_answer_status == "GROUNDED":
+                            restored_ref_excerpts = {
+                                str(c.get("ref_label") or c.get("ref") or "")
+                                .strip()
+                                .upper(): str(c.get("excerpt") or "")
+                                for c in reverified_cites_list
+                                if isinstance(c, Mapping)
+                                and bool(c.get("verified"))
+                                and str(c.get("ref_label") or c.get("ref") or "").strip()
+                            }
+                            restored_valid_refs = set(restored_ref_excerpts.keys())
+                            restored_conflicts: list[str] = []
+                            restored_grades: list[str] = []
+                            s_answer = _prune_ungrounded_ref_clauses(
+                                s_answer,
+                                restored_valid_refs,
+                                require_valid_ref_per_sentence=True,
+                                cited_excerpts=restored_ref_excerpts,
+                                conflict_tracker=restored_conflicts,
+                                grade_tracker=restored_grades,
+                                session_excerpts=list(restored_ref_excerpts.values()),
+                            )
+                            s_takeaways = _filter_ungrounded_items(
+                                [str(x) for x in s_takeaways],
+                                restored_valid_refs,
+                                cited_excerpts=restored_ref_excerpts,
+                                conflict_tracker=restored_conflicts,
+                                grade_tracker=restored_grades,
+                                session_excerpts=list(restored_ref_excerpts.values()),
+                            )
+                            s_actions = _filter_ungrounded_items(
+                                [str(x) for x in s_actions],
+                                restored_valid_refs,
+                                cited_excerpts=restored_ref_excerpts,
+                                conflict_tracker=restored_conflicts,
+                                check_domain_support=False,
+                            )
+                            restored_note_grades = [
+                                str(c.get("note_verification_grade"))
+                                for c in reverified_cites_list
+                                if bool(c.get("verified"))
+                                and str(c.get("note_zh") or "").strip()
+                                and c.get("note_verification_grade")
+                                in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}
+                            ]
+                            if not s_answer.strip():
+                                s_answer_status = "NEEDS_REVERIFICATION"
+                                reverified_scope_obj["answer_status"] = "NEEDS_REVERIFICATION"
+                                if "CITATION_FACT_CONFLICT" in restored_conflicts:
+                                    s_answer = "原历史回答存在与所引用核验原文不一致的表述，已按 Fail-Closed 策略降级为待核验状态。"
+                                    reverified_scope_obj["fact_verification_state"] = "CITATION_FACT_CONFLICT"
+                                elif "UNSUPPORTED_CLAIM_UNVERIFIED" in restored_conflicts:
+                                    s_answer = "原历史回答未被所引用核验原文直接支持，已按保守策略降级为待核验状态。"
+                                    reverified_scope_obj["fact_verification_state"] = "UNSUPPORTED_CLAIM_UNVERIFIED"
+                                else:
+                                    s_answer = "原历史回答未通过逐句可核验引用检查，已按 Fail-Closed 策略降级为待核验状态。"
+                                reverified_scope_obj["contains_heuristic_claims"] = False
+                                clean_scope_json = json.dumps(
+                                    reverified_scope_obj, ensure_ascii=False
+                                )
+                            else:
+                                all_restored_grades = restored_grades + restored_note_grades
+                                has_pruned_r = bool(
+                                    restored_conflicts
+                                    or reverified_scope_obj.get("partial_pruned")
+                                )
+                                has_heuristic_r = (
+                                    "HEURISTIC_ONLY" in all_restored_grades
+                                ) or (not restored_grades)
+                                if has_pruned_r:
+                                    reverified_scope_obj["partial_pruned"] = True
+                                    if restored_conflicts:
+                                        reverified_scope_obj["pruned_reasons"] = sorted(
+                                            set(restored_conflicts)
+                                        )
+                                reverified_scope_obj["contains_heuristic_claims"] = (
+                                    has_heuristic_r
+                                )
+                                reverified_scope_obj["fact_verification_state"] = (
+                                    _compose_fact_verification_state(
+                                        has_pruned=has_pruned_r,
+                                        has_heuristic=has_heuristic_r,
+                                    )
+                                )
+                                clean_scope_json = json.dumps(
+                                    reverified_scope_obj, ensure_ascii=False
+                                )
+                        restored_integrity_status = (
+                            "REFUSED"
+                            if s_refused
+                            else (
+                                "NEEDS_REVERIFICATION"
+                                if s_answer_status == "NEEDS_REVERIFICATION"
+                                else "VERIFIED"
+                            )
+                        )
+                        restored_fact_state = str(
+                            reverified_scope_obj.get("fact_verification_state")
+                            or (
+                                reverified_scope_obj.get("refusal_reason_code")
+                                or "NO_VERIFIED_CITATIONS"
+                                if s_refused
+                                else (
+                                    "NEEDS_REVERIFICATION"
+                                    if s_answer_status == "NEEDS_REVERIFICATION"
+                                    else "HEURISTIC_ONLY"
+                                )
+                            )
+                        )
                         raw_s_rel = reverified_scope_obj.get("related_excerpts")
                         raw_s_cov = reverified_scope_obj.get("covered_sources")
                         regenerated_sess_md = (
@@ -9414,6 +12216,8 @@ class WorkspaceIntelligenceHub:
                                 scope_label_zh=str(
                                     reverified_scope_obj.get("scope_label_zh") or ""
                                 ),
+                                source_integrity_status=restored_integrity_status,
+                                fact_verification_state=restored_fact_state,
                             )
                         )
                         conn.execute(
@@ -9428,10 +12232,10 @@ class WorkspaceIntelligenceHub:
                                 str(item["session_id"]),
                                 s_question,
                                 s_answer,
-                                str(item.get("key_takeaways_json", "[]")),
-                                str(item.get("action_items_json", "[]")),
+                                json.dumps(s_takeaways, ensure_ascii=False),
+                                json.dumps(s_actions, ensure_ascii=False),
                                 clean_cites_json,
-                                int(cast(int, item.get("video_count", 0))),
+                                parsed_session_counts[idx_s],
                                 s_provider,
                                 s_model,
                                 regenerated_sess_md,
@@ -9496,7 +12300,7 @@ class WorkspaceIntelligenceHub:
                         )
                         restored_curation += 1
 
-                for item, updated_frames_json, _ in visual_rows_to_write:
+                for item, updated_frames_json, (fc_val, ifc_val) in visual_rows_to_write:
                     conn.execute(
                         """
                         INSERT OR REPLACE INTO video_visual_analyses (
@@ -9511,8 +12315,8 @@ class WorkspaceIntelligenceHub:
                             str(item.get("visual_summary_zh", "")),
                             str(item.get("visual_takeaways_json", "[]")),
                             updated_frames_json,
-                            int(cast(int, item.get("frame_count", 0))),
-                            int(cast(int, item.get("informative_frame_count", 0))),
+                            fc_val,
+                            ifc_val,
                             str(item.get("provider", "ollama")),
                             str(item.get("model", DEFAULT_OLLAMA_MODEL)),
                             str(
@@ -9912,6 +12716,391 @@ class WorkspaceIntelligenceHub:
             "index_markdown": index_markdown,
             "archive_base64": base64.b64encode(zip_bytes).decode("ascii"),
         }
+
+    # ------------------------------------------------------------------
+    # Guided Curated Model Downloads & Cloud Connection Test
+    # ------------------------------------------------------------------
+
+    def get_ollama_pull_status(self) -> dict[str, object]:
+        with self._model_download_lock:
+            return dict(self._ollama_pull_state)
+
+    def start_ollama_pull(self, model: str) -> dict[str, object]:
+        cleaned = (model or "").strip()
+        if not cleaned or _SAFE_OLLAMA_MODEL_NAME_RE.fullmatch(cleaned) is None:
+            raise ValueError("Ollama model name is invalid.")
+        cfg = self._raw_engine_config()
+        base_url = _validate_ollama_url(cfg["ollama_base_url"])
+        with self._model_download_lock:
+            current_state = str(self._ollama_pull_state.get("state") or "")
+            current_model = str(self._ollama_pull_state.get("model") or "")
+            if current_state == "pulling":
+                if current_model == cleaned:
+                    return dict(self._ollama_pull_state)
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "MODEL_DOWNLOAD_BUSY",
+                    "另一个本地 Ollama 模型正在下载，请稍候完成后再试。",
+                )
+            self._ollama_pull_state = {
+                "state": "pulling",
+                "model": cleaned,
+                "status_text": "正在连接本地 Ollama 服务…",
+                "completed_bytes": 0,
+                "total_bytes": 0,
+                "percent": 0,
+                "error": None,
+            }
+            snapshot = dict(self._ollama_pull_state)
+
+        def report(patch: dict[str, object]) -> None:
+            with self._model_download_lock:
+                self._ollama_pull_state.update(patch)
+
+        def run_job() -> None:
+            try:
+                if self._ollama_pull_runner is not None:
+                    self._ollama_pull_runner(base_url, cleaned, report)
+                else:
+                    self._default_ollama_pull(base_url, cleaned, report)
+                self.update_settings({"active_mode": "local_ollama", "ollama_model": cleaned})
+                report(
+                    {
+                        "state": "succeeded",
+                        "model": cleaned,
+                        "status_text": "已下载并自动启用",
+                        "percent": 100,
+                        "error": None,
+                    }
+                )
+            except Exception as err:  # noqa: BLE001 — surfaced safely via status
+                err_text = str(err).strip() or "Ollama 模型拉取失败，请确认本机已安装并启动 Ollama。"
+                lowered = err_text.lower()
+                if "refused" in lowered or "connect" in lowered or "urlopen error" in lowered:
+                    err_text = "未检测到本机 Ollama 服务，请先安装并打开 Ollama 应用（ollama.com）后重试。"
+                report(
+                    {
+                        "state": "failed",
+                        "model": cleaned,
+                        "status_text": "下载失败",
+                        "error": err_text[:300],
+                    }
+                )
+
+        thread = threading.Thread(
+            target=run_job,
+            name="ws-ai-ollama-pull",
+            daemon=True,
+        )
+        with self._model_download_lock:
+            self._ollama_pull_thread = thread
+        thread.start()
+        return snapshot
+
+    def _default_ollama_pull(
+        self,
+        base_url: str,
+        model: str,
+        report: Callable[[dict[str, object]], None],
+    ) -> None:
+        payload = json.dumps({"name": model, "stream": True}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{base_url}/api/pull",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with self._open_loopback_url(req, timeout=600.0) as resp:
+            for line_count in range(100_000):
+                del line_count
+                raw_line = resp.readline(64 * 1024)
+                if not raw_line:
+                    break
+                text_line = raw_line.decode("utf-8", errors="replace").strip()
+                if not text_line:
+                    continue
+                try:
+                    event = json.loads(text_line)
+                except ValueError:
+                    continue
+                if not isinstance(event, Mapping):
+                    continue
+                if isinstance(event.get("error"), str) and event["error"].strip():
+                    raise RuntimeError(event["error"].strip())
+                status_text = str(event.get("status") or "正在下载…")
+                completed = event.get("completed")
+                total = event.get("total")
+                if isinstance(completed, int) and isinstance(total, int) and total > 0:
+                    pct = min(99, max(0, round((completed * 100) / total)))
+                    report(
+                        {
+                            "status_text": status_text,
+                            "completed_bytes": completed,
+                            "total_bytes": total,
+                            "percent": pct,
+                        }
+                    )
+                else:
+                    report({"status_text": status_text})
+
+    def get_whisper_download_status(self) -> dict[str, object]:
+        with self._model_download_lock:
+            return dict(self._whisper_download_state)
+
+    def start_whisper_download(
+        self,
+        model_id: str,
+        *,
+        mirror: str = "auto",
+        on_ready: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        cleaned_id = (model_id or "").strip()
+        spec = _CURATED_WHISPER_BY_ID.get(cleaned_id)
+        if spec is None:
+            raise ValueError("Selected Whisper model is not in the curated catalog.")
+        slug = str(spec["slug"])
+        cleaned_mirror = (mirror or "auto").strip().lower()
+        if cleaned_mirror not in _WHISPER_MIRROR_ORDER:
+            raise ValueError("mirror must be 'auto', 'cn_mirror', or 'official'.")
+
+        with self._model_download_lock:
+            if str(self._whisper_download_state.get("state") or "") in {"downloading", "verifying"}:
+                if str(self._whisper_download_state.get("model_id") or "") == cleaned_id:
+                    return dict(self._whisper_download_state)
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "WHISPER_DOWNLOAD_BUSY",
+                    "另一个语音转写模型正在下载中，请稍候完成后再试。",
+                )
+            self._whisper_download_state = {
+                "state": "downloading",
+                "model_id": cleaned_id,
+                "slug": slug,
+                "mirror": cleaned_mirror,
+                "mirror_used": "",
+                "current_file": "准备文件列表…",
+                "completed_files": 0,
+                "total_files": 0,
+                "percent": 0,
+                "error": None,
+            }
+            snapshot = dict(self._whisper_download_state)
+
+        def report(patch: dict[str, object]) -> None:
+            with self._model_download_lock:
+                self._whisper_download_state.update(patch)
+
+        def run_job() -> None:
+            try:
+                if self._whisper_download_runner is not None:
+                    final_dir = self._whisper_download_runner(
+                        cleaned_id, slug, cleaned_mirror, report
+                    )
+                else:
+                    final_dir = self._default_whisper_download(
+                        cleaned_id, slug, cleaned_mirror, report
+                    )
+                if not (final_dir / "config.json").is_file() or not (
+                    any(final_dir.glob("*.safetensors")) or any(final_dir.glob("*.npz"))
+                ):
+                    raise RuntimeError("下载的语音模型文件不完整，请重试。")
+
+                tx_root = self._project_root / ".local-transcription"
+                tx_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+                cfg_tmp = tx_root / f".model.{uuid.uuid4().hex}.json"
+                cfg_tmp.write_text(
+                    json.dumps({"model_path": str(final_dir)}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                os.chmod(cfg_tmp, 0o600)
+                os.replace(cfg_tmp, tx_root / "model.json")
+
+                self._media_transcriber = _FastOfflineMlxLectureTranscriber(
+                    model_path=final_dir,
+                    temporary_root=tx_root / "tmp",
+                )
+                if on_ready is not None:
+                    try:
+                        on_ready(str(final_dir))
+                    except Exception:  # noqa: BLE001
+                        pass
+                report(
+                    {
+                        "state": "succeeded",
+                        "model_id": cleaned_id,
+                        "slug": slug,
+                        "current_file": "已就绪并自动完成配置",
+                        "percent": 100,
+                        "error": None,
+                    }
+                )
+            except Exception as err:  # noqa: BLE001
+                err_msg = str(err).strip() or "语音模型下载失败，建议切换「国内镜像加速」后重试。"
+                report(
+                    {
+                        "state": "failed",
+                        "model_id": cleaned_id,
+                        "slug": slug,
+                        "current_file": "",
+                        "error": err_msg[:300],
+                    }
+                )
+
+        thread = threading.Thread(
+            target=run_job,
+            name="ws-ai-whisper-download",
+            daemon=True,
+        )
+        with self._model_download_lock:
+            self._whisper_download_thread = thread
+        thread.start()
+        return snapshot
+
+    def _default_whisper_download(
+        self,
+        model_id: str,
+        slug: str,
+        mirror: str,
+        report: Callable[[dict[str, object]], None],
+    ) -> Path:
+        from huggingface_hub import (  # type: ignore[import-not-found]
+            HfApi,
+            hf_hub_download,
+        )
+
+        endpoints = _WHISPER_MIRROR_ORDER[mirror]
+        models_root = self._project_root / ".local-transcription" / "models"
+        models_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target_dir = models_root / slug
+        last_error: BaseException | None = None
+
+        for endpoint in endpoints:
+            staging_dir = models_root / f".staging-{slug}-{uuid.uuid4().hex[:12]}"
+            staging_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            report({"mirror_used": endpoint, "current_file": f"连接 {endpoint}…"})
+            try:
+                api = HfApi(endpoint=endpoint)
+                repo_files = [
+                    str(name)
+                    for name in api.list_repo_files(repo_id=model_id, repo_type="model")
+                    if isinstance(name, str)
+                    and _SAFE_HF_REPO_FILE_RE.fullmatch(name) is not None
+                    and ".." not in name.split("/")
+                ]
+                selected = [
+                    name
+                    for name in repo_files
+                    if name == "config.json"
+                    or name.endswith((".safetensors", ".npz", ".json", ".tiktoken", ".txt"))
+                ]
+                if "config.json" not in selected or not any(
+                    name.endswith((".safetensors", ".npz")) for name in selected
+                ):
+                    raise RuntimeError("模型仓库缺少必要的权重或配置文件。")
+                total_files = len(selected)
+                report({"total_files": total_files, "completed_files": 0, "percent": 2})
+                for idx, filename in enumerate(selected, start=1):
+                    report(
+                        {
+                            "current_file": filename,
+                            "completed_files": idx - 1,
+                            "total_files": total_files,
+                            "percent": min(95, max(2, round(((idx - 1) * 95) / total_files))),
+                        }
+                    )
+                    hf_hub_download(
+                        repo_id=model_id,
+                        filename=filename,
+                        repo_type="model",
+                        local_dir=str(staging_dir),
+                        local_files_only=False,
+                        endpoint=endpoint,
+                    )
+                report({"state": "verifying", "current_file": "校验模型权重…", "percent": 98})
+                if target_dir.exists():
+                    shutil.rmtree(target_dir)
+                os.replace(staging_dir, target_dir)
+                return target_dir
+            except Exception as err:  # noqa: BLE001
+                last_error = err
+                shutil.rmtree(staging_dir, ignore_errors=True)
+                continue
+
+        raise RuntimeError(
+            "模型下载失败（国内镜像与官方源均未能完成下载，请检查网络或稍后重试）。"
+            + (f" [{type(last_error).__name__}]" if last_error is not None else "")
+        )
+
+    def test_cloud_connection(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Verify cloud API endpoint & Key with zero token consumption."""
+        current = self._raw_engine_config()
+        raw_url = payload.get("cloud_base_url", current["cloud_base_url"])
+        validated_url = _validate_cloud_url(str(raw_url))
+        raw_key = payload.get("cloud_api_key")
+        if raw_key is not None and isinstance(raw_key, str) and raw_key.strip():
+            api_key = raw_key.strip()
+        else:
+            stored = self._byok_store.get()
+            api_key = stored.strip() if stored else ""
+        if not api_key:
+            return {
+                "ok": False,
+                "code": "CLOUD_CREDENTIAL_MISSING",
+                "message": "请先粘贴你的 API Key 再测试连接。",
+            }
+        if len(api_key) > 512 or any(ord(c) < 32 for c in api_key):
+            raise ValueError("cloud_api_key format is invalid")
+
+        if self._cloud_test_runner is not None:
+            _verify_cloud_endpoint_dns(validated_url)
+            res = self._cloud_test_runner(validated_url, api_key)
+            return dict(res)
+
+        t0 = time.perf_counter()
+        req = urllib.request.Request(
+            f"{validated_url}/models",
+            method="GET",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Accept": "application/json",
+                "User-Agent": "YouTube-Intelligence-Agent/1.0",
+            },
+        )
+        try:
+            with self._open_pinned_cloud_url(
+                req, validated_url=validated_url, timeout=10.0
+            ) as resp:
+                _ = resp.read(65536)
+            latency_ms = max(1, round((time.perf_counter() - t0) * 1000))
+            return {
+                "ok": True,
+                "latency_ms": latency_ms,
+                "message": f"连接成功，API Key 有效（耗时 {latency_ms} ms，不消耗对话额度）。",
+            }
+        except urllib.error.HTTPError as err:
+            if err.code == 401:
+                return {
+                    "ok": False,
+                    "code": "INVALID_API_KEY",
+                    "message": "API Key 无效或已过期，请核对是否复制完整。",
+                }
+            if err.code == 403:
+                return {
+                    "ok": False,
+                    "code": "FORBIDDEN",
+                    "message": "当前 API Key 无权访问该接口或账户余额不足。",
+                }
+            return {
+                "ok": False,
+                "code": f"HTTP_{err.code}",
+                "message": f"接口返回 HTTP {err.code}，请核对 Base URL 是否填写正确。",
+            }
+        except (urllib.error.URLError, TimeoutError, OSError):
+            return {
+                "ok": False,
+                "code": "NETWORK_ERROR",
+                "message": "无法连接到该云端地址，请检查网络（海外接口需先确认本机网络可访问）。",
+            }
 
 
 def cast_dict(value: object) -> Mapping[str, Any]:

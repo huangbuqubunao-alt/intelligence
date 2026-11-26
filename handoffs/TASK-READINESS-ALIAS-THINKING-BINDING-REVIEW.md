@@ -2,7 +2,7 @@
 
 ## Decision and scope
 
-- Independent Reviewer: `/root/alias_thinking_independent_review`, 2026-10-25; reviewer WT `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-review`, branch `codex/task-readiness-alias-thinking-review`.
+- Independent Reviewer: `/root/alias_thinking_independent_review`, 2026-10-25; reviewer WT `/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-review`, branch `codex/task-readiness-alias-thinking-review`.
 - Source reviewed author: `9d5f226b69fccfe1b8d67df8bd935ef098645b8b`. Preparation review: `d268a4bf4440766d7531f1cddbc57675f86278b7`; root accepted/integrated source-review documentation at `053109f1eb7fc253b25c80d16b118f8dd2788337`.
 - This is the required subsequent concrete owner/package/planned-command binding review. **Verdict: APPROVE_SINGLE_DIAGNOSTIC_WINDOW_ONLY.** No unresolved P0/P1/P2 findings in this scope. Model qualification, production admission and adoption remain false/ungranted.
 - Root's explicit dispatch authorized only bounded metadata reads and this review. Actual reviewer writes are limited to this new handoff and ignored `.var/alias-thinking-binding-review/**`. No earlier handoff, bound input, author source/metadata, product/config/credentials or once marker was edited. No subagents.
@@ -10,7 +10,7 @@
 
 ## Independently checked concrete bindings
 
-Author B: `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic`.
+Author B: `/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic`.
 
 | Artifact | SHA-256 / result |
 |---|---|
@@ -25,7 +25,7 @@ Author B: `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnosti
 | Root output `prepare-reviewed-metadata.command` | `8a30097771e3bcf94b63b3e3accfebf74708c3f2913706a02600fa505424874f` |
 | Root output `planned-reviewed-launcher.command.txt` | `03b21acc166b731aa4d7ced3454be930d93bf8acfeec03b65b3e5e4cefa78615` |
 
-Root output is `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/model-chain-resolution-20261025`.
+Root output is `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/model-chain-resolution-20261025`.
 
 The complete parsed concrete package equals the complete source-reviewed template with ONLY `daemon_owner=null` replaced by the exact fixed B/daemon-owner.json path/hash/size binding. All **2816** original frozen bindings were independently validated through the unchanged guarded package reader; including original/prior/candidate/owner entries, **2820** bound entries were checked. The harness, candidate, native-thinking renderer, strict mapping, settings/semantics and all original failures remain bound. `artifacts()` separately revalidated the installed fixed model/runtime hashes, canonical manifest/reference and four exact payloads totaling **5629120653 bytes**. No model load occurs in those operations.
 
@@ -35,7 +35,7 @@ All eight metadata-proof hashes from root's `concrete-package-root-precheck.json
 
 The exact live server observation matched owner bytes before and after each authorized metadata request:
 
-`46042 Sun Oct 25 22:13:54 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve`
+`46042 Sun Oct 25 22:13:54 2026     /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve`
 
 - Independently checked actual PID/start/argv; current PPID is launchd PID 1. `vmmap` identifies **ARM64**, PID 46042, launch time **2026-10-25 22:13:54.377 +0800**; the fixed main mapping device/inode/path and binary modification/start constraints pass. The exact owner owns loopback listener 11438. No fixed llama-server runner exists.
 - Recorded startup chain is fixed helper 46032 → zsh 45996 → login 45995 → Terminal 36172 → launchd 1; all pid/ppid links and recorded executable identities were checked, no Codex/ChatGPT ancestor. Terminal PID 36172 was also independently observed live at the recorded full system path and parent 1. The exited helper's historical chain is retained evidence; it is not represented as a currently live helper.
@@ -51,7 +51,7 @@ The planned launcher is byte-for-byte the reviewed command template with exactly
 
 After all metadata calls, B/launch-start.json, B/generation-start.json, B/run-20261025 and B/real-once-alias-thinking-20261025 were absent. Original old Q4 consumed marker remains SHA **`8f030fff6d9a4d94aac18e0625347fc418c544c9bf6775931a91b3da1eb030c6`**. Existing source/old-failure/raw/once protections were not reset. Root and author tracked worktrees were clean when read; author remains at the exact fixed commit.
 
-Independent reproduction: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B .var/alias-thinking-binding-review/verify_concrete_binding.py` from reviewer WT; log and summary retained only in reviewer ignored evidence. It returned zero, all assertions passed. Metadata semantic checks and planned-command syntax also passed. Reviewer evidence index is `binding-evidence-index.json`; summary SHA **`cf9e06c23aa615f0fa404445a6105cede75af3915ad8f1dde5b3db4ced05ece8`** and verification-script SHA **`b20b1d97e619f9b1ee0001df8ef48a1d34d7960e7a7f351e9404f133f7e5f7b9`**.
+Independent reproduction: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/src /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B .var/alias-thinking-binding-review/verify_concrete_binding.py` from reviewer WT; log and summary retained only in reviewer ignored evidence. It returned zero, all assertions passed. Metadata semantic checks and planned-command syntax also passed. Reviewer evidence index is `binding-evidence-index.json`; summary SHA **`cf9e06c23aa615f0fa404445a6105cede75af3915ad8f1dde5b3db4ced05ece8`** and verification-script SHA **`b20b1d97e619f9b1ee0001df8ef48a1d34d7960e7a7f351e9404f133f7e5f7b9`**.
 
 No 531-suite rerun was warranted: all source bytes are unchanged from independent preparation review. Prior independent 531 PASS plus six additional boundaries, separate original direct129PASS/12FAIL and scoped141PASS remain prior evidence, not newly rerun or silently relabeled. No check failure in this binding phase. Diff review confirms only this new tracked report; private evidence is ignored. Final staged/committed diff check must pass before returning the handoff commit.
 

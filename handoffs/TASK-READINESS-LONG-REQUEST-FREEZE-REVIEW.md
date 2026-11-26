@@ -5,7 +5,7 @@
 ## 固定范围
 
 - Base `25c7b015f253c9250e149a3ba52890a424343b23` → candidate `799c62552c0a76b46e70f9ddba551df404c76f02`，core `d990c4139d466ec1603b571e8cc59e993b58ac9b`；作者clean STOP。
-- 独立新WT `/Users/hua/Documents/yia-worktrees/readiness-long-request-freeze-review`，branch `codex/review-readiness-long-request-freeze`。先完成上个WAIT取消只读答复，才按root单Reviewer包创建本WT；无并行Reviewer。
+- 独立新WT `/Users/developer/Documents/yia-worktrees/readiness-long-request-freeze-review`，branch `codex/review-readiness-long-request-freeze`。先完成上个WAIT取消只读答复，才按root单Reviewer包创建本WT；无并行Reviewer。
 - 已读root精确task/package、作者immutable READY范围/新handoff/evidence及完整四新增文件diff。使用 code-review-and-quality、git-workflow-and-versioning；graph无本新符号，fallback固定源码。DIRECT已接受pure codec/projection/canonical、旧schema/profile及stdlib；无新增依赖/外部实现。
 - 实现仅NEW module279行、test538行、handoff/evidence；零existing修改。未动Schema/state/registry/CODE_FILES/runtime/capacity/前端/配置/凭据、旧失败profiles或旧语义标准。本review仅新增本报告及ignored private probes。
 - 运行仅root既有venv，`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:.`，打印确认模块来自本reviewWT。无真实数据库/HTTP/vocab/tokenizer/model/holdout/owner/credential IO，无安装/全backend/GUI重跑；既有harness一例的临时SQLite执行范围偏差另见下文。
@@ -33,7 +33,7 @@
 
 424命令：`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q -p no:cacheprovider tests/unit/test_long_distillation_profile.py tests/unit/test_long_grounding_codec.py tests/unit/test_long_grounding_projection.py tests/unit/test_long_card_canonical.py tests/unit/test_local_grounding_profile.py tests/unit/test_local_grounding_qualification.py tests/unit/test_local_grounding_harness.py`。
 
-私有实际source/log/hash清单：`/Users/hua/Documents/yia-worktrees/readiness-long-request-freeze-review/.var/long-request-review/`，含`test_independent_freeze.py`、`accepted-goldens-424.log`、`independent-probes.log`、`evidence-sha256.json`。此处114/2406是accepted synthetic fixture，不是真公开源或holdout，也未生成模型输出。
+私有实际source/log/hash清单：`/Users/developer/Documents/yia-worktrees/readiness-long-request-freeze-review/.var/long-request-review/`，含`test_independent_freeze.py`、`accepted-goldens-424.log`、`independent-probes.log`、`evidence-sha256.json`。此处114/2406是accepted synthetic fixture，不是真公开源或holdout，也未生成模型输出。
 
 执行范围偏差（Reviewer）：七文件424集合中，既有 `test_local_grounding_harness.test_dedicated_preparation_preserves_verified_input_without_provider_io` 实际创建全新tmp SQLite与合成DATA/音频、使用mock executor并禁provider IO。精确包要求0DB IO，本Reviewer应预先排除此例；现明确披露，不冒称全程零DB。没有真实/frozen/owner库或实际模型/HTTP访问，新增纯builder自身的禁止SQLite/HTTP测试及源码检查通过。此为Reviewer运行范围偏差，不是新模块新增数据库能力。
 

@@ -6,6 +6,9 @@ import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./Bilibil
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
+import { ReaderMediaStage, formatHumanDuration } from "./ReaderMediaStage";
+import { ReaderReferenceDrawer, type ReaderDrawerTab } from "./ReaderReferenceDrawer";
+import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, createContext, FormEvent, ReactNode, Suspense, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -21,7 +24,13 @@ import { ModelSettings } from "./ModelSettings";
 import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
 import { BookmarkSparkIcon, cancelPendingChromiumHashUpdate, DistillOrbitIcon, NavIcon, prefersReducedMotion, pulseCelebration, readCurrentLogicalHash, runViewTransition, scheduleSafeHashUpdate, VerifiedSealIcon } from "./motion";
-import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
+import {
+  FirstRunOnboarding,
+  completeOnboarding,
+  getOnboardingReturnStep,
+  onboardingCompleted,
+  setOnboardingReturnStep,
+} from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
 import type { CommandPaletteAction } from "./ui/CommandPalette";
@@ -62,10 +71,12 @@ import {
   TopicObsidianExportBar,
   VideoAiBrief,
   WeeklyAiBriefPanel,
+  WhisperQuickDownloadPanel,
   WorkspaceAiSettingsPanel,
   WorkspaceVideoAiActions,
   WorkspaceVideoAiBriefCard,
   WorkspaceVisualKeyframePanel,
+  YouTubeAuthSettingsPanel,
   compareContentNewestFirst,
 } from "./WorkspaceAiWidgets";
 
@@ -215,6 +226,8 @@ type ContentItem = {
   source_id?: string;
   retry_allowed?: boolean;
   last_error_code?: string | null;
+  import_error_code?: string | null;
+  import_error_message?: string | null;
   tracked_content_retry?: unknown;
   caption_timing_status?: string;
   summary_preparation_status?: string;
@@ -537,8 +550,9 @@ function initialDeltaTarget(): DeltaTarget | null {
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
-  if (/^Settings\/models\/(?:bigmodel|moonshot)(?:\?[^#]+)?$/.test(raw)) return "Settings";
+  if (/^Settings\/models(?:\/(?:bigmodel|moonshot))?(?:\?[^#]+)?$/.test(raw)) return "Settings";
   if (/^Settings\/transcription(?:\/[^/]+)?$/.test(raw)) return "Settings";
+  if (/^Settings\/youtube-auth(?:\?[^#]+)?$/.test(raw)) return "Settings";
   if (raw.startsWith("Content/")) return "Content";
   if (raw.startsWith("Intelligence/")) return "Intelligence";
   if (raw.startsWith("Topics/")) return "Topics";
@@ -2040,7 +2054,6 @@ function Workspace() {
         }} />}
         {page === "Home" && (
           <div className="dashboard-stack">
-            <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
             <Dashboard
               refresh={refresh}
               navigate={navigate}
@@ -2048,6 +2061,7 @@ function Workspace() {
               onOpenTopic={id => openDelta({ kind: "topic", id })}
               onAddContent={() => setAddProvider("YOUTUBE")}
             />
+            <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
           </div>
         )}
         {page === "Following" && (
@@ -2377,10 +2391,17 @@ function Dashboard(
       needs_attention?: SourceRun[];
       operations?: { source_count?: number };
       workspace_weekly_brief?: unknown;
+      demo_mode?: boolean;
     }
   >("/dashboard", refresh, undefined, true, true);
-  const [onboardingDone, setOnboardingDone] = useState(onboardingCompleted);
-  const finishOnboarding = () => { completeOnboarding(); setOnboardingDone(true); };
+  const isDemoMode = Boolean(data?.demo_mode);
+  const [onboardingOverride, setOnboardingOverride] = useState<{ mode: boolean; done: boolean } | null>(null);
+  const onboardingDone =
+    onboardingOverride?.mode === isDemoMode ? onboardingOverride.done : onboardingCompleted(isDemoMode);
+  const finishOnboarding = () => {
+    completeOnboarding(isDemoMode);
+    setOnboardingOverride({ mode: isDemoMode, done: true });
+  };
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Home…</Empty>;
   const intelligence = sortIntelligenceNewestFirst(
@@ -2396,6 +2417,10 @@ function Dashboard(
   if (isFreshLibrary && !onboardingDone) {
     return (
       <FirstRunOnboarding
+        initialStep={getOnboardingReturnStep() ?? 0}
+        onOpenSetup={(_target, currentStep) => {
+          setOnboardingReturnStep(currentStep);
+        }}
         onSkip={finishOnboarding}
         onAddFollowing={() => {
           finishOnboarding();
@@ -2466,24 +2491,64 @@ function Dashboard(
           onOpenResearch={() => navigate("Research")}
         />
         <Panel title="What matters now" icon="sparkle">
-          {intelligence.length
-            ? intelligence.map((item) => (
-              <IntelligenceCard
-                key={item.intelligence_id ?? item.code}
-                item={item}
-                saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
-                onSaved={reload}
-                onOpenContent={openContent}
-                onOpenTopic={onOpenTopic}
-              />
-            ))
-            : <Empty>No important new intelligence yet.</Empty>}
-          <button
-            className="button button-ghost"
-            onClick={() => navigate("Intelligence")}
-          >
-            {t("See all Intelligence")}
-          </button>
+          {intelligence.length ? (
+            <>
+              {intelligence.map((item) => (
+                <IntelligenceCard
+                  key={item.intelligence_id ?? item.code}
+                  item={item}
+                  saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
+                  onSaved={reload}
+                  onOpenContent={openContent}
+                  onOpenTopic={onOpenTopic}
+                />
+              ))}
+              <button
+                className="button button-ghost"
+                onClick={() => navigate("Intelligence")}
+              >
+                {t("See all Intelligence")}
+              </button>
+            </>
+          ) : (
+            <div className="home-sparse-quickstart">
+              <Empty>No important new intelligence yet.</Empty>
+              <p className="hint">
+                {zh
+                  ? "先导入 YouTube / B站视频链接或本地文件完成字幕与摘要提炼，周报与重点洞察会自动生成在这里。"
+                  : "Import a YouTube / Bilibili link or local file first; briefs and curated intelligence appear here automatically."}
+              </p>
+              <div className="button-row">
+                {onAddContent ? (
+                  <button
+                    type="button"
+                    className="button button-primary button-small"
+                    onClick={onAddContent}
+                  >
+                    {zh ? "+ 导入视频或本地文件" : "+ Add video or local file"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={() => navigate("Content")}
+                >
+                  {zh
+                    ? attention.length > 0
+                      ? `查看内容与待处理 (${attention.length})`
+                      : "查看内容库"
+                    : t("Review Content")}
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => navigate("Intelligence")}
+                >
+                  {t("See all Intelligence")}
+                </button>
+              </div>
+            </div>
+          )}
         </Panel>
       </div>
       <div className="home-side-rail">
@@ -2557,12 +2622,18 @@ function Attention({
         </p>
       ) : null}
       <p>{t(safety)}</p>
-      <p>{t(action)}</p>
+      <p>
+        {run.video_id && onOpenContent
+          ? zh
+            ? "请点击下方「查看处理方式」，选择重新尝试获取、按需授权本人登录态，或改用本地文件导入。"
+            : "Click View details below to retry, authorize your signed-in browser on demand, or import a local file."
+          : t(action)}
+      </p>
       {run.video_id && onOpenContent ? (
         <div className="button-row">
           <button
             type="button"
-            className="button button-secondary button-small"
+            className="button button-primary button-small"
             onClick={() => onOpenContent(run.video_id!)}
           >
             {zh ? "查看处理方式" : "View details"}
@@ -3455,7 +3526,8 @@ function IntelligencePage(
                 <button
                   key={src.name}
                   type="button"
-                  className={`ai-question-chip${effectiveIntelSource === src.name ? " is-active" : ""}`}
+                  title={t(src.name)}
+                  className={`ai-question-chip intel-source-chip${effectiveIntelSource === src.name ? " is-active" : ""}`}
                   aria-pressed={effectiveIntelSource === src.name}
                   onClick={() => {
                     setIntelSourceFilter(src.name);
@@ -3905,6 +3977,7 @@ function ContentPage(
   const [remoteSearchPagination, setRemoteSearchPagination] = useState<VideosPagination | null>(null);
   const [loadingMoreSearch, setLoadingMoreSearch] = useState(false);
   const [loadMoreSearchError, setLoadMoreSearchError] = useState<string | null>(null);
+  const remoteSearchSeqRef = useRef(0);
   const list = useRemote<{ videos: ContentItem[]; pagination?: VideosPagination }>(
     "/videos",
     refresh + revision,
@@ -3913,25 +3986,39 @@ function ContentPage(
     true,
   );
   useEffect(() => {
+    remoteSearchSeqRef.current += 1;
     setExtraVideos([]);
     setProbedPagination(null);
     setLoadMoreError(null);
     setRemoteSearchVideos(null);
     setRemoteSearchPagination(null);
+    setLoadingMoreSearch(false);
     setLoadMoreSearchError(null);
-  }, [refresh, revision]);
+  }, [refresh]);
   useEffect(() => {
     const initial = list.data;
     if (!initial || !Array.isArray(initial.videos)) return;
+    const applyPagination = (nextPage: VideosPagination) => {
+      setProbedPagination((prev) => {
+        if (!prev || prev.offset === 0) return nextPage;
+        const nextEnd = Math.max(prev.offset + prev.returned_count, nextPage.offset + nextPage.returned_count);
+        return {
+          ...nextPage,
+          offset: prev.offset,
+          returned_count: prev.returned_count,
+          has_more: nextEnd < nextPage.total_count,
+        };
+      });
+    };
     if (initial.pagination) {
-      setProbedPagination(initial.pagination);
+      applyPagination(initial.pagination);
       return;
     }
     if (initial.videos.length < 200) return;
     let alive = true;
     api<{ videos?: ContentItem[]; pagination?: VideosPagination }>("/videos?limit=200&offset=0")
       .then((res) => {
-        if (alive && res?.pagination) setProbedPagination(res.pagination);
+        if (alive && res?.pagination) applyPagination(res.pagination);
       })
       .catch(() => {});
     return () => {
@@ -3968,19 +4055,23 @@ function ContentPage(
       (list.data?.videos?.length ?? 0) >= 200,
   );
   useEffect(() => {
+    const seq = ++remoteSearchSeqRef.current;
+    setLoadingMoreSearch(false);
     if (!trimmedRawSearch || !hasUnloadedLibraryItems) {
       setRemoteSearchVideos(null);
       setRemoteSearchPagination(null);
       setLoadMoreSearchError(null);
       return;
     }
-    let alive = true;
+    setRemoteSearchVideos(null);
+    setRemoteSearchPagination(null);
+    setLoadMoreSearchError(null);
     const timer = window.setTimeout(() => {
       api<{ videos?: ContentItem[]; pagination?: VideosPagination }>(
         `/videos?q=${encodeURIComponent(trimmedRawSearch)}&limit=100&offset=0`,
       )
         .then((res) => {
-          if (!alive || !Array.isArray(res?.videos)) return;
+          if (seq !== remoteSearchSeqRef.current || !Array.isArray(res?.videos)) return;
           setRemoteSearchVideos(res.videos);
           setRemoteSearchPagination(res.pagination ?? null);
           setLoadMoreSearchError(null);
@@ -3988,12 +4079,12 @@ function ContentPage(
         .catch(() => {});
     }, 60);
     return () => {
-      alive = false;
       window.clearTimeout(timer);
     };
-  }, [trimmedRawSearch, hasUnloadedLibraryItems]);
+  }, [trimmedRawSearch, hasUnloadedLibraryItems, refresh]);
   const loadMoreSearchVideos = async () => {
     if (loadingMoreSearch || !trimmedRawSearch) return;
+    const seq = remoteSearchSeqRef.current;
     const loadedSearchPrimary = (remoteSearchVideos ?? []).filter((v) => !v.work_kind).length;
     const nextOffset = remoteSearchPagination
       ? Math.max(loadedSearchPrimary, remoteSearchPagination.offset + remoteSearchPagination.returned_count)
@@ -4005,6 +4096,7 @@ function ContentPage(
         videos?: ContentItem[];
         pagination?: VideosPagination;
       }>(`/videos?q=${encodeURIComponent(trimmedRawSearch)}&limit=100&offset=${nextOffset}`);
+      if (seq !== remoteSearchSeqRef.current) return;
       const batch = Array.isArray(res?.videos) ? res.videos : [];
       setRemoteSearchVideos((prev) => {
         const listPrev = prev ?? [];
@@ -4022,13 +4114,16 @@ function ContentPage(
         setRemoteSearchPagination(res.pagination);
       }
     } catch {
+      if (seq !== remoteSearchSeqRef.current) return;
       setLoadMoreSearchError(
         language === "zh-CN"
           ? "未能加载更多搜索结果，请稍后重试。"
           : "Could not load more search results.",
       );
     } finally {
-      setLoadingMoreSearch(false);
+      if (seq === remoteSearchSeqRef.current) {
+        setLoadingMoreSearch(false);
+      }
     }
   };
   const mergedLoadedAndSearchVideos = useMemo(() => {
@@ -4451,6 +4546,32 @@ function ContentPage(
       });
     }
   };
+  const applyLocalCurationPatch = (
+    videoIds: ReadonlySet<string>,
+    patchBody: { starred?: boolean; is_read?: boolean },
+  ) => {
+    const patchItems = (items: ContentItem[]) =>
+      items.map((item) => {
+        if (!videoIds.has(item.video_id)) return item;
+        if (
+          typeof item.ai_brief !== "object" ||
+          item.ai_brief === null ||
+          Array.isArray(item.ai_brief)
+        ) {
+          return item;
+        }
+        return {
+          ...item,
+          ai_brief: {
+            ...(item.ai_brief as Record<string, unknown>),
+            ...(patchBody.starred !== undefined ? { starred: patchBody.starred } : {}),
+            ...(patchBody.is_read !== undefined ? { is_read: patchBody.is_read } : {}),
+          },
+        };
+      });
+    setExtraVideos((prev) => (prev.length ? patchItems(prev) : prev));
+    setRemoteSearchVideos((prev) => (prev ? patchItems(prev) : prev));
+  };
   const toggleRowCuration = async (
     videoId: string,
     patchBody: { starred?: boolean; is_read?: boolean },
@@ -4459,6 +4580,7 @@ function ContentPage(
     setCurationBusyId(videoId);
     try {
       await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, patchBody);
+      applyLocalCurationPatch(new Set([videoId]), patchBody);
       setRevision((value) => value + 1);
     } catch {
       /* Preserve existing view on transient network failure */
@@ -4474,6 +4596,7 @@ function ContentPage(
         video_ids: targetIds,
         is_read: true,
       });
+      applyLocalCurationPatch(new Set(targetIds), { is_read: true });
       setLastBatchReadIds(targetIds);
       setRevision((value) => value + 1);
     } catch {
@@ -4491,6 +4614,7 @@ function ContentPage(
         video_ids: idsToRestore,
         is_read: false,
       });
+      applyLocalCurationPatch(new Set(idsToRestore), { is_read: false });
       setLastBatchReadIds([]);
       setRevision((value) => value + 1);
     } catch {
@@ -4640,10 +4764,19 @@ function ContentPage(
       (briefByVideoId.get(a.video_id)?.score ?? -1)
     );
   });
+  const showManualPendingBanner =
+    manualPendingVideos.length > 0 &&
+    bucketFilter === "ALL" &&
+    (providerFilter === "ALL" || providerFilter === "YOUTUBE") &&
+    !trimmedSearch;
+  const manualPendingIds = showManualPendingBanner
+    ? new Set(manualPendingVideos.map((v) => v.video_id))
+    : new Set<string>();
   const shouldFoldShorts = hasAiBriefs && bucketFilter === "ALL" && !trimmedSearch;
-  const primaryVideos = shouldFoldShorts
+  const primaryVideos = (shouldFoldShorts
     ? sortedFilteredVideos.filter((item) => !isAutoFoldedItem(item))
-    : sortedFilteredVideos;
+    : sortedFilteredVideos
+  ).filter((item) => !manualPendingIds.has(item.video_id));
   const primaryIds = primaryVideos.map((v) => v.video_id);
   const unreadInViewIds = primaryVideos
     .filter((item) => {
@@ -4704,7 +4837,9 @@ function ContentPage(
     onOpen,
   };
   const foldedShorts = shouldFoldShorts
-    ? sortedFilteredVideos.filter(isAutoFoldedItem)
+    ? sortedFilteredVideos.filter(
+        (item) => isAutoFoldedItem(item) && !manualPendingIds.has(item.video_id),
+      )
     : [];
   const foldedPlaceholderCount = foldedShorts.filter(
     item => item.work_kind === "DURABLE_CONTENT_IDENTITY",
@@ -4862,9 +4997,7 @@ function ContentPage(
   return videos.length
     ? (
       <div className="content-library-shell">
-        {manualPendingVideos.length > 0 &&
-        bucketFilter === "ALL" &&
-        (providerFilter === "ALL" || providerFilter === "YOUTUBE") ? (
+        {showManualPendingBanner ? (
           <section
             className="caption-recovery-banner"
             role="region"
@@ -4899,6 +5032,14 @@ function ContentPage(
                       >
                         {language === "zh-CN" ? "查看处理方式" : "View options"}
                       </button>
+                      {pendingItem.processing_status === "NEEDS_ATTENTION" ? (
+                        <a
+                          className="button button-secondary button-small"
+                          href={`#Settings/youtube-auth?return=${encodeURIComponent(`#Content/${pendingItem.video_id}`)}`}
+                        >
+                          {language === "zh-CN" ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube ›"}
+                        </a>
+                      ) : null}
                       {pendingItem.source_id ? (
                         <button
                           type="button"
@@ -5026,6 +5167,7 @@ function ContentPage(
             </div>
           </section>
         )}
+        {(videos.length > manualPendingIds.size || hasActiveContentFilter) ? (
         <div className="library-filter-bar">
           <div className="search-field-wrap">
             <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
@@ -5160,13 +5302,6 @@ function ContentPage(
               ))}
             </div>
           )}
-          {hasAiBriefs && primaryVideos.length > 0 && (
-            <span className="kb-shortcut-hint" aria-hidden="true">
-              {language === "zh-CN"
-                ? "快捷键：/ 搜索 · J/K 选行 · Enter 阅读 · S 收藏 · E 已读"
-                : "Keys: / search · J/K move · Enter open · S star · E read"}
-            </span>
-          )}
           {hasAiBriefs &&
           ((onAskFilteredResearch &&
             hasCustomResearchScope &&
@@ -5226,6 +5361,7 @@ function ContentPage(
             </div>
           ) : null}
         </div>
+        ) : null}
         {hasAiBriefs && hasActiveContentFilter && primaryVideos.length > 0 ? (
           <div
             className="content-active-filter-bar tabular-nums"
@@ -5302,6 +5438,13 @@ function ContentPage(
                 {primaryVideos.map(renderContentRow)}
               </div>
             ) : null}
+            {hasAiBriefs && primaryVideos.length > 0 && (
+              <p className="kb-shortcut-hint content-kb-footer" aria-hidden="true">
+                {language === "zh-CN"
+                  ? "快捷键：/ 搜索 · J/K 选行 · Enter 阅读 · S 收藏 · E 已读"
+                  : "Keys: / search · J/K move · Enter open · S star · E read"}
+              </p>
+            )}
             {foldedShorts.length > 0 ? (
               <details className="shorts-fold-drawer">
                 <summary className="tabular-nums">
@@ -5673,6 +5816,8 @@ const SETTINGS_SECTION_IDS = [
   "settings-language",
   "settings-interests",
   "settings-models",
+  "settings-whisper-download",
+  "settings-youtube-auth",
   "settings-backup",
 ] as const;
 
@@ -5711,14 +5856,6 @@ function useActiveSection(sectionIds: readonly string[], resetKey?: string): [st
     pulseCelebration(el);
   }, []);
   return [activeId, jumpTo];
-}
-
-function formatHumanDuration(seconds: number): string {
-  const rounded = Math.ceil(seconds);
-  if (rounded < 60) return `${rounded}s`;
-  const mins = Math.floor(rounded / 60);
-  const secs = rounded % 60;
-  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
 }
 
 function PendingContentDetailView({
@@ -5788,6 +5925,74 @@ function PendingContentDetailView({
     }
   };
 
+  const errCode = (
+    video.import_error_code ??
+    video.last_error_code ??
+    video.processing_job?.error_code ??
+    ""
+  )
+    .trim()
+    .toUpperCase();
+  const isNetworkError = errCode === "YOUTUBE_NETWORK_UNAVAILABLE";
+  const isContentUnavailable = errCode === "YOUTUBE_CONTENT_UNAVAILABLE";
+  const isRateLimited =
+    errCode === "YOUTUBE_RATE_LIMITED" || errCode === "YOUTUBE_AUTH_RATE_LIMITED";
+  const isNoCaptions = errCode === "YOUTUBE_NO_CAPTIONS";
+  const isAuthExpired = errCode === "YOUTUBE_AUTH_EXPIRED";
+  const showAuthLink = !isNetworkError && !isContentUnavailable && !isNoCaptions;
+
+  const causeParagraph = (() => {
+    if (isNetworkError) {
+      return zh
+        ? "当前网络或系统代理未能连接到 YouTube（连接超时或网络不可达，并非账号被拦截）。"
+        : "Network or system proxy could not reach YouTube (connection timed out or unreachable, not an account block).";
+    }
+    if (isContentUnavailable) {
+      return zh
+        ? "该 YouTube 视频当前不可公开访问（可能已被删除、设为私密、地区限制或尚未结束直播）。"
+        : "This YouTube video is not publicly available (deleted, private, geo-restricted, or upcoming/live).";
+    }
+    if (isRateLimited) {
+      return zh
+        ? "触发了 YouTube 请求频率保护，已自动暂停自动重试以保护你的账号与网络环境。"
+        : "YouTube request rate safety limit reached; automatic retries are paused to protect your account.";
+    }
+    if (isNoCaptions) {
+      return zh
+        ? "已连接到该视频，但原视频在 YouTube 上没有提供任何可用字幕轨。"
+        : "Connected to the video, but YouTube provides no usable subtitle tracks for it.";
+    }
+    if (isAuthExpired) {
+      return zh
+        ? "已授权的 YouTube 登录态已过期或被平台拒绝验证。请先在浏览器打开原视频确认可正常播放，再更新授权并重试。"
+        : "Your authorized YouTube session expired or was rejected. Verify playback in your browser and update authorization before retrying.";
+    }
+    return zh
+      ? "YouTube 当前对该链接触发了匿名访问与机器人验证限制（要求登录确认）。为保护账号安全，本应用默认免登录直采，不会在后台静默读取你的浏览器状态。"
+      : "YouTube blocked anonymous access to this video (bot verification / sign-in gate). Intelligence uses anonymous-first fetching and never reads browser cookies behind your back.";
+  })();
+
+  const actionHintParagraph = (() => {
+    if (isNetworkError) {
+      return zh
+        ? "请检查本机网络或系统代理后点击「重新尝试获取」；无 VPN 环境下也可直接导入 B 站公开视频或本地音视频/文稿。"
+        : "Check your network or system proxy and retry; Bilibili videos and local files work without VPN.";
+    }
+    if (isNoCaptions) {
+      return zh
+        ? "你可以导入本地音视频或文稿文件进行离线转写，或从列表中移除此记录。"
+        : "Import a local audio/video or text file for offline analysis, or remove this entry.";
+    }
+    if (isAuthExpired || (!isContentUnavailable && !isRateLimited)) {
+      return zh
+        ? "你可以在下方按需授权本人 YouTube 登录态（仅对免登失败的视频启用，含每日限额保护、随时可断开），授权后直接点「重新尝试获取」；也可改用本地文件导入。"
+        : "You can explicitly authorize your signed-in YouTube session in Settings (used only after anonymous fetch fails, with daily caps), or import a local file instead.";
+    }
+    return zh
+      ? "你可以稍后再试、导出/导入本地副本，或从列表中移除此记录。"
+      : "Try again later, import a local file if you have one, or remove this entry.";
+  })();
+
   return (
     <div className="dashboard-stack">
       <button type="button" className="button button-ghost" onClick={onClose}>
@@ -5811,16 +6016,8 @@ function PendingContentDetailView({
         {needsAttention ? (
           <div className="semantic-state state-neutral">
             <strong>{zh ? "需要处理的原因" : "Why this video needs attention"}</strong>
-            <p>
-              {zh
-                ? "YouTube 当前对该链接触发了匿名访问与机器人验证限制（例如要求登录确认非机器人），或该视频存在访问权限限制。为保护账号安全，本应用不会在后台读取你的浏览器登录状态，因此暂时无法自动拉取标题与字幕。"
-                : "YouTube blocked anonymous access to this video (for example, requiring sign-in bot verification or permission checks). Because Intelligence never reads browser cookies behind your back, metadata and captions could not be fetched automatically."}
-            </p>
-            <p className="hint">
-              {zh
-                ? "你可以将该视频或字幕文件下载到电脑后直接导入离线转写分析，也可以稍后重新尝试获取，或从列表中移除这条未完成记录。"
-                : "You can import a local video or transcript file for offline analysis, retry fetching later, or remove this unfinished entry."}
-            </p>
+            <p>{causeParagraph}</p>
+            <p className="hint">{actionHintParagraph}</p>
           </div>
         ) : (
           <p role="status">
@@ -5830,19 +6027,9 @@ function PendingContentDetailView({
           </p>
         )}
         <div className="button-row">
-          {onAddLocal ? (
-            <button
-              type="button"
-              className="button button-primary"
-              disabled={retryBusy || removeBusy}
-              onClick={onAddLocal}
-            >
-              {zh ? "改用本地文件导入" : "Import local file instead"}
-            </button>
-          ) : null}
           <button
             type="button"
-            className="button button-secondary"
+            className="button button-primary"
             disabled={!video.source_id || retryBusy || removeBusy}
             onClick={() => void handleRetry()}
           >
@@ -5854,6 +6041,28 @@ function PendingContentDetailView({
                 ? "重新尝试获取"
                 : t("Retry")}
           </button>
+          {showAuthLink ? (
+            <InlineYouTubeAuthRecovery
+              videoId={video.video_id}
+              sourceId={video.source_id}
+              zh={zh}
+              onAuthorizedRetry={(msg) => {
+                setActionError(null);
+                setStatusNote(msg);
+                onRetry();
+              }}
+            />
+          ) : null}
+          {onAddLocal ? (
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={retryBusy || removeBusy}
+              onClick={onAddLocal}
+            >
+              {zh ? "改用本地文件导入" : "Import local file instead"}
+            </button>
+          ) : null}
           {video.source_url ? (
             <a
               className="button button-secondary"
@@ -5893,8 +6102,51 @@ function PendingContentDetailView({
 }
 
 function failedContentReasonCopy(video: ContentItem, zh: boolean): string | null {
-  const errCode = (video.last_error_code ?? video.processing_job?.error_code ?? "").trim().toUpperCase();
+  const errCode = (
+    video.import_error_code ??
+    video.last_error_code ??
+    video.processing_job?.error_code ??
+    ""
+  )
+    .trim()
+    .toUpperCase();
   const codeMap: Record<string, { zh: string; en: string }> = {
+    YOUTUBE_NETWORK_UNAVAILABLE: {
+      zh: "当前网络或系统代理未能连接到 YouTube，请检查网络或代理设置后重试。",
+      en: "Network or system proxy could not reach YouTube. Check your connection and retry.",
+    },
+    TRANSIENT_NETWORK: {
+      zh: "当前网络或系统代理未能连接到 YouTube，请检查网络或代理设置后重试。",
+      en: "Network or system proxy could not reach YouTube. Check your connection and retry.",
+    },
+    YOUTUBE_AUTH_REQUIRED: {
+      zh: "YouTube 对该视频触发了匿名访问与登录验证限制；可在设置中按需授权本人 YouTube 登录态后重试，或先生成简介速览。",
+      en: "YouTube blocked anonymous access (sign-in verification). You can enable on-demand YouTube auth fallback in Settings and retry.",
+    },
+    PERMISSION_DENIED: {
+      zh: "YouTube 对该视频触发了访问权限或登录验证限制；可在设置中按需授权本人 YouTube 登录态后重试。",
+      en: "YouTube denied anonymous access. Enable on-demand YouTube auth fallback in Settings and retry.",
+    },
+    YOUTUBE_AUTH_EXPIRED: {
+      zh: "已授权的 YouTube 登录态已过期或需要重新验证，请在设置中更新授权后再重试。",
+      en: "Authorized YouTube login expired or was rejected. Update authorization in Settings before retrying.",
+    },
+    YOUTUBE_AUTH_RATE_LIMITED: {
+      zh: "触发了账号防风控频控或 30 分钟熔断保护，请稍后再试。",
+      en: "Account protection cooldown/daily cap reached. Try again later.",
+    },
+    YOUTUBE_RATE_LIMITED: {
+      zh: "YouTube 请求频率受限，请稍后再试。",
+      en: "YouTube rate-limited requests. Try again shortly.",
+    },
+    YOUTUBE_NO_CAPTIONS: {
+      zh: "该视频未提供可用公开字幕，可导入本地文件或先生成简介速览。",
+      en: "No usable captions found on YouTube. Import a local file or generate a metadata preview.",
+    },
+    YOUTUBE_CONTENT_UNAVAILABLE: {
+      zh: "该 YouTube 视频当前不可公开访问（可能已删、私密或受限）。",
+      en: "This YouTube video is unavailable (deleted, private, or restricted).",
+    },
     CAPABILITY_UNAVAILABLE: {
       zh: "当前来源抓取能力受限（例如平台要求登录验证或未开放公开字幕）。你可以导入本地文件/字幕替代，或直接生成简介速览。",
       en: "Capture capability is restricted on this source (for example sign-in verification or no public captions). You can import a local file/transcript instead or generate a metadata preview.",
@@ -5979,10 +6231,39 @@ function ContentDetailPanel(
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
   const [wsTranscribeRunning, setWsTranscribeRunning] = useState<{ running: boolean; stage?: string }>({ running: false });
   const [wsActionRequest, setWsActionRequest] = useState<{ nonce: number; kind: "transcribe" | "distill" } | null>(null);
+  const [refDrawerTab, setRefDrawerTab] = useState<ReaderDrawerTab | null>(() =>
+    highlightedEvidenceId ? "evidence" : null,
+  );
+  const drawerReturnFocusRef = useRef<HTMLElement | null>(null);
+  const [localMediaPlaying, setLocalMediaPlaying] = useState(false);
+  const [localMediaErrorCode, setLocalMediaErrorCode] = useState<number | null>(null);
+  const openRefDrawer = useCallback((tab: ReaderDrawerTab, trigger?: HTMLElement | null) => {
+    drawerReturnFocusRef.current =
+      trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    setRefDrawerTab(tab);
+  }, []);
   useEffect(() => {
     setWsTranscribeRunning({ running: false });
     setWsActionRequest(null);
+    setLocalMediaPlaying(false);
+    setLocalMediaErrorCode(null);
+    drawerReturnFocusRef.current = null;
   }, [id]);
+  useEffect(() => {
+    setRefDrawerTab(highlightedEvidenceId ? "evidence" : null);
+  }, [id, highlightedEvidenceId]);
+  useEffect(() => {
+    if (!refDrawerTab) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setRefDrawerTab(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [refDrawerTab]);
   const recordSharedTranslation = useCallback((evidenceId: string, excerpt: string, lang: "zh-CN" | "en") => {
     setSharedTranslations(current => ({ ...current, [evidenceId]: { excerpt, language: lang } }));
   }, []);
@@ -6076,6 +6357,28 @@ function ContentDetailPanel(
                   ? "IMPORTED"
                   : data.video.processing_status,
               );
+  const visualAnalysisData = readVideoVisualAnalysis(data.visual_analysis);
+  const heroPosterUrl = visualAnalysisData?.frames?.[0]?.image_url ?? null;
+  const isTextDocument = isLocalMedia && data.video.media_kind === "TEXT";
+  const isPlayableLocalVideo = isLocalMedia && data.video.media_kind === "VIDEO";
+  const isPlayableLocalAudio = isLocalMedia && data.video.media_kind === "AUDIO";
+  const localMediaSrc = `/api/v1/videos/${encodeURIComponent(id)}/media`;
+  const isRedundantWorkspaceAiNote = Boolean(
+    aiBrief && note?.status === "AVAILABLE" && note.note_identity?.startsWith("workspace-ai/"),
+  );
+  const showSummaryPanel =
+    (note?.status === "AVAILABLE" && !isRedundantWorkspaceAiNote) ||
+    !aiBrief ||
+    (isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE");
+  const zhReader = language === "zh-CN";
+  const jumpItems = ([
+    ["section-intelligence", "sparkle", "Jump · Intelligence"],
+    ...(showSummaryPanel ? ([["section-summary", "file-text", "Jump · Summary"]] as const) : []),
+    ["section-evidence", "shield-check", "Jump · Evidence"],
+    ["section-transcript", "quotes", "Jump · Transcript"],
+    ["section-history", "clock", "Jump · History"],
+  ] as const);
+
   return (
     <div className="dashboard-stack reader-detail-stack">
       <div className="reader-back-row">
@@ -6093,124 +6396,168 @@ function ContentDetailPanel(
         ) : null}
       </div>
       <Panel title={data.video.title ?? data.video.video_id} className="reader-hero-panel">
-        <div className={`reading-meta${isLocalMedia || isBilibili ? " local-media-meta" : ""}`}>
-          <Status {...readingStatus} />
-          <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
-          {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
-          {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
-          {data.video.duration_seconds != null && <span>{t("Media duration")}: {formatHumanDuration(data.video.duration_seconds)}</span>}
+        <div className={!isTextDocument ? "reader-hero-grid" : undefined}>
+          <div className="reader-hero-main">
+            <div className={`reading-meta${isLocalMedia || isBilibili ? " local-media-meta" : ""}`}>
+              <Status {...readingStatus} />
+              <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
+              {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
+              {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
+              {data.video.duration_seconds != null && <span>{t("Media duration")}: {formatHumanDuration(data.video.duration_seconds)}</span>}
+            </div>
+            <div className="reader-action-bar">
+              <WorkspaceVideoAiActions
+                videoId={data.video.video_id}
+                title={data.video.title ?? data.video.video_id}
+                channelName={data.video.channel_name}
+                sourceUrl={data.video.source_url}
+                provider={data.video.provider}
+                isLocalMedia={isLocalMedia}
+                transcriptAvailable={transcript.status === "AVAILABLE"}
+                transcriberReady={wsCapabilities ? wsCapabilities.transcriber_ready : undefined}
+                aiBrief={aiBrief}
+                obsidianMarkdown={data.obsidian_markdown}
+                initialTranscribeJob={wsCapabilities?.transcribe_job}
+                actionRequest={wsActionRequest}
+                onTranscribeStateChange={(running, stage) =>
+                  setWsTranscribeRunning({ running, stage })
+                }
+                nextUnreadVideo={nextUnreadVideo}
+                onAdvanceToVideo={onAdvanceToVideo}
+                onBack={onClose}
+                sourceLinkNode={
+                  data.video.source_url ? (
+                    <a
+                      className="button button-ghost button-small"
+                      href={data.video.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t("Open original source")}
+                    </a>
+                  ) : null
+                }
+                legacyCopyNode={
+                  !(aiBrief && data.obsidian_markdown) ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={event => {
+                        pulseCelebration(event.currentTarget);
+                        const guideLines = loadedEvidence
+                          .map(ev => {
+                            const tr =
+                              sharedTranslations[ev.evidence_id]?.excerpt ??
+                              ev.translated_excerpt;
+                            if (!tr) return null;
+                            const range =
+                              ev.locator_type === "TEXT_RANGE"
+                                ? ""
+                                : `[${timestampRange(ev.start_ms, ev.end_ms)}] `;
+                            return `${range}${cleanTranslatedCaptionText(tr)}`;
+                          })
+                          .filter((v): v is string => Boolean(v));
+                        const cleanedSummary = note?.summary
+                          ? cleanCaptionText(note.summary).text
+                          : "";
+                        const cleanedPts = note?.core_points
+                          ? dedupeSummaryPoints(cleanedSummary, note.core_points)
+                          : [];
+                        const md = buildMarkdownVideoNote({
+                          title: data.video.title ?? data.video.video_id,
+                          channelName: data.video.channel_name,
+                          sourceUrl: data.video.source_url,
+                          publishedAt: humanDate(
+                            data.video.published_at ?? data.video.imported_at,
+                          ),
+                          summary: cleanedSummary,
+                          chineseGuide: guideLines,
+                          corePoints: cleanedPts,
+                        });
+                        void navigator.clipboard?.writeText(md);
+                        setCopiedMarkdown(true);
+                        setTimeout(() => setCopiedMarkdown(false), 2200);
+                      }}
+                    >
+                      <PhosphorIcon name="file-text" size={13} />
+                      {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
+                    </button>
+                  ) : null
+                }
+                onCompleted={() => {
+                  setRefresh(value => value + 1);
+                  setEvidenceRefresh(value => value + 1);
+                  onListChanged?.();
+                }}
+              />
+            </div>
+            {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && (
+              <FollowCreatorFromContent id={id} capability={creatorCapability} />
+            )}
+            {data.video.provider === "YOUTUBE" &&
+              data.video.channel_id &&
+              /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && (
+                <FollowCreatorFromContent id={id} provider="YOUTUBE" />
+              )}
+          </div>
+          {!isTextDocument ? (
+            <ReaderMediaStage
+              zhReader={zhReader}
+              provider={data.video.provider}
+              channelName={data.video.channel_name}
+              title={data.video.title}
+              sourceUrl={data.video.source_url}
+              durationSeconds={data.video.duration_seconds}
+              heroPosterUrl={heroPosterUrl}
+              isLocalMedia={isLocalMedia}
+              isBilibili={isBilibili}
+              isPlayableLocalVideo={isPlayableLocalVideo}
+              isPlayableLocalAudio={isPlayableLocalAudio}
+              localMediaSrc={localMediaSrc}
+              playing={localMediaPlaying}
+              mediaErrorCode={localMediaErrorCode}
+              onPlayStart={() => {
+                setLocalMediaErrorCode(null);
+                setLocalMediaPlaying(true);
+              }}
+              onHidePlayer={() => {
+                setLocalMediaPlaying(false);
+                setLocalMediaErrorCode(null);
+              }}
+              onMediaError={(code) => setLocalMediaErrorCode(code)}
+              onRetryMedia={() => setLocalMediaErrorCode(null)}
+              onOpenTranscriptDrawer={() => openRefDrawer("transcript")}
+            />
+          ) : null}
         </div>
-        <div className="reader-action-bar">
-          <WorkspaceVideoAiActions
-            videoId={data.video.video_id}
-            title={data.video.title ?? data.video.video_id}
-            channelName={data.video.channel_name}
-            sourceUrl={data.video.source_url}
-            provider={data.video.provider}
-            isLocalMedia={isLocalMedia}
-            transcriptAvailable={transcript.status === "AVAILABLE"}
-            transcriberReady={wsCapabilities ? wsCapabilities.transcriber_ready : undefined}
-            aiBrief={aiBrief}
-            obsidianMarkdown={data.obsidian_markdown}
-            initialTranscribeJob={wsCapabilities?.transcribe_job}
-            actionRequest={wsActionRequest}
-            onTranscribeStateChange={(running, stage) =>
-              setWsTranscribeRunning({ running, stage })
-            }
-            nextUnreadVideo={nextUnreadVideo}
-            onAdvanceToVideo={onAdvanceToVideo}
-            onBack={onClose}
-            sourceLinkNode={
-              data.video.source_url ? (
-                <a
-                  className="button button-ghost button-small"
-                  href={data.video.source_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t("Open original source")}
-                </a>
-              ) : null
-            }
-            legacyCopyNode={
-              !(aiBrief && data.obsidian_markdown) ? (
-                <button
-                  type="button"
-                  className="button button-secondary button-small"
-                  onClick={event => {
-                    pulseCelebration(event.currentTarget);
-                    const guideLines = loadedEvidence
-                      .map(ev => {
-                        const tr =
-                          sharedTranslations[ev.evidence_id]?.excerpt ??
-                          ev.translated_excerpt;
-                        if (!tr) return null;
-                        const range =
-                          ev.locator_type === "TEXT_RANGE"
-                            ? ""
-                            : `[${timestampRange(ev.start_ms, ev.end_ms)}] `;
-                        return `${range}${cleanTranslatedCaptionText(tr)}`;
-                      })
-                      .filter((v): v is string => Boolean(v));
-                    const cleanedSummary = note?.summary
-                      ? cleanCaptionText(note.summary).text
-                      : "";
-                    const cleanedPts = note?.core_points
-                      ? dedupeSummaryPoints(cleanedSummary, note.core_points)
-                      : [];
-                    const md = buildMarkdownVideoNote({
-                      title: data.video.title ?? data.video.video_id,
-                      channelName: data.video.channel_name,
-                      sourceUrl: data.video.source_url,
-                      publishedAt: humanDate(
-                        data.video.published_at ?? data.video.imported_at,
-                      ),
-                      summary: cleanedSummary,
-                      chineseGuide: guideLines,
-                      corePoints: cleanedPts,
-                    });
-                    void navigator.clipboard?.writeText(md);
-                    setCopiedMarkdown(true);
-                    setTimeout(() => setCopiedMarkdown(false), 2200);
-                  }}
-                >
-                  <PhosphorIcon name="file-text" size={13} />
-                  {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
-                </button>
-              ) : null
-            }
-            onCompleted={() => {
-              setRefresh(value => value + 1);
-              setEvidenceRefresh(value => value + 1);
-              onListChanged?.();
-            }}
-          />
-        </div>
-        {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && (
-          <FollowCreatorFromContent id={id} capability={creatorCapability} />
-        )}
-        {data.video.provider === "YOUTUBE" &&
-          data.video.channel_id &&
-          /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && (
-            <FollowCreatorFromContent id={id} provider="YOUTUBE" />
-          )}
       </Panel>
       <div role="toolbar" aria-label={t("Section jump")} className="reader-jump-bar">
-        {([
-          ["section-intelligence", "sparkle", "Jump · Intelligence"],
-          ["section-summary", "file-text", "Jump · Summary"],
-          ["section-evidence", "shield-check", "Jump · Evidence"],
-          ["section-transcript", "quotes", "Jump · Transcript"],
-          ["section-history", "clock", "Jump · History"],
-        ] as const).map(([secId, iconName, labelKey]) => {
-          const isActive = activeSection === secId;
+        {jumpItems.map(([secId, iconName, labelKey]) => {
+          const drawerTabForSec =
+            secId === "section-evidence"
+              ? "evidence"
+              : secId === "section-transcript"
+                ? "transcript"
+                : secId === "section-history"
+                  ? "history"
+                  : null;
+          const isActive = drawerTabForSec
+            ? refDrawerTab === drawerTabForSec
+            : activeSection === secId && refDrawerTab === null;
           return (
             <button
               key={secId}
               type="button"
               aria-current={isActive ? "location" : undefined}
               className={`reader-jump-chip${isActive ? " is-active" : ""}`}
-              onClick={() => scrollToSection(secId)}
+              onClick={(event) => {
+                if (drawerTabForSec) {
+                  openRefDrawer(drawerTabForSec, event.currentTarget);
+                } else {
+                  setRefDrawerTab(null);
+                  scrollToSection(secId);
+                }
+              }}
             >
               <PhosphorIcon name={iconName} weight={isActive ? "fill" : "regular"} size={13} />
               {t(labelKey)}
@@ -6223,6 +6570,19 @@ function ContentDetailPanel(
         data.video.caption_timing_status === "UNAVAILABLE") && (() => {
         const zh = language === "zh-CN";
         const translatedReason = failedContentReasonCopy(data.video, zh);
+        const rawErrCode = (
+          data.video.import_error_code ??
+          data.video.last_error_code ??
+          data.video.processing_job?.error_code ??
+          ""
+        )
+          .trim()
+          .toUpperCase();
+        const showYouTubeAuthCta =
+          (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
+          ["PERMISSION_DENIED", "YOUTUBE_AUTH_REQUIRED", "YOUTUBE_AUTH_EXPIRED"].includes(
+            rawErrCode,
+          );
         const canRetrySource = Boolean(data.video.source_id && data.video.retry_allowed !== false);
         const canMetaFallback =
           (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
@@ -6273,6 +6633,17 @@ function ContentDetailPanel(
                 >
                   {t(retryBusy ? "Retrying…" : "Retry")}
                 </button>
+              ) : null}
+              {showYouTubeAuthCta ? (
+                <InlineYouTubeAuthRecovery
+                  videoId={id}
+                  sourceId={data.video.source_id}
+                  zh={zh}
+                  onAuthorizedRetry={(msg) => {
+                    setRetryFeedback(msg);
+                    setRefresh((value) => value + 1);
+                  }}
+                />
               ) : null}
               {onAddLocal ? (
                 <button
@@ -6499,8 +6870,8 @@ function ContentDetailPanel(
               <details className="legacy-model-diagnostics">
                 <summary>
                   {language === "zh-CN"
-                    ? "底层离线模型路由与手动核验诊断"
-                    : "Underlying local model route & manual diagnostics"}
+                    ? "高级选项：离线核验明细与手动重跑"
+                    : "Advanced: offline verification & manual rerun"}
                 </summary>
                 {legacyIntelBody}
               </details>
@@ -6510,6 +6881,7 @@ function ContentDetailPanel(
           );
         })()}
       </Panel>
+      {showSummaryPanel ? (
       <Panel id="section-summary" icon="file-text" title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
         {note?.status === "AVAILABLE"
           ? (() => {
@@ -6750,135 +7122,218 @@ function ContentDetailPanel(
             </p>
           )}
       </Panel>
-      <ContentEvidencePanel
-        videoId={data.video.video_id}
-        sourceUrl={data.video.source_url}
-        refresh={evidenceRefresh}
-        highlightedEvidenceId={highlightedEvidenceId}
-        externalTranslations={sharedTranslations}
-        onTranslateSuccess={recordSharedTranslation}
-        onEvidenceLoaded={setLoadedEvidence}
-      />
-      <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
-        {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
-        {isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE" ? (
-          <>
-            <div className="semantic-state state-neutral">
-              <span className="status status-neutral">
-                {language === "zh-CN"
-                  ? wsTranscribeJobActive
-                    ? "正在离线听写逐字稿…"
-                    : "本机离线语音模型已就绪"
-                  : wsTranscribeJobActive
-                    ? "Transcribing speech…"
-                    : "Offline speech model ready"}
-              </span>
-              <p>
-                {language === "zh-CN"
-                  ? "已内置 Whisper 离线语音识别模型（全程在本机运行，音视频不会上传云端）。完成语音转写后，完整带时间戳的原始逐字稿会保存在这里。"
-                  : "Built-in offline Whisper speech model is ready on this Mac. Once transcribed, the full timestamped transcript will be saved here."}
-              </p>
-            </div>
-            <details className="legacy-model-diagnostics">
-              <summary>
-                {language === "zh-CN"
-                  ? "底层本地转写器高级设置与诊断"
-                  : "Advanced local transcriber settings & diagnostics"}
-              </summary>
-              <LocalTranscription
-                id={id}
-                onStatusChange={setTranscriptionStatus}
-                onCompleted={() => {
-                  if (transcriptionRefreshId.current === id) return;
-                  transcriptionRefreshId.current = id;
-                  setRefresh(value => value + 1);
-                  setEvidenceRefresh(value => value + 1);
-                }}
-              />
-            </details>
-          </>
-        ) : (
-          isLocalMedia && (
-            <LocalTranscription
-              id={id}
-              onStatusChange={setTranscriptionStatus}
-              onCompleted={() => {
-                if (transcriptionRefreshId.current === id) return;
-                transcriptionRefreshId.current = id;
-                setRefresh(value => value + 1);
-                setEvidenceRefresh(value => value + 1);
-              }}
-            />
-          )
-        )}
-        {transcript.status === "AVAILABLE" && transcript.text
-          ? (() => {
-            const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
-            const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
-            const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
-            const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
-            return (
-              <>
-                <CaptionCleanBar
-                  collapsedCount={collapsed}
-                  showVerbatim={transcriptVerbatim}
-                  onToggle={() => setTranscriptVerbatim(current => !current)}
-                />
-                <div className="transcript-scroll-box">
-                  {displaySegments
-                    ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{timestampRange(segment.start_ms, segment.end_ms)}</time><span>{segment.text}</span></li>)}</ol>
-                    : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
-                </div>
-              </>
-            );
-          })()
-          : isLocalMedia || isBilibili ? null : (
-            <div className="semantic-state state-neutral">
-              <Status {...contentStatus(data.video.provider, transcript.status)} />
-              <p>{t(({
-                TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
-                TRANSCRIPTION_FAILED: "Local transcription failed",
-                NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
-                FAILED: "Transcript processing ended without a canonical transcript.",
-                UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
-              } as Record<string, string>)[transcript.status] ?? "A readable transcript is not available yet.")}</p>
-            </div>
-          )}
-      </Panel>
-      {wsAiReady ? (
-        <details className="legacy-model-diagnostics">
-          <summary>
-            {language === "zh-CN"
-              ? "高级实验性功能：多模型对照深度分析与资格诊断"
-              : "Experimental: Multi-model Deep Analysis & qualification diagnostics"}
-          </summary>
-          <DeepAnalysisPanel
+      ) : null}
+      <section
+        className="panel reader-drawer-launchers"
+        aria-label={zhReader ? "按需查阅原始资料" : "Source transcript, evidence & history"}
+      >
+        <div className="reader-drawer-launchers-head">
+          <strong>{zhReader ? "按需查阅原始资料" : "Reference materials"}</strong>
+          <span className="hint">
+            {zhReader
+              ? "默认收起以免打断核心阅读，需要核对原话、全文或处理日志时点击右侧展开"
+              : "Kept off the main canvas so synthesis stays focused; open on the right when needed."}
+          </span>
+        </div>
+        <div className="reader-drawer-launcher-grid">
+          <button
+            type="button"
+            className="reader-drawer-launcher-btn"
+            onClick={(event) => openRefDrawer("transcript", event.currentTarget)}
+          >
+            <PhosphorIcon name="quotes" size={16} />
+            <span className="reader-drawer-launcher-copy">
+              <strong>{isTextDocument ? (zhReader ? "查看原始全文" : "View source text") : (zhReader ? "查看原始字幕" : "View transcript")}</strong>
+              <small className="tabular-nums">
+                {transcript.status === "AVAILABLE"
+                  ? transcript.timed_segments?.length
+                    ? zhReader
+                      ? `${transcript.timed_segments.length} 段时间轴`
+                      : `${transcript.timed_segments.length} timed segments`
+                    : zhReader
+                      ? "全文已就绪"
+                      : "Available"
+                  : zhReader
+                    ? "查看或生成"
+                    : "Open panel"}
+              </small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="reader-drawer-launcher-btn"
+            onClick={(event) => openRefDrawer("evidence", event.currentTarget)}
+          >
+            <PhosphorIcon name="shield-check" size={16} />
+            <span className="reader-drawer-launcher-copy">
+              <strong>{zhReader ? "查看时间轴原话证据" : "View timeline evidence"}</strong>
+              <small className="tabular-nums">
+                {zhReader ? `${loadedEvidence.length} 条可核验引用` : `${loadedEvidence.length} excerpts`}
+              </small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="reader-drawer-launcher-btn"
+            onClick={(event) => openRefDrawer("history", event.currentTarget)}
+          >
+            <PhosphorIcon name="clock" size={16} />
+            <span className="reader-drawer-launcher-copy">
+              <strong>{zhReader ? "查看处理记录与高级诊断" : "View history & diagnostics"}</strong>
+              <small className="tabular-nums">
+                {zhReader ? `${visibleHistory.length} 条状态记录` : `${visibleHistory.length} events`}
+              </small>
+            </span>
+          </button>
+        </div>
+      </section>
+      <ReaderReferenceDrawer
+        activeTab={refDrawerTab}
+        zhReader={zhReader}
+        isTextDocument={isTextDocument}
+        evidenceCount={loadedEvidence.length}
+        historyCount={visibleHistory.length}
+        returnFocusTarget={drawerReturnFocusRef.current}
+        onSelectTab={setRefDrawerTab}
+        onClose={() => setRefDrawerTab(null)}
+        evidencePane={
+          <ContentEvidencePanel
             videoId={data.video.video_id}
-            inputRefresh={captionResultRefresh}
-            onCompleted={() => setEvidenceRefresh((value) => value + 1)}
+            sourceUrl={data.video.source_url}
+            refresh={evidenceRefresh}
+            highlightedEvidenceId={highlightedEvidenceId}
+            externalTranslations={sharedTranslations}
+            onTranslateSuccess={recordSharedTranslation}
+            onEvidenceLoaded={setLoadedEvidence}
           />
-        </details>
-      ) : (
-        <DeepAnalysisPanel
-          videoId={data.video.video_id}
-          inputRefresh={captionResultRefresh}
-          onCompleted={() => setEvidenceRefresh((value) => value + 1)}
-        />
-      )}
-      <Panel id="section-history" icon="clock" title="Processing history">
-        {visibleHistory.length
-          ? visibleHistory.slice(0, 12).map((event, index) => (
-            <div className="metadata-row" key={`${event.timestamp}:${event.summary}:${index}`}>
-              <span>{humanDate(event.timestamp)}</span>
-              <div><Status value={event.status} /><p>{event.code === "INVALID_RESPONSE" && event.context?.stage === "ANALYSIS"
-                ? t("The local Summary did not pass output checks. The transcript remains available; no Summary or Evidence was invented. Check Settings for local model readiness.")
-                : event.type === "JOB_STATUS"
-                  ? <>{t(({ METADATA: "Source metadata", TRANSCRIPT: "Transcript", SCORING: "Scoring", ANALYSIS: "Summary" } as Record<string, string>)[event.context?.stage ?? ""] ?? "Processing")}: {t(statusLabel(event.status))}.</>
-                  : t(event.summary)}</p></div>
-            </div>
-          ))
-          : <Empty>No processing history yet.</Empty>}
-      </Panel>
+        }
+        transcriptPane={
+          <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
+            {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
+            {isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE" ? (
+              <>
+                <div className="semantic-state state-neutral">
+                  <span className="status status-neutral">
+                    {language === "zh-CN"
+                      ? wsTranscribeJobActive
+                        ? "正在离线听写逐字稿…"
+                        : "本机离线语音模型已就绪"
+                      : wsTranscribeJobActive
+                        ? "Transcribing speech…"
+                        : "Offline speech model ready"}
+                  </span>
+                  <p>
+                    {language === "zh-CN"
+                      ? "已内置 Whisper 离线语音识别模型（全程在本机运行，音视频不会上传云端）。完成语音转写后，完整带时间戳的原始逐字稿会保存在这里。"
+                      : "Built-in offline Whisper speech model is ready on this Mac. Once transcribed, the full timestamped transcript will be saved here."}
+                  </p>
+                </div>
+                <details className="legacy-model-diagnostics">
+                  <summary>
+                    {language === "zh-CN"
+                      ? "底层本地转写器高级设置与诊断"
+                      : "Advanced local transcriber settings & diagnostics"}
+                  </summary>
+                  <LocalTranscription
+                    id={id}
+                    onStatusChange={setTranscriptionStatus}
+                    onCompleted={() => {
+                      if (transcriptionRefreshId.current === id) return;
+                      transcriptionRefreshId.current = id;
+                      setRefresh(value => value + 1);
+                      setEvidenceRefresh(value => value + 1);
+                    }}
+                  />
+                </details>
+              </>
+            ) : (
+              isLocalMedia && (
+                <LocalTranscription
+                  id={id}
+                  onStatusChange={setTranscriptionStatus}
+                  onCompleted={() => {
+                    if (transcriptionRefreshId.current === id) return;
+                    transcriptionRefreshId.current = id;
+                    setRefresh(value => value + 1);
+                    setEvidenceRefresh(value => value + 1);
+                  }}
+                />
+              )
+            )}
+            {transcript.status === "AVAILABLE" && transcript.text
+              ? (() => {
+                const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
+                const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
+                const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
+                const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
+                return (
+                  <>
+                    <CaptionCleanBar
+                      collapsedCount={collapsed}
+                      showVerbatim={transcriptVerbatim}
+                      onToggle={() => setTranscriptVerbatim(current => !current)}
+                    />
+                    <div className="transcript-scroll-box">
+                      {displaySegments
+                        ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{timestampRange(segment.start_ms, segment.end_ms)}</time><span>{segment.text}</span></li>)}</ol>
+                        : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
+                    </div>
+                  </>
+                );
+              })()
+              : isLocalMedia || isBilibili ? null : (
+                <div className="semantic-state state-neutral">
+                  <Status {...contentStatus(data.video.provider, transcript.status)} />
+                  <p>{t(({
+                    TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
+                    TRANSCRIPTION_FAILED: "Local transcription failed",
+                    NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
+                    FAILED: "Transcript processing ended without a canonical transcript.",
+                    UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
+                  } as Record<string, string>)[transcript.status] ?? "A readable transcript is not available yet.")}</p>
+                </div>
+              )}
+          </Panel>
+        }
+        historyPane={
+          <>
+            {wsAiReady ? (
+              <details className="legacy-model-diagnostics">
+                <summary>
+                  {language === "zh-CN"
+                    ? "高级实验性功能：多模型对照深度分析与资格诊断"
+                    : "Experimental: Multi-model Deep Analysis & qualification diagnostics"}
+                </summary>
+                <DeepAnalysisPanel
+                  videoId={data.video.video_id}
+                  inputRefresh={captionResultRefresh}
+                  onCompleted={() => setEvidenceRefresh((value) => value + 1)}
+                />
+              </details>
+            ) : (
+              <DeepAnalysisPanel
+                videoId={data.video.video_id}
+                inputRefresh={captionResultRefresh}
+                onCompleted={() => setEvidenceRefresh((value) => value + 1)}
+              />
+            )}
+            <Panel id="section-history" icon="clock" title="Processing history">
+              {visibleHistory.length
+                ? visibleHistory.slice(0, 12).map((event, index) => (
+                  <div className="metadata-row" key={`${event.timestamp}:${event.summary}:${index}`}>
+                    <span>{humanDate(event.timestamp)}</span>
+                    <div><Status value={event.status} /><p>{event.code === "INVALID_RESPONSE" && event.context?.stage === "ANALYSIS"
+                      ? t("The local Summary did not pass output checks. The transcript remains available; no Summary or Evidence was invented. Check Settings for local model readiness.")
+                      : event.type === "JOB_STATUS"
+                        ? <>{t(({ METADATA: "Source metadata", TRANSCRIPT: "Transcript", SCORING: "Scoring", ANALYSIS: "Summary" } as Record<string, string>)[event.context?.stage ?? ""] ?? "Processing")}: {t(statusLabel(event.status))}.</>
+                        : t(event.summary)}</p></div>
+                  </div>
+                ))
+                : <Empty>No processing history yet.</Empty>}
+            </Panel>
+          </>
+        }
+      />
     </div>
   );
 }
@@ -7474,124 +7929,147 @@ function ContentEvidencePanel(
         </div>
       ) : null}
       {evidence.length
-        ? (
-          <div className="evidence-trace-list">
-            <CaptionCleanBar
-              collapsedCount={collapsedEvidenceLines}
-              showVerbatim={evidenceVerbatim}
-              onToggle={() => setEvidenceVerbatim(current => !current)}
-            />
-            {evidence.map((item, idx) => {
-              const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
-              const translatedExcerpt = local?.excerpt ?? item.translated_excerpt;
-              const translatedLanguage = local?.language ?? item.translated_language;
-              const target = item.translation_target_language;
-              const sourceMatchesTarget = evidenceSourceMatchesTarget(
-                item.source_language,
-                target,
-              );
-              const translationAvailable = Boolean(
-                translatedExcerpt
-                && translatedLanguage === target
-                && !sourceMatchesTarget,
-              );
-              const showTranslation = mode !== "原文";
-              const showOriginal = mode !== "译文" || !translationAvailable;
-              const isTargeted = highlightedEvidenceId === item.evidence_id;
-              return (
-                <article
-                  className={`evidence-item evidence-trace-item${isTargeted ? " is-targeted-evidence" : ""}`}
-                  id={`content-evidence-${encodeURIComponent(item.evidence_id)}`}
-                  data-content-id={videoId}
-                  key={item.evidence_id}
-                >
-                  <div className="reading-meta">
-                    <span className="tabular-nums">#{idx + 1}</span>
-                    <strong className="tabular-nums">
-                      {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}
-                    </strong>
-                    <span>{t("Source language")}: {item.source_language} · {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))}</span>
-                    {isTargeted && <span className="targeted-citation-pill">{t("Targeted citation")}</span>}
-                  </div>
-                  <div className="segmented evidence-display-modes" role="group" aria-label={t("Evidence presentation mode")}>
-                    {(["译文", "双语", "原文"] as const).map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        aria-pressed={mode === option}
-                        className={mode === option ? "active" : ""}
-                        onClick={() => setSelectedMode(option)}
+        ? (() => {
+          const renderEvidenceCard = (item: ContentEvidence, idx: number) => {
+            const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
+            const translatedExcerpt = local?.excerpt ?? item.translated_excerpt;
+            const translatedLanguage = local?.language ?? item.translated_language;
+            const target = item.translation_target_language;
+            const sourceMatchesTarget = evidenceSourceMatchesTarget(
+              item.source_language,
+              target,
+            );
+            const translationAvailable = Boolean(
+              translatedExcerpt
+              && translatedLanguage === target
+              && !sourceMatchesTarget,
+            );
+            const showTranslation = mode !== "原文";
+            const showOriginal = mode !== "译文" || !translationAvailable;
+            const isTargeted = highlightedEvidenceId === item.evidence_id;
+            return (
+              <article
+                className={`evidence-item evidence-trace-item${isTargeted ? " is-targeted-evidence" : ""}`}
+                id={`content-evidence-${encodeURIComponent(item.evidence_id)}`}
+                data-content-id={videoId}
+                key={item.evidence_id}
+              >
+                <div className="reading-meta">
+                  <span className="tabular-nums">#{idx + 1}</span>
+                  <strong className="tabular-nums">
+                    {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}
+                  </strong>
+                  <span>{t("Source language")}: {item.source_language} · {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))}</span>
+                  {isTargeted && <span className="targeted-citation-pill">{t("Targeted citation")}</span>}
+                </div>
+                <div className="segmented evidence-display-modes" role="group" aria-label={t("Evidence presentation mode")}>
+                  {(["译文", "双语", "原文"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={mode === option}
+                      className={mode === option ? "active" : ""}
+                      onClick={() => setSelectedMode(option)}
+                    >
+                      {language === "en" ? ({ "译文": "Translation", "双语": "Bilingual", "原文": "Original" } as const)[option] : option}
+                    </button>
+                  ))}
+                </div>
+                {showTranslation
+                  ? (
+                    <div>
+                      <strong>{t("Translation")} · {target}</strong>
+                      {translationAvailable
+                        ? <blockquote>{evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
+                        : sourceMatchesTarget
+                        ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
+                        : (
+                          <>
+                            <p className="hint">{t("Translation unavailable. Original Evidence remains authoritative.")}</p>
+                            {translationBusy === null
+                              ? (
+                                <button
+                                  type="button"
+                                  className="button button-secondary button-small"
+                                  onClick={() => void generateTranslation(item)}
+                                >
+                                  {t("Generate translation")}
+                                </button>
+                              )
+                              : translationBusy === item.evidence_id
+                              ? <p className="hint" role="status">{t("Generating a local translation…")}</p>
+                              : null}
+                          </>
+                        )}
+                    </div>
+                  )
+                  : null}
+                {showOriginal
+                  ? (
+                    <div>
+                      <strong>{t("Original · authoritative source")} · {item.source_language}</strong>
+                      <blockquote>{evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text}</blockquote>
+                    </div>
+                  )
+                  : null}
+                {mode === "原文" && !translationAvailable && !sourceMatchesTarget
+                  ? <p className="hint">{t("Translation unavailable.")}</p>
+                  : null}
+                {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
+                <div className="evidence-card-footer">
+                  {sourceUrl
+                    ? (
+                      <a
+                        className="button button-ghost button-small evidence-source-link"
+                        href={videoAt(sourceUrl, item.start_ms)}
+                        target="_blank"
+                        rel="noreferrer"
                       >
-                        {language === "en" ? ({ "译文": "Translation", "双语": "Bilingual", "原文": "Original" } as const)[option] : option}
-                      </button>
-                    ))}
-                  </div>
-                  {showTranslation
-                    ? (
-                      <div>
-                        <strong>{t("Translation")} · {target}</strong>
-                        {translationAvailable
-                          ? <blockquote>{evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
-                          : sourceMatchesTarget
-                          ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
-                          : (
-                            <>
-                              <p className="hint">{t("Translation unavailable. Original Evidence remains authoritative.")}</p>
-                              {translationBusy === null
-                                ? (
-                                  <button
-                                    type="button"
-                                    className="button button-secondary button-small"
-                                    onClick={() => void generateTranslation(item)}
-                                  >
-                                    {t("Generate translation")}
-                                  </button>
-                                )
-                                : translationBusy === item.evidence_id
-                                ? <p className="hint" role="status">{t("Generating a local translation…")}</p>
-                                : null}
-                            </>
-                          )}
-                      </div>
+                        {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
+                      </a>
                     )
-                    : null}
-                  {showOriginal
-                    ? (
-                      <div>
-                        <strong>{t("Original · authoritative source")} · {item.source_language}</strong>
-                        <blockquote>{evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text}</blockquote>
-                      </div>
-                    )
-                    : null}
-                  {mode === "原文" && !translationAvailable && !sourceMatchesTarget
-                    ? <p className="hint">{t("Translation unavailable.")}</p>
-                    : null}
-                  {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
-                  <div className="evidence-card-footer">
-                    {sourceUrl
-                      ? (
-                        <a
-                          className="button button-ghost button-small evidence-source-link"
-                          href={videoAt(sourceUrl, item.start_ms)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
-                        </a>
-                      )
-                      : <p className="hint">{t("Source URL unavailable.")}</p>}
-                    <details className="provenance">
-                      <summary>{t("Citation details")}</summary>
-                      <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
-                      <p>{t("Provenance")}: {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
-                      <small>{item.evidence_id} · {item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
-                    </details>
+                    : <p className="hint">{t("Source URL unavailable.")}</p>}
+                  <details className="provenance">
+                    <summary>{t("Citation details")}</summary>
+                    <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
+                    <p>{t("Provenance")}: {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
+                    <small>{item.evidence_id} · {item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
+                  </details>
+                </div>
+              </article>
+            );
+          };
+          const overflowItems = evidence.slice(3);
+          const hasTargetedOverflow = Boolean(
+            highlightedEvidenceId &&
+              overflowItems.some((item) => item.evidence_id === highlightedEvidenceId),
+          );
+          return (
+            <div className="evidence-trace-list">
+              <CaptionCleanBar
+                collapsedCount={collapsedEvidenceLines}
+                showVerbatim={evidenceVerbatim}
+                onToggle={() => setEvidenceVerbatim(current => !current)}
+              />
+              {evidence.slice(0, 3).map((item, idx) => renderEvidenceCard(item, idx))}
+              {overflowItems.length > 0 ? (
+                <details
+                  className="evidence-overflow-drawer"
+                  open={hasTargetedOverflow || undefined}
+                >
+                  <summary className="tabular-nums">
+                    {language === "zh-CN"
+                      ? `展开其余 ${overflowItems.length} 条时间轴原话片段`
+                      : `Show ${overflowItems.length} more timeline excerpts`}
+                  </summary>
+                  <div className="evidence-trace-list evidence-overflow-list">
+                    {overflowItems.map((item, idx) => renderEvidenceCard(item, idx + 3))}
                   </div>
-                </article>
-              );
-            })}
-          </div>
-        )
+                </details>
+              ) : null}
+            </div>
+          );
+        })()
         : <Empty>No available, verified canonical transcript Evidence is recorded for this Content.</Empty>}
     </Panel>
   );
@@ -7906,13 +8384,16 @@ function Topics({
                     : `Grounded in ${evo.video_count} distilled items.`)}
             </p>
             {evo.top_opportunities_zh.length > 0 ? (
-              <div className="topic-opp-pills">
+              <ul
+                className="topic-opp-callout"
+                aria-label={zh ? "重点切入方向" : "Key opportunity angles"}
+              >
                 {evo.top_opportunities_zh.map((opp, idx) => (
-                  <span key={`top-opp:${idx}`} className="ai-basis-pill">
+                  <li key={`top-opp:${idx}`} className="topic-opp-callout-item">
                     {zh ? `高优切口：${opp}` : opp}
-                  </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : null}
             {evo.channel_breakdown.length > 0 && onBrowseTopicContent ? (
               <div
@@ -8047,18 +8528,21 @@ function Topics({
                   <p className="summary-copy">{entry.summary_zh}</p>
                 ) : null}
                 {entry.product_opportunities_zh.length > 0 || entry.business_opportunities_zh.length > 0 ? (
-                  <div className="topic-opp-pills">
+                  <ul
+                    className="topic-opp-callout is-compact"
+                    aria-label={zh ? "产品与商业切入方向" : "Product & business angles"}
+                  >
                     {entry.product_opportunities_zh.slice(0, 2).map((opp, idx) => (
-                      <span key={`p:${idx}`} className="ai-basis-pill">
+                      <li key={`p:${idx}`} className="topic-opp-callout-item">
                         {zh ? `产品切口：${opp}` : opp}
-                      </span>
+                      </li>
                     ))}
                     {entry.business_opportunities_zh.slice(0, 2).map((opp, idx) => (
-                      <span key={`b:${idx}`} className="ai-basis-pill">
+                      <li key={`b:${idx}`} className="topic-opp-callout-item">
                         {zh ? `变现模型：${opp}` : opp}
-                      </span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 ) : null}
               </article>
             ))}
@@ -8440,7 +8924,13 @@ function Sources(
                       className="button button-ghost button-small"
                       onClick={() => onAskChannelResearch(sig.channel_key)}
                     >
-                      {language === "zh-CN" ? "问此频道" : "Ask Q&A"}
+                      {source.provider === "LOCAL"
+                        ? language === "zh-CN"
+                          ? "问本地库"
+                          : "Ask Q&A"
+                        : language === "zh-CN"
+                          ? "问此频道"
+                          : "Ask Q&A"}
                     </button>
                   ) : null}
                   {source.tracking &&
@@ -9885,13 +10375,29 @@ function Settings({ refresh }: { refresh: number }) {
       setSavingLanguage(false);
     }
   };
+  const showOnboardingReturn = getOnboardingReturnStep() !== null;
+  const zhBanner = language === "zh-CN";
   return (
     <div className="settings-stack">
+      {showOnboardingReturn ? (
+        <div className="onboarding-return-banner" role="region" aria-label={zhBanner ? "新手引导进度" : "Onboarding progress"}>
+          <span>
+            {zhBanner
+              ? "正在进行新手引导（模型配置后不会丢失进度）"
+              : "Onboarding paused here so you can finish setup"}
+          </span>
+          <a className="button button-primary button-small" href="#Home">
+            {zhBanner ? "返回新手引导继续第 3 步 ›" : "Return to Onboarding ›"}
+          </a>
+        </div>
+      ) : null}
       <div role="toolbar" aria-label={t("Settings sections")} className="reader-jump-bar settings-jump-bar">
         {([
           ["settings-language", "translate", "Jump · Language"],
           ["settings-interests", "funnel", "Jump · Interests"],
           ["settings-models", "sparkle", "Jump · Models"],
+          ["settings-whisper-download", "lightning", "Jump · Speech"],
+          ["settings-youtube-auth", "shield-check", "Jump · YouTube"],
           ["settings-backup", "archive", "Jump · Backup"],
         ] as const).map(([secId, iconName, labelKey]) => {
           const isActive = activeSettingSection === secId;
@@ -9973,9 +10479,12 @@ function Settings({ refresh }: { refresh: number }) {
                 <button
                   type="button"
                   className="button button-secondary button-small"
-                  onClick={() => document.getElementById("settings-models")?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
+                  onClick={() => {
+                    scheduleSafeHashUpdate("Settings/models");
+                    document.getElementById("settings-models")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+                  }}
                 >
-                  {zh ? (wsAi?.active_mode === "cloud_byok" && !wsAi.cloud_key_configured ? "配置 API Key ›" : "切换或查看 ›") : "Configure ›"}
+                  {zh ? (wsAi?.active_mode === "cloud_byok" && !wsAi.cloud_key_configured ? "配置 API Key ›" : "配置模型 ›") : "Configure ›"}
                 </button>
               </div>
               <div className="ai-overview-row">
@@ -9984,7 +10493,7 @@ function Settings({ refresh }: { refresh: number }) {
                   <span className="hint">{transcriptionStatusCopy}</span>
                 </div>
                 <a className="button button-secondary button-small" href="#Settings/transcription">
-                  {zh ? (transcriberReadyFlag === true ? "查看设置 ›" : "去设置（约 2 分钟） ›") : "Set up ›"}
+                  {zh ? (transcriberReadyFlag === true ? "查看设置 ›" : "一键下载（约 2 分钟） ›") : "Set up ›"}
                 </a>
               </div>
               <div className="ai-overview-row">
@@ -10000,7 +10509,7 @@ function Settings({ refresh }: { refresh: number }) {
                     setTimeout(() => document.getElementById("settings-legacy-diagnostics")?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 20);
                   }}
                 >
-                  {zh ? "了解详情 ›" : "Learn more ›"}
+                  {zh ? "高级详情 ›" : "Details ›"}
                 </button>
               </div>
             </div>
@@ -10026,6 +10535,13 @@ function Settings({ refresh }: { refresh: number }) {
           <>
             {overviewPanel}
             <WorkspaceAiSettingsPanel id="settings-models" initial={settings.data.workspace_ai} onConfigChange={setLiveWorkspaceAi} />
+            <WhisperQuickDownloadPanel
+              ready={transcriberReadyFlag}
+              activeSlug={wsAi?.active_whisper_slug}
+              catalog={wsAi?.curated_whisper_models}
+              onReady={() => setRevision(current => current + 1)}
+            />
+            <YouTubeAuthSettingsPanel />
             <details
               id="settings-legacy-diagnostics"
               className="settings-advanced legacy-model-diagnostics"
@@ -10053,14 +10569,15 @@ function Settings({ refresh }: { refresh: number }) {
             {overviewPanel}
             {legacyModelsPanel}
             <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} onConfigChange={setLiveWorkspaceAi} />
+            {location.hash.startsWith("#Settings/youtube-auth") ? <YouTubeAuthSettingsPanel /> : null}
             <LocalIntelligenceSetup />
             <TranscriptionSetup />
           </>
         );
       })()}
       <BackupRestorePanel />
-      <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
       <details className="settings-advanced"><summary>{t("Advanced and diagnostics")}</summary>
+      <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
       <Panel title="Preference history (read-only)">
         <p className="hint">
           {t("Explicit means you directly chose it. Derived means the app inferred it from feedback. Temporary means it is used only until its expiry.")}

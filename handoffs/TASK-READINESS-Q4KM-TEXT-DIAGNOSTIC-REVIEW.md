@@ -6,7 +6,7 @@
 
 ## Concrete binding
 
-Package: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-v1.json`, SHA256 `3a107e0cb24c2549cfd098b332f18333c9b75b184019c92e987b8894ee062bfe`, 255541 bytes. Harness SHA256 `d510aef83346bf1706f69a14fc7e9e10148d2e0614591f6b333c24a28f91e1ef`, 26018 bytes; experiment `Q4KM_TEXT_NONTHINKING_0409_EN_V1`.
+Package: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-v1.json`, SHA256 `3a107e0cb24c2549cfd098b332f18333c9b75b184019c92e987b8894ee062bfe`, 255541 bytes. Harness SHA256 `d510aef83346bf1706f69a14fc7e9e10148d2e0614591f6b333c24a28f91e1ef`, 26018 bytes; experiment `Q4KM_TEXT_NONTHINKING_0409_EN_V1`.
 
 Independently verified every full SHA256, byte count, canonical path and final file identity for 993 binding entries (989 frozen inputs plus four top references, 990 unique paths). All old Q3 v2 335 frozen bindings remain exact. Both 605-entry source maps are equal and all 605 current hashes match; their serialized JSON hashes differ because key order differs, as already disclosed. Final identity checks include ctime as well as the harness's four-field identity. Evidence: own ignored `.var/q4km-text-preflight-review/{binding-verification,binding-hashes,binding-identities}.json`.
 

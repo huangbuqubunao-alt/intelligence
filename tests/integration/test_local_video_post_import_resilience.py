@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import subprocess
@@ -563,3 +564,355 @@ def test_long_duration_video_never_classified_as_short_noise(
     assert read_back["content_bucket"] == "DEEP_DIVE"
 
 
+def test_local_media_endpoint_supports_http_range_and_rejects_non_media(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import urllib.error
+    import urllib.request
+
+    from youtube_intel.local_api import LocalApiApplication, serve_loopback
+
+    env = _build_runtime(tmp_path, monkeypatch, transcriber=_SlowMediaTranscriber())
+    fast_app: FastReadApiApplication = env["fast_app"]
+    provider = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW)
+
+    mp4_path = _create_sample_mp4(env["tmp"])
+    imported = provider.import_file(mp4_path)
+    mp4_bytes = mp4_path.read_bytes()
+
+    md_path = env["tmp"] / "notes.md"
+    md_path.write_text("# Hello\nJust markdown text.\n", encoding="utf-8")
+    text_imported = provider.import_file(md_path)
+
+    server = serve_loopback(fast_app, port=0)  # type: ignore[arg-type]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base_url = f"http://127.0.0.1:{server.server_port}"
+        with urllib.request.urlopen(
+            f"{base_url}/api/v1/videos/{imported.content_id}/media"
+        ) as full_resp:
+            assert full_resp.status == 200
+            assert full_resp.headers.get("Content-Type") == "video/mp4"
+            assert full_resp.headers.get("Accept-Ranges") == "bytes"
+            assert full_resp.read() == mp4_bytes
+
+        range_req = urllib.request.Request(
+            f"{base_url}/api/v1/videos/{imported.content_id}/media",
+            headers={"Range": "bytes=4-19"},
+        )
+        with urllib.request.urlopen(range_req) as partial_resp:
+            assert partial_resp.status == 206
+            assert partial_resp.headers.get("Content-Range") == f"bytes 4-19/{len(mp4_bytes)}"
+            assert partial_resp.read() == mp4_bytes[4:20]
+
+        with pytest.raises(urllib.error.HTTPError) as not_found_exc:
+            urllib.request.urlopen(
+                f"{base_url}/api/v1/videos/{text_imported.content_id}/media"
+            )
+        assert not_found_exc.value.code == 404
+        _ = LocalApiApplication
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_local_media_host_cross_site_range_head_and_managed_root_security(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import hashlib
+    import sqlite3
+    from http.client import HTTPConnection
+
+    from youtube_intel.local_api import serve_loopback
+
+    env = _build_runtime(tmp_path, monkeypatch, transcriber=_SlowMediaTranscriber())
+    fast_app: FastReadApiApplication = env["fast_app"]
+    provider = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW)
+
+    mp4_path = _create_sample_mp4(env["tmp"])
+    imported = provider.import_file(mp4_path)
+    mp4_bytes = mp4_path.read_bytes()
+
+    server = serve_loopback(fast_app, port=0)  # type: ignore[arg-type]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        media_route = f"/api/v1/videos/{imported.content_id}/media"
+
+        def raw_req(
+            method: str, path: str, headers: dict[str, str] | None = None
+        ) -> tuple[int, dict[str, str], bytes]:
+            conn = HTTPConnection("127.0.0.1", port, timeout=5)
+            try:
+                conn.request(method, path, headers=headers or {})
+                resp = conn.getresponse()
+                body = resp.read()
+                resp_headers = {k.lower(): v for k, v in resp.getheaders()}
+                return resp.status, resp_headers, body
+            finally:
+                conn.close()
+
+        # P1-01: Untrusted Host & cross-site rejections across GET/HEAD API reads
+        for bad_route in (
+            media_route,
+            "/api/v1/videos",
+            "/api/v1/workspace-ai/obsidian-bundle.zip?scope=all",
+        ):
+            st, hdrs, body = raw_req("GET", bad_route, {"Host": "evil.example"})
+            assert st == 403
+            assert hdrs.get("cross-origin-resource-policy") == "same-origin"
+            assert json.loads(body)["error"]["code"] == "HOST_REJECTED"
+
+            st_cross, _, body_cross = raw_req(
+                "GET", bad_route, {"Sec-Fetch-Site": "cross-site"}
+            )
+            assert st_cross == 403
+            assert json.loads(body_cross)["error"]["code"] == "ORIGIN_REJECTED"
+
+        st_origin, _, _ = raw_req(
+            "GET", media_route, {"Origin": "https://evil.example"}
+        )
+        assert st_origin == 403
+
+        # Allowed loopback host + same-origin headers + CORP header
+        st_ok, hdrs_ok, body_ok = raw_req(
+            "GET",
+            media_route,
+            {"Host": f"localhost:{port}", "Sec-Fetch-Site": "same-origin"},
+        )
+        assert st_ok == 200
+        assert hdrs_ok.get("cross-origin-resource-policy") == "same-origin"
+        assert body_ok == mp4_bytes
+
+        # P1-06 & P2-R02 (RFC 9110 §14.2): HEAD ignores Range (200 full metadata) and writes 0 wire bytes
+        st_head, hdrs_head, body_head = raw_req("HEAD", media_route)
+        assert st_head == 200
+        assert body_head == b""
+        assert int(hdrs_head["content-length"]) == len(mp4_bytes)
+        assert hdrs_head.get("accept-ranges") == "bytes"
+        assert hdrs_head.get("cross-origin-resource-policy") == "same-origin"
+
+        st_head_404, _, body_head_404 = raw_req("HEAD", "/api/v1/videos/missing-vid/media")
+        assert st_head_404 == 404
+        assert body_head_404 == b""
+
+        for head_range in ("bytes=0-3", "bytes=+4-19"):
+            st_hr, hdrs_hr, body_hr = raw_req("HEAD", media_route, {"Range": head_range})
+            assert st_hr == 200
+            assert int(hdrs_hr["content-length"]) == len(mp4_bytes)
+            assert body_hr == b""
+
+        # Raw TCP socket proof: HTTP client does NOT silently drop server-written HEAD body
+        import socket as _sock
+
+        for wire_req in (
+            f"HEAD {media_route} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n",
+            f"HEAD {media_route} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nRange: bytes=0-3\r\nConnection: close\r\n\r\n",
+            f"HEAD {media_route} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nRange: bytes=+4-19\r\nConnection: close\r\n\r\n",
+            f"HEAD /api/v1/videos/missing-vid/media HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n",
+        ):
+            with _sock.create_connection(("127.0.0.1", port), timeout=5) as tcp:
+                tcp.sendall(wire_req.encode("ascii"))
+                chunks: list[bytes] = []
+                while True:
+                    chunk = tcp.recv(4096)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                raw_wire = b"".join(chunks)
+            head_part, sep, wire_body = raw_wire.partition(b"\r\n\r\n")
+            assert sep == b"\r\n\r\n"
+            assert wire_body == b"", f"Server wrote non-empty wire body for HEAD: {wire_body!r}"
+            assert b" 200 OK\r\n" in head_part or b" 404 Not Found\r\n" in head_part
+
+        # P2-01 & P2-R01: Strict bounded RFC 9110 Range handling (including >4300-digit numbers)
+        st_suf, hdrs_suf, body_suf = raw_req("GET", media_route, {"Range": "bytes=-16"})
+        assert st_suf == 206
+        assert hdrs_suf.get("content-range") == f"bytes {len(mp4_bytes) - 16}-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
+        assert body_suf == mp4_bytes[-16:]
+
+        st_open, hdrs_open, body_open = raw_req("GET", media_route, {"Range": "bytes=10-"})
+        assert st_open == 206
+        assert hdrs_open.get("content-range") == f"bytes 10-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
+        assert body_open == mp4_bytes[10:]
+
+        st_clamp, hdrs_clamp, body_clamp = raw_req(
+            "GET", media_route, {"Range": "bytes=10-999999"}
+        )
+        assert st_clamp == 206
+        assert hdrs_clamp.get("content-range") == f"bytes 10-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
+        assert body_clamp == mp4_bytes[10:]
+
+        huge_5000 = "9" * 5000
+        st_h_end, hdrs_h_end, body_h_end = raw_req(
+            "GET", media_route, {"Range": f"bytes=10-{huge_5000}"}
+        )
+        assert st_h_end == 206
+        assert hdrs_h_end.get("content-range") == f"bytes 10-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
+        assert body_h_end == mp4_bytes[10:]
+
+        st_h_suf, hdrs_h_suf, body_h_suf = raw_req(
+            "GET", media_route, {"Range": f"bytes=-{huge_5000}"}
+        )
+        assert st_h_suf == 206
+        assert hdrs_h_suf.get("content-range") == f"bytes 0-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
+        assert body_h_suf == mp4_bytes
+
+        for bad_range in (
+            "bytes=+4-19",
+            "bytes=\u00b2-\u00b3",
+            "bytes= 0 - 5",
+            "bytes=-",
+            "bytes=-0",
+            "bytes=10-5",
+            "bytes=0-5,10-15",
+            "bytes=999999-1000005",
+            f"bytes={huge_5000}-",
+            "items=0-5",
+        ):
+            st_bad, hdrs_bad, body_bad = raw_req("GET", media_route, {"Range": bad_range})
+            assert st_bad == 416, f"expected 416 for {bad_range!r}, got {st_bad}"
+            assert hdrs_bad.get("content-range") == f"bytes */{len(mp4_bytes)}"
+            assert hdrs_bad.get("cross-origin-resource-policy") == "same-origin"
+            assert body_bad == b""
+
+        # P1-02: Repeated seeks hit immutable-stat hash cache without re-hashing unchanged bytes
+        hash_calls = 0
+        real_sha256 = hashlib.sha256
+
+        def counting_sha256(*args: object, **kwargs: object) -> object:
+            nonlocal hash_calls
+            hash_calls += 1
+            return real_sha256(*args, **kwargs)  # type: ignore[arg-type]
+
+        with monkeypatch.context() as mp:
+            mp.setattr(hashlib, "sha256", counting_sha256)
+            for offset in (0, 8, 16):
+                st_r, _, _ = raw_req("GET", media_route, {"Range": f"bytes={offset}-{offset + 3}"})
+                assert st_r == 206
+            assert hash_calls == 0
+
+        # Locate artifact row to test disk tamper, empty file, symlink escape, and bad storage_root
+        db_file = getattr(env["repo"], "_database_path", None)
+        assert isinstance(db_file, Path)
+        conn = sqlite3.connect(db_file)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                """
+                SELECT s.snapshot_artifact_id, a.storage_root, a.relative_path
+                FROM content_source_snapshots s
+                JOIN artifacts a ON a.artifact_id = s.snapshot_artifact_id
+                WHERE s.content_id = ?
+                """,
+                (imported.content_id,),
+            ).fetchone()
+            assert row is not None
+            artifact_id = str(row["snapshot_artifact_id"])
+            orig_storage_root = str(row["storage_root"])
+            rel_path = str(row["relative_path"])
+            src_root = getattr(env["repo"], "_source_data_root", env["data_root"])
+            base_root = src_root if orig_storage_root == "SOURCE_DATA" else env["data_root"]
+            target_file = base_root / rel_path
+
+            # Tamper same size different bytes -> 409 corrupted (never falsely served)
+            target_file.write_bytes(b"\xff" * len(mp4_bytes))
+            st_tamper, _, body_tamper = raw_req("GET", media_route)
+            assert st_tamper == 409
+            assert json.loads(body_tamper)["error"]["code"] == "LOCAL_MEDIA_CORRUPTED"
+
+            # Replace with 0-byte empty file -> 409 pre-header error (not dropped connection!)
+            target_file.write_bytes(b"")
+            st_empty, _, body_empty = raw_req("GET", media_route)
+            assert st_empty == 409
+            assert json.loads(body_empty)["error"]["code"] == "LOCAL_MEDIA_CORRUPTED"
+
+            # Untrusted storage_root in DB -> 409 fail-closed
+            target_file.write_bytes(mp4_bytes)
+            conn.execute(
+                "UPDATE artifacts SET storage_root = 'VAULT' WHERE artifact_id = ?",
+                (artifact_id,),
+            )
+            conn.commit()
+            st_root, _, body_root = raw_req("GET", media_route)
+            assert st_root == 409
+            assert json.loads(body_root)["error"]["code"] == "LOCAL_MEDIA_UNAVAILABLE"
+
+            # Restore valid storage_root, then replace target with symlink escape -> 409
+            conn.execute(
+                "UPDATE artifacts SET storage_root = ? WHERE artifact_id = ?",
+                (orig_storage_root, artifact_id),
+            )
+            conn.commit()
+            outside = env["tmp"] / "outside_secret.mp4"
+            outside.write_bytes(mp4_bytes)
+            target_file.unlink()
+            target_file.symlink_to(outside)
+            with caplog.at_level("WARNING"):
+                st_sym, _, body_sym = raw_req("GET", media_route)
+            assert st_sym == 409
+            assert json.loads(body_sym)["error"]["code"] == "LOCAL_MEDIA_UNAVAILABLE"
+            # Verify warning log stays sanitized without leaking full host path
+            assert str(env["tmp"]) not in caplog.text
+
+            # Ancestor directory symlink escape -> 409 fail-closed via O_NOFOLLOW walk
+            target_file.unlink()
+            target_file.write_bytes(mp4_bytes)
+            real_sub = target_file.parent
+            escaped_dir = env["tmp"] / "escaped_parent_dir"
+            escaped_dir.mkdir(exist_ok=True)
+            (escaped_dir / target_file.name).write_bytes(mp4_bytes)
+            backup_sub = env["tmp"] / "moved_real_sub"
+            real_sub.rename(backup_sub)
+            real_sub.symlink_to(escaped_dir)
+            try:
+                st_anc, _, body_anc = raw_req("GET", media_route)
+                assert st_anc == 409
+                assert json.loads(body_anc)["error"]["code"] == "LOCAL_MEDIA_UNAVAILABLE"
+            finally:
+                real_sub.unlink()
+                backup_sub.rename(real_sub)
+
+            # Oversize file (>2 GiB sparse simulation via MAX_MEDIA_BYTES monkeypatch) -> 413 pre-header JSON
+            target_file.unlink()
+            target_file.write_bytes(mp4_bytes)
+            with monkeypatch.context() as mp_size:
+                mp_size.setattr("youtube_intel.source_authority.MAX_MEDIA_BYTES", 8)
+                mp_size.setattr("youtube_intel.fast_read_api.MAX_MEDIA_BYTES", 8)
+                mp_size.setattr("youtube_intel.local_api.MAX_MEDIA_BYTES", 8)
+                st_big, _, body_big = raw_req("GET", media_route)
+                assert st_big == 413
+                assert json.loads(body_big)["error"]["code"] == "LOCAL_FILE_TOO_LARGE"
+
+            # Post-header interruption simulation: mutate file mid-stream -> connection aborted cleanly with sanitized warning
+            caplog.clear()
+            import youtube_intel.local_api as local_api_mod
+            from youtube_intel.source_authority import ManagedMediaError
+
+            with monkeypatch.context() as mp_mid:
+                mp_mid.setattr(local_api_mod, "IO_CHUNK_BYTES", 4)
+                original_open = local_api_mod.open_managed
+
+                @contextlib.contextmanager
+                def _mutating_midstream_open(*args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+                    with original_open(*args, **kwargs) as stream:  # type: ignore[arg-type]
+                        yield stream
+                        raise ManagedMediaError(409, "LOCAL_MEDIA_CHANGED", "Simulated mid-stream change")
+
+                mp_mid.setattr(local_api_mod, "open_managed", _mutating_midstream_open)
+                with caplog.at_level("WARNING"):
+                    st_mid, _, _ = raw_req("GET", media_route)
+                    # Wait briefly for handler thread exit post-body close before reading caplog
+                    deadline = time.monotonic() + 1.0
+                    while "aborted after headers" not in caplog.text and time.monotonic() < deadline:
+                        time.sleep(0.02)
+                assert st_mid == 200
+                assert "aborted after headers" in caplog.text
+                assert str(env["tmp"]) not in caplog.text
+        finally:
+            conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()

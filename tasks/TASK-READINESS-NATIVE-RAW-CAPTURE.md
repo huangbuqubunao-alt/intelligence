@@ -10,7 +10,7 @@ readiness-native-raw-capture@c5da5e8 保留既有 RED，不重置。
 - Status: IN_REVIEW (bounded implementation and checks complete; reviewer/root acceptance pending).
 - Implementer: /root/source_context; Reviewer: /root/intel_bounded_review.
 - Base: codex/task-end-to-end-user-readiness@c5da5e8.
-- Worktree: /Users/hua/Documents/yia-worktrees/readiness-native-raw-capture
+- Worktree: /Users/developer/Documents/yia-worktrees/readiness-native-raw-capture
 - Branch: codex/task-readiness-native-raw-capture
 
 ## Goal and precise approval

@@ -3,107 +3,107 @@
   "all_unchanged": true,
   "checks": [
     {
-      "path": "/Users/hua/youtube-intel",
+      "path": "/Users/developer/youtube-intel",
       "head": "3e7eceb49510f98504a9ba0b9499776a409a19bd",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/m10-core-backup-restore",
+      "path": "/Users/developer/Documents/yia-worktrees/m10-core-backup-restore",
       "head": "075d752fe6f3778108c72356e04d54020ed1f46a",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/m12-golden-ui",
+      "path": "/Users/developer/Documents/yia-worktrees/m12-golden-ui",
       "head": "bfda6c5bd62c736fc11034ac70f8afeb1162cf02",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/m12-status-finalize",
+      "path": "/Users/developer/Documents/yia-worktrees/m12-status-finalize",
       "head": "33caf99789e921e5f781fff5065abc63745020a5",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/m13-dogfood",
+      "path": "/Users/developer/Documents/yia-worktrees/m13-dogfood",
       "head": "e228294f705401b0200439076c3378b78f9c9d84",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/m5-local-model-qualification",
+      "path": "/Users/developer/Documents/yia-worktrees/m5-local-model-qualification",
       "head": "355f22d8156847d5d6f7c79b82cb27f94338815a",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/m8-evidence-translation",
+      "path": "/Users/developer/Documents/yia-worktrees/m8-evidence-translation",
       "head": "6ed0f11d88111cb4beb6a6a0eeb34aed923022ed",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-qualification",
       "head": "0a0eef4b2c5f321f46b2c58ed2535d521af05b5d",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation",
       "head": "7e3638c0d776dcd66a343f6d2dd9b9a80d046424",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-bilibili-provider",
       "head": "bda7e3eeeaf7f71ab243a82bd75dc4995825d06b",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-deep-analysis",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-deep-analysis",
       "head": "72950a559adc153abc9747975668201fe1813afe",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-integration",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-integration",
       "head": "ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-knowledge-delta",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-knowledge-delta",
       "head": "795275c3359a808e6faab80e7e35daeb35568024",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-local-main",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-local-main",
       "head": "08d62d8cb459a7d157f9c4a4c87cf23a3209d4b8",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-local-provider",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-local-provider",
       "head": "c09a6ae5077867610420e1aed80fe3c7abb10c08",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-milestone-closure",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-milestone-closure",
       "head": "08d62d8cb459a7d157f9c4a4c87cf23a3209d4b8",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-obsidian",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-obsidian",
       "head": "b9362fb64d1f87ec8cfd19972f5f2abd64f6bf6a",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-offline-transcription",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-offline-transcription",
       "head": "5324ebb3c38e941168bd9de156550bbbb65573ff",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-research-diff",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-research-diff",
       "head": "b7aa90fd788150acb61f3f258d8353b5ec33edef",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-research-history",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-research-history",
       "head": "15f720377b661164a227ba599281b81b33a1e189",
       "unchanged": true
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/v1x-research-lite",
+      "path": "/Users/developer/Documents/yia-worktrees/v1x-research-lite",
       "head": "22ea84a79bba3f27566a221e774c93c3cc797a4f",
       "unchanged": true
     }

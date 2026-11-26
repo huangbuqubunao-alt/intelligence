@@ -83,7 +83,13 @@ from youtube_intel.operations import ExitCode
 from youtube_intel.orchestration import ScheduleFrequency, next_scheduled_for
 from youtube_intel.saved_intelligence import SavedIntelligenceService
 from youtube_intel.source_authority import (
+    IO_CHUNK_BYTES,
+    MAX_MEDIA_BYTES,
     MAX_TEXT_BYTES,
+    ManagedMediaError,
+    ManagedMediaFile,
+    managed_open_error,
+    open_managed,
     read_managed,
     resolve_source_range,
     verify_source,
@@ -111,6 +117,7 @@ from youtube_intel.topic import TopicApplicationService, TopicRead
 from youtube_intel.tracked_content_retry import TrackedContentRetryService
 from youtube_intel.tracked_retry_context import RetryIntegrity
 from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
+from youtube_intel.youtube_auth_fallback import YouTubeAuthFallbackService
 
 try:
     import resource as _resource
@@ -137,6 +144,15 @@ _WS_AI_VISUAL_ROUTE = re.compile(
 _WS_AI_KEYFRAME_IMG_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/videos/([^/]+)/keyframes/([^/]+)\.jpg$"
 )
+_LOCAL_MEDIA_ROUTE = re.compile(r"^/api/v1/videos/([^/]+)/media$")
+_LOCAL_MEDIA_MIME: dict[str, str] = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".m4v": "video/x-m4v",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".wav": "audio/wav",
+}
 _WS_AI_VISUAL_ZIP_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/videos/([^/]+)/visual-pack\.zip$"
 )
@@ -1180,6 +1196,10 @@ class _RequestSnapshotContext:
             retry_sources = self.yt_retry_sources_by_video().get(video.video_id, ())
             if retry_sources:
                 projection["source_id"] = retry_sources[0].source_id
+                if retry_sources[0].last_error_code:
+                    projection["import_error_code"] = retry_sources[0].last_error_code
+                if retry_sources[0].last_error_message:
+                    projection["import_error_message"] = retry_sources[0].last_error_message
             job = self.latest_content_job(video.video_id)
             projection["processing_job"] = (
                 None
@@ -1278,10 +1298,10 @@ class _RequestSnapshotContext:
 
     def pending_content_work(self) -> list[dict[str, object]]:
         rows = self.conn.execute(
-            "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment "
+            "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment,s.last_error_code,s.last_error_message "
             "FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id "
             "WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND s.enabled=1 AND v.video_id IS NULL "
-            "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment "
+            "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment,NULL AS last_error_code,NULL AS last_error_message "
             "FROM source_observations o JOIN source_subscriptions s USING(source_id) "
             "LEFT JOIN videos v ON v.video_id=o.canonical_identity "
             "WHERE s.provider='YOUTUBE' AND o.baseline=0 AND v.video_id IS NULL LIMIT 100"
@@ -1304,7 +1324,7 @@ class _RequestSnapshotContext:
                 state = "NEEDS_ATTENTION"
             elif latest and latest.state.value == "RUNNING":
                 state = "FETCHING"
-            items[str(video_id)] = {
+            item: dict[str, object] = {
                 "video_id": video_id,
                 "provider": "YOUTUBE",
                 "title": row["canonical_url"],
@@ -1317,6 +1337,11 @@ class _RequestSnapshotContext:
                 "work_kind": "DURABLE_CONTENT_IDENTITY",
                 "source_id": row["source_id"],
             }
+            if row["last_error_code"]:
+                item["import_error_code"] = str(row["last_error_code"])
+            if row["last_error_message"]:
+                item["import_error_message"] = str(row["last_error_message"])
+            items[str(video_id)] = item
         return list(items.values())
 
     def verified_source(self, content_id: str) -> dict[str, Any] | None:
@@ -1833,6 +1858,7 @@ class FastReadApiApplication:
         inner: LocalApiApplication,
         *,
         workspace_hub: WorkspaceIntelligenceHub | None = None,
+        youtube_auth_fallback: YouTubeAuthFallbackService | None = None,
     ) -> None:
         self._inner = inner
         self._workspace_hub = (
@@ -1844,6 +1870,14 @@ class FastReadApiApplication:
                 now=inner._now,
             )
         )
+        self._youtube_auth = (
+            youtube_auth_fallback
+            if youtube_auth_fallback is not None
+            else YouTubeAuthFallbackService(
+                project_root=self._workspace_hub._project_root,
+                now=inner._now,
+            )
+        )
         self._cache_lock = threading.Lock()
         self._mutation_epoch = 0
         self._route_cache: dict[str, tuple[tuple[object, ...], str]] = {}
@@ -1851,6 +1885,7 @@ class FastReadApiApplication:
         self._local_av_ids: tuple[str, ...] = ()
         self._verified_source_memo: dict[tuple[object, ...], dict[str, Any] | None] = {}
         self._note_projection_memo: dict[tuple[object, ...], str] = {}
+        self._media_hash_cache: dict[tuple[object, ...], str] = {}
         self._active_tokens = threading.local()
         self._da_route_memo: (
             tuple[int, float, object | None, tuple[str, str | None] | None] | None
@@ -2018,11 +2053,184 @@ class FastReadApiApplication:
         finally:
             self._bump_mutation_epoch()
 
+    def _resolve_local_media_file(self, video_id: str) -> ManagedMediaFile | None:
+        db_path = getattr(self._inner._repository, "_database_path", None)
+        if not isinstance(db_path, Path) or not db_path.is_file():
+            return None
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                """
+                SELECT s.media_kind, s.byte_count, s.source_hash,
+                       a.relative_path, a.storage_root, a.content_hash, a.deleted_at
+                FROM content_source_snapshots AS s
+                JOIN artifacts AS a ON a.artifact_id = s.snapshot_artifact_id
+                WHERE s.content_id = ? AND s.provider = 'LOCAL' AND s.media_kind IN ('AUDIO', 'VIDEO')
+                LIMIT 1
+                """,
+                (video_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None or row["deleted_at"] is not None:
+            return None
+        storage_root = str(row["storage_root"] or "")
+        if storage_root == "SOURCE_DATA":
+            base_root = getattr(self._inner._repository, "_source_data_root", None)
+        elif storage_root == "DATA":
+            base_root = self._inner._data_root
+        else:
+            raise ManagedMediaError(
+                int(HTTPStatus.CONFLICT),
+                "LOCAL_MEDIA_UNAVAILABLE",
+                "Local media storage root is not trusted.",
+            )
+        if not isinstance(base_root, Path):
+            return None
+        rel_path = str(row["relative_path"] or "")
+        if (
+            not rel_path
+            or rel_path.startswith("/")
+            or "\\" in rel_path
+            or ":" in rel_path
+            or "\x00" in rel_path
+            or any(part in {"", ".", ".."} for part in rel_path.split("/"))
+            or ".." in PurePosixPath(rel_path).parts
+        ):
+            raise ManagedMediaError(
+                int(HTTPStatus.CONFLICT),
+                "LOCAL_MEDIA_UNAVAILABLE",
+                "Local media path is outside managed containment.",
+            )
+        mime = _LOCAL_MEDIA_MIME.get(PurePosixPath(rel_path).suffix.lower())
+        if mime is None:
+            return None
+        expected_size = int(row["byte_count"]) if row["byte_count"] is not None else None
+        source_hash = str(row["source_hash"] or "").strip().lower()
+        content_hash = str(row["content_hash"] or "").strip().lower()
+        if source_hash and content_hash and source_hash != content_hash:
+            raise ManagedMediaError(
+                int(HTTPStatus.CONFLICT),
+                "LOCAL_MEDIA_CORRUPTED",
+                "Local media snapshot integrity metadata is inconsistent.",
+            )
+        expected_sha256 = source_hash or content_hash or None
+
+        try:
+            with open_managed(base_root, rel_path, maximum=MAX_MEDIA_BYTES) as stream:
+                before = os.fstat(stream.fileno())
+                if expected_size is not None and before.st_size != expected_size:
+                    raise ManagedMediaError(
+                        int(HTTPStatus.CONFLICT),
+                        "LOCAL_MEDIA_CORRUPTED",
+                        "Local media file size does not match recorded snapshot.",
+                    )
+                stat_identity = (
+                    int(before.st_dev),
+                    int(before.st_ino),
+                    int(before.st_size),
+                    int(before.st_mtime_ns),
+                    int(before.st_ctime_ns),
+                )
+                if expected_sha256 is not None:
+                    cache_key = (video_id, str(base_root), rel_path, stat_identity)
+                    with self._cache_lock:
+                        verified_digest = self._media_hash_cache.get(cache_key)
+                    if verified_digest is None:
+                        hasher = hashlib.sha256()
+                        total_read = 0
+                        while chunk := stream.read(IO_CHUNK_BYTES):
+                            total_read += len(chunk)
+                            if total_read > MAX_MEDIA_BYTES:
+                                raise ManagedMediaError(
+                                    int(HTTPStatus.REQUEST_ENTITY_TOO_LARGE),
+                                    "LOCAL_FILE_TOO_LARGE",
+                                    "Local media exceeds policy size limit.",
+                                )
+                            hasher.update(chunk)
+                        after = os.fstat(stream.fileno())
+                        if (
+                            int(after.st_dev),
+                            int(after.st_ino),
+                            int(after.st_size),
+                            int(after.st_mtime_ns),
+                            int(after.st_ctime_ns),
+                        ) != stat_identity or total_read != before.st_size:
+                            raise ManagedMediaError(
+                                int(HTTPStatus.CONFLICT),
+                                "LOCAL_MEDIA_CHANGED",
+                                "Local media changed during verification.",
+                            )
+                        verified_digest = hasher.hexdigest()
+                        with self._cache_lock:
+                            if len(self._media_hash_cache) >= 256:
+                                self._media_hash_cache.clear()
+                            self._media_hash_cache[cache_key] = verified_digest
+                    if verified_digest != expected_sha256:
+                        raise ManagedMediaError(
+                            int(HTTPStatus.CONFLICT),
+                            "LOCAL_MEDIA_CORRUPTED",
+                            "Local media integrity verification failed.",
+                        )
+        except OSError as exc:
+            raise managed_open_error(exc) from exc
+        return ManagedMediaFile(
+            root=base_root,
+            relative_path=rel_path,
+            mime_type=mime,
+            expected_size=before.st_size,
+            expected_sha256=expected_sha256,
+            expected_stat=stat_identity,
+            content_id=video_id,
+        )
+
     def backup_download(
         self, path: str
-    ) -> tuple[int, dict[str, str], bytes | Path] | None:
+    ) -> tuple[int, dict[str, str], bytes | Path | ManagedMediaFile] | None:
         parsed = urlparse(path)
         clean_path = parsed.path.rstrip("/")
+        local_media_m = _LOCAL_MEDIA_ROUTE.fullmatch(clean_path)
+        if local_media_m is not None:
+            vid = unquote(local_media_m[1])
+            try:
+                resolved_media = self._resolve_local_media_file(vid)
+            except ManagedMediaError as err:
+                logging.getLogger(__name__).warning(
+                    "Local media rejected before streaming (%s): %s",
+                    err.code,
+                    vid,
+                )
+                err_bytes = json.dumps(
+                    {"error": {"code": err.code, "message": err.message}}
+                ).encode("utf-8")
+                return (
+                    int(err.status_code),
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    err_bytes,
+                )
+            if resolved_media is None:
+                err_bytes = json.dumps(
+                    {
+                        "error": {
+                            "code": "LOCAL_MEDIA_NOT_FOUND",
+                            "message": "Playable local media file was not found.",
+                        }
+                    }
+                ).encode("utf-8")
+                return (
+                    int(HTTPStatus.NOT_FOUND),
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    err_bytes,
+                )
+            return (
+                int(HTTPStatus.OK),
+                {
+                    "Content-Type": resolved_media.mime_type,
+                    "Accept-Ranges": "bytes",
+                },
+                resolved_media,
+            )
         if clean_path == "/api/v1/workspace-ai/obsidian-bundle.zip":
             q_params = parse_qs(parsed.query, keep_blank_values=False) if parsed.query else {}
             req_scope = (q_params.get("scope") or ["must_watch"])[0]
@@ -2225,6 +2433,61 @@ class FastReadApiApplication:
                     data = self._inner._body(body)
                     return HTTPStatus.OK, self._workspace_hub.update_settings(data)
                 raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            if route == "/api/v1/workspace-ai/ollama/pull" and method == "POST":
+                data = self._inner._body(body)
+                return HTTPStatus.ACCEPTED, self._workspace_hub.start_ollama_pull(
+                    str(data.get("model") or "")
+                )
+            if route == "/api/v1/workspace-ai/ollama/pull-status" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.get_ollama_pull_status()
+            if route == "/api/v1/workspace-ai/whisper/download" and method == "POST":
+                data = self._inner._body(body)
+
+                def _sync_local_tx(model_path: str) -> None:
+                    self._inner._require_transcription().configure(model_path)
+
+                return HTTPStatus.ACCEPTED, self._workspace_hub.start_whisper_download(
+                    str(data.get("model_id") or ""),
+                    mirror=str(data.get("mirror") or "auto"),
+                    on_ready=_sync_local_tx,
+                )
+            if route == "/api/v1/workspace-ai/whisper/download-status" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.get_whisper_download_status()
+            if route == "/api/v1/workspace-ai/test-cloud" and method == "POST":
+                data = self._inner._body(body) if body.strip() else {}
+                return HTTPStatus.OK, self._workspace_hub.test_cloud_connection(data)
+            if route == "/api/v1/workspace-ai/youtube-auth":
+                if method == "GET":
+                    q_params = parse_qs(query, keep_blank_values=False) if query else {}
+                    vals = q_params.get("video_id")
+                    req_video_id = vals[0].strip() if vals else None
+                    return HTTPStatus.OK, self._youtube_auth.get_status(
+                        video_id=req_video_id or None
+                    )
+                if method == "PUT":
+                    data = self._inner._body(body)
+                    return HTTPStatus.OK, self._youtube_auth.update_config(data)
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            if route == "/api/v1/workspace-ai/youtube-auth/disconnect" and method == "POST":
+                data = self._inner._body(body) if body.strip() else {}
+                raw_scope = data.get("scope") if isinstance(data, dict) else None
+                if not isinstance(raw_scope, str) or raw_scope.strip() not in {
+                    "single_video",
+                    "global",
+                    "all",
+                }:
+                    raise ValueError("scope is required and must be 'single_video', 'global', or 'all'")
+                scope = raw_scope.strip()
+                if scope == "all" and data.get("confirm_all") is not True:
+                    raise ValueError("Revoking all authorizations requires confirm_all=true")
+                raw_vid = data.get("target_video_id")
+                if scope == "single_video":
+                    if not isinstance(raw_vid, str) or not raw_vid.strip():
+                        raise ValueError("target_video_id is required when scope is 'single_video'")
+                    return HTTPStatus.OK, self._youtube_auth.disconnect(
+                        scope="single_video", target_video_id=raw_vid.strip()
+                    )
+                return HTTPStatus.OK, self._youtube_auth.disconnect(scope=scope)
             if route == "/api/v1/workspace-ai/research/sessions" and method == "GET":
                 return HTTPStatus.OK, self._cached_or_compute(
                     route,
@@ -2361,7 +2624,14 @@ class FastReadApiApplication:
                     "message": "System credential store is unavailable.",
                 }
             }
-        except (ValueError, KeyError) as err:
+        except (ValueError, KeyError, TypeError) as err:
+            if route == "/api/v1/workspace-ai/restore":
+                return HTTPStatus.UNPROCESSABLE_ENTITY, {
+                    "error": {
+                        "code": "RESTORE_INVALID_PAYLOAD",
+                        "message": "备份快照格式或字段类型无效，已拒绝恢复。",
+                    }
+                }
             return HTTPStatus.UNPROCESSABLE_ENTITY, {
                 "error": {
                     "code": "VALIDATION_ERROR",
@@ -3018,9 +3288,12 @@ class FastReadApiApplication:
                         "workspace_sync_status": self._workspace_hub.get_sync_status(
                             repo_conn=conn
                         ),
+                        "demo_mode": self._workspace_hub.is_demo_showcase_workspace(),
                     }
                     if wb is not None:
                         resp_payload["workspace_weekly_brief"] = wb
+                elif self._workspace_hub.is_demo_showcase_workspace():
+                    resp_payload["demo_mode"] = True
                 return resp_payload
             finally:
                 conn.rollback()
@@ -3835,7 +4108,11 @@ def run_fast_read_server_loop(
                 picker_executable=native_picker_executable,
             )
         hub = hub_factory(composition) if hub_factory is not None else None
-        fast_app = FastReadApiApplication(composition.application, workspace_hub=hub)
+        fast_app = FastReadApiApplication(
+            composition.application,
+            workspace_hub=hub,
+            youtube_auth_fallback=composition.youtube_auth_fallback,
+        )
         server = serve_loopback(
             cast(LocalApiApplication, fast_app),
             port=port,

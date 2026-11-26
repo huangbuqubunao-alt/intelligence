@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-IMPLEMENTER-CODEX.md` 必须解析为本分配控制面提交，且 main 中 TASK-010=`IN_PROGRESS`。
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-010` / `codex/task-010-orchestration-recovery`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-IMPLEMENTER-CODEX.md` 必须解析为本分配控制面提交，且 main 中 TASK-010=`IN_PROGRESS`。
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-010` / `codex/task-010-orchestration-recovery`。
 - 固定 base：`227bdeba3a4d9ddd57231b123bfdc4a2038af3d3`；开始时 worktree 必须干净，无 `.codebase-memory/` 或其他工件。
 - 依赖 TASK-003 至 TASK-009 已在 main 关闭为 `DONE`。source 任务卡和项目状态的旧快照不是可写控制面。
 

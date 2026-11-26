@@ -4,11 +4,11 @@
 
 ## 分配事实
 
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-009a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-009a`
 - Source branch：`codex/task-009a-obsidian-note-shared-contracts`
 - Source base：`e4271e41910bba54b37b48df709dcf632fe3b0eb`
 - Main assignment authority：
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-IMPLEMENTER-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-IMPLEMENTER-CODEX.md`
   必须解析为包含 TASK-009A=`IN_PROGRESS`/Codex 的当前 main 提交。
 
 source 的 `tasks/TASK-009A-obsidian-note-shared-contracts.md` 仍显示 `BLOCKED/UNASSIGNED` 是从固定 base 创建时的预期冻结快照；它不与本分配冲突。开工前必须读取 main 上的当前任务卡和本包，并以 main 控制面为实时任务状态；若 main 的授权、分支、base、范围或状态不符，立即 `BLOCKED`。

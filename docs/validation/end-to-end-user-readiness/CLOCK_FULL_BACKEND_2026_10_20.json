@@ -4,9 +4,9 @@
   "clock_core": "2d4a338",
   "test_maintenance": "f4e3b7f",
   "accepted_pure": "c91a02b",
-  "source_module": "/Users/hua/Documents/yia-worktrees/readiness-clock-full-qa/src/youtube_intel/state.py",
+  "source_module": "/Users/developer/Documents/yia-worktrees/readiness-clock-full-qa/src/youtube_intel/state.py",
   "command": [
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
     "-m",
     "pytest",
     "-q"

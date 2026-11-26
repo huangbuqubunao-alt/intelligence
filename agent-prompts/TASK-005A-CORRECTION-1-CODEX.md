@@ -6,16 +6,16 @@ SQLite 或 Artifact 工作，也不得扩大功能、重新分配任务或启动
 
 ## 固定状态与启动门禁
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main correction authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-CORRECTION-1-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-CORRECTION-1-CODEX.md`
 - Required authorization parent：`315d4490ed60b051411ee7eef8d1127d72898c95`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - First review evidence / required source start：`3cec2d6a7b60b11912c10e714dc1473197d7374f`
 - Reviewed implementation / original base：`85cd5362460044773317a48cbaae58e55aa735af` /
   `82f45a1c04f9eba3264cd743b28bc339d79b34fc`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须位于动态 correction authorization、其唯一父为 Required authorization
 parent、main 控制面为 `TASK-005A=IN_PROGRESS` 且干净；source 必须位于 first review

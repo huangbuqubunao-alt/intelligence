@@ -10,7 +10,7 @@ Task: TASK-014B8 — restricted directory keyname diagnostic
 Role: Product Integrator
 Control-plane baseline: main@a3a905db8bfef0326a2625eac76e199b8b01f2f3
 Execution main: dynamic clean main at the single-parent acceptance authorization commit containing this prompt; it must descend from the control-plane baseline and contain no unreviewed product changes
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic
 Accepted source branch: codex/task-014b8-restricted-directory-keyname-diagnostic
 Accepted source HEAD: 96dee64ec7ab172d036e8472ffc3f65efa0cb6c4
 Required sole parent of Reviewer evidence: 2334374f66497546108d12be541ab137b4a8981a

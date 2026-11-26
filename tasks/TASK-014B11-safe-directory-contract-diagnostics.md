@@ -5,7 +5,7 @@
 - Reviewer: `Independent integration / no-op review APPROVE`
 - 依赖：TASK-014B4/B5/B6/B7/B8/B10 `DONE`、ADR-021 `Accepted`
 - 实施基线：`main@80aff83fc033a8bd2950108cad2e34feea5d396f`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics`
 - Branch：`codex/task-014b11-safe-directory-contract-diagnostics`
 - Correction 2 base / prior accepted source：`f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d`
 - Implementation evidence：`f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50`（唯一父提交

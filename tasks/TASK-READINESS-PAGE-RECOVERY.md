@@ -1,7 +1,7 @@
 # READINESS-PAGE-RECOVERY
 
 Root assignment 2026-10-13; implementer `/root/caption_resume`.
-Tree `/Users/hua/Documents/yia-worktrees/readiness-page-recovery`, branch
+Tree `/Users/developer/Documents/yia-worktrees/readiness-page-recovery`, branch
 `codex/task-readiness-page-recovery`, base `1a401d7f688162adf5da01e6a30ab69d3e82ce52`.
 Not a DONE/adoption record.
 

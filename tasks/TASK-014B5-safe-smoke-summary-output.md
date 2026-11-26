@@ -5,7 +5,7 @@
 - Reviewer: `独立 Codex Reviewer（APPROVE；P0--P3=0）`
 - 依赖：TASK-014B0 `DONE`、TASK-014B3 `DONE`、TASK-014B4 `DONE`
 - 实施基线：`main@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b5-safe-smoke-summary`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b5-safe-smoke-summary`
 - Branch：`codex/task-014b5-safe-smoke-summary`
 - 已接受 source / Reviewer evidence：`72322e213c0aae604b53ec4addae98031885ed0f`（唯一父
   `ce4b47226c6ed40d1a0f2852eaaa74f23a1be7e1`；后者唯一父为

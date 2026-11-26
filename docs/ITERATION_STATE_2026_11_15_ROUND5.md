@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-15 Round 5）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `85649cf`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `1d95873`）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `85649cf`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，起始基线 `1d95873`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b`，全程未修改）
 - **前置轮次状态**：Round 1–4 已全部完成并客观验收（见 `docs/ITERATION_STATE_2026_11_14.md`、`docs/ITERATION_STATE_2026_11_15_ROUND2.md`、`docs/ITERATION_STATE_2026_11_15_ROUND3.md`、`docs/ITERATION_STATE_2026_11_15_ROUND4.md`）。
 - **当前阶段**：`ROUND_5_COMPLETED`

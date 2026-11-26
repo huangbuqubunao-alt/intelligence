@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex`
 - Base branch/commit: `main@397e693` / task source `d96862f`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-013a`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-013a`
 - Branch: `codex/task-013a-local-transcription-continuation`
 - Head commit: `4c3706a969fb85ff4ec344034444d8607894b36f` (implementation)
 - Started: `2026-07-26`

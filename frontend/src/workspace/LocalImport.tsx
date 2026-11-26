@@ -61,9 +61,11 @@ export function localStatus(status: string) {
 
 type Result = { content_id: string; filename: string; status: string; duplicate: boolean };
 export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibili }: { onClose: () => void; onSaved: () => void; onImported?: (contentId: string) => void; onYouTube: () => void; onBilibili?: () => void }) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const nativeMac = navigator.platform.includes("Mac");
   const [nativeAvailable, setNativeAvailable] = useState<boolean | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   useEffect(() => {
     if (!nativeMac) return;
     let disposed = false;
@@ -104,6 +106,13 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
     if (file.size > (ext === "txt" || ext === "md" ? 2 * 1024 * 1024 : 2 * 1024 * 1024 * 1024)) return localImportErrors.LOCAL_FILE_TOO_LARGE;
     return null;
   };
+  const applySelectedFiles = (selected: File[]) => {
+    setResults([]); setErrors([]);
+    if (selected.length > 20) { setFiles([]); setErrors([{ filename: "", message: "Choose up to 20 files at a time." }]); setSelectionErrors([]); return; }
+    const invalid = selected.flatMap(file => { const message = validate(file); return message ? [{ filename: displayFilename(file.name), message }] : []; });
+    setSelectionErrors(invalid);
+    setFiles(selected.filter(file => !validate(file)));
+  };
   const confirm = async (selected = files) => {
     if (submitting.current || !selected.length) return;
     submitting.current = true;
@@ -138,14 +147,38 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
     <p className="hint">{t("TXT / MD: UTF-8, up to 2 MiB. Audio / video: up to 2 GiB. Media duration: up to four hours. Everything stays on this device.")}</p>
     <p className="hint">{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
     <button className="button button-ghost" disabled={busy} onClick={() => { onClose(); scheduleSafeHashUpdate("Settings/transcription"); }}>{t("Set up local transcription")}</button>
-    {!finished && <label className="field">{t("Choose local files")}<input type="file" aria-label={t("Choose local files")} multiple accept=".txt,.md,.mp3,.m4a,.wav,.mp4,.mov,.m4v" disabled={busy} onChange={event => {
-      const selected = Array.from(event.target.files ?? []);
-      setResults([]); setErrors([]);
-      if (selected.length > 20) { setFiles([]); setErrors([{ filename: "", message: "Choose up to 20 files at a time." }]); setSelectionErrors([]); return; }
-      const invalid = selected.flatMap(file => { const message = validate(file); return message ? [{ filename: displayFilename(file.name), message }] : []; });
-      setSelectionErrors(invalid);
-      setFiles(selected.filter(file => !validate(file)));
-    }} /></label>}
+    {!finished && (
+      <label
+        className={`field local-dropzone${dragActive ? " is-drag-active" : ""}`}
+        onDragEnter={event => {
+          event.preventDefault();
+          if (!busy) setDragActive(true);
+        }}
+        onDragOver={event => {
+          event.preventDefault();
+          if (!busy) setDragActive(true);
+        }}
+        onDragLeave={event => {
+          event.preventDefault();
+          if (event.currentTarget === event.target) setDragActive(false);
+        }}
+        onDrop={event => {
+          event.preventDefault();
+          setDragActive(false);
+          if (busy) return;
+          const dropped = Array.from(event.dataTransfer?.files ?? []);
+          if (dropped.length > 0) applySelectedFiles(dropped);
+        }}
+      >
+        <span>{t("Choose local files")}</span>
+        <span className="hint local-dropzone-hint">
+          {zh ? "支持将 .md / .txt / 音视频文件直接拖入此处，或点击选择" : "Drag & drop .md / .txt / audio / video files here, or click to browse"}
+        </span>
+        <input type="file" aria-label={t("Choose local files")} multiple accept=".txt,.md,.mp3,.m4a,.wav,.mp4,.mov,.m4v" disabled={busy} onChange={event => {
+          applySelectedFiles(Array.from(event.target.files ?? []));
+        }} />
+      </label>
+    )}
     {!finished && files.length > 0 && <ul className="local-file-list">{files.map((file, index) => <li key={index}>{displayFilename(file.name)}</li>)}</ul>}
     {[...selectionErrors, ...errors].map((error, index) => <p role="alert" className="form-error" key={index}>{error.filename && <strong>{error.filename}: </strong>}{t(error.message)}</p>)}
     {busy && <div><p role="status" aria-live="polite">{t(verifying ? "Verifying imported file…" : "Importing selected files…")}</p>

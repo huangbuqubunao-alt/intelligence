@@ -9,7 +9,7 @@ Task: TASK-014B5 — safe smoke summary output
 Role: Implementer
 Agent: Codex
 Base: main@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b5-safe-smoke-summary
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b5-safe-smoke-summary
 Branch: codex/task-014b5-safe-smoke-summary
 Reuse decision: DIRECT — existing restricted smoke CLI, PublicSubtitleSmoke, fixed safe error codes, ADR-015 diagnostics, JsonlLogger, and offline Fake/integration tests; no dependency or copied third-party code
 ```

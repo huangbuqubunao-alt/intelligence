@@ -8,7 +8,7 @@ candidate and accepted-main code. No main adoption or push was performed.
 1. **Starting main HEAD:** `404d0a76ef022647f242e295a87b7ed18c3b0667`; main/origin clean/equal at preflight.
 2. **Authority documents inspected:** PRODUCT_CONSTITUTION, V1_PRODUCT_SPEC, V1_IMPLEMENTATION_ROADMAP, repository instructions and accepted Phase 12 decisions/evidence.
 3. **Formal Phase 13 definition:** no formal V1.x Phase 13 found; current owner contract applied. Historical M13 is separate, untouched dogfood material.
-4. **Worktree / branch:** `/Users/hua/Documents/yia-worktrees/phase13-background-following`, `codex/phase13-background-following`, created exactly from starting main.
+4. **Worktree / branch:** `/Users/developer/Documents/yia-worktrees/phase13-background-following`, `codex/phase13-background-following`, created exactly from starting main.
 5. **Protected fingerprints before:** [eight complete fingerprints](protected-before.json), including preexisting dirty M13 and Following worktree.
 6. **Existing scheduling authority reused:** schema-34 next_check_at, enabled/health/frontier, observations, source_checks/source_runs; no second scheduling truth.
 7. **Runtime lifecycle:** existing serve-api worker, including browser closure while backend runs. No LaunchAgent/second daemon required by authority.

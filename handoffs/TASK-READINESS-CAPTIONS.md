@@ -3,7 +3,7 @@
 ## Metadata
 
 - Role: Implementer; original interrupted worker continued by `/root/caption_resume`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-captions`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-captions`.
 - Branch: `codex/task-readiness-captions`; base `0eeb288`.
 - Implementation commit: `0b6b6284514beb5c2269c8bad65948df090a962c`.
 - Reported: 2026-10-13, Asia/Shanghai.
@@ -11,7 +11,7 @@
 - Exact security-sensitive state.py repair scope approved by user on 2026-10-12:
   “批准该精确隔离补全范围，继续验收”. Root proposal is
   `docs/validation/end-to-end-user-readiness/CAPTION_REPAIR_PROPOSAL.md` in
-  `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness`.
+  `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness`.
 
 ## Result and implementation scope
 

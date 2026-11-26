@@ -3,8 +3,8 @@
 Integrate only accepted TASK-007 source into main.
 
 - Acceptance anchor: `65f87c197cbc64ed18280bed99457244ebefa73e`
-- Execution base: dynamically resolve `git log -1 --format=%H -- agent-prompts/TASK-007-INTEGRATOR.md` in `/Users/hua/Documents/youtubek agent`; it must be the authorization commit and TASK-007 must remain `ACCEPTED`.
-- Source: `/Users/hua/Documents/yia-worktrees/task-007`, branch `codex/task-007-local-scoring`, head `95087c115b799d6f4e1e063a0adba0a6d10352ce`, clean.
+- Execution base: dynamically resolve `git log -1 --format=%H -- agent-prompts/TASK-007-INTEGRATOR.md` in `/Users/developer/Documents/youtubek agent`; it must be the authorization commit and TASK-007 must remain `ACCEPTED`.
+- Source: `/Users/developer/Documents/yia-worktrees/task-007`, branch `codex/task-007-local-scoring`, head `95087c115b799d6f4e1e063a0adba0a6d10352ce`, clean.
 
 Do not access TASK-006 worktree. Stop on dirty worktree/index, wrong main/source chain, scope/lock difference, conflicts, secret or real-resource action. Do not rewrite source, rebase, cherry-pick, push or clean source/worktrees.
 

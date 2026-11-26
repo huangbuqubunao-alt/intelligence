@@ -12,9 +12,9 @@
   "resource_contract": "CPU20s, wall30s with bounded ps observation, sampled RSS stop512MiB, output1MiB",
   "renderer_limit": "explicit QA ChatML; not a validated current native or executable production request",
   "bindings": {
-    "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d": {
+    "/Users/developer/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d": {
       "identity": [
-        "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
+        "/Users/developer/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
         16777234,
         133260631,
         5629109120,
@@ -23,9 +23,9 @@
       ],
       "sha256": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"
     },
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe-x86": {
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe-x86": {
       "identity": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe-x86",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe-x86",
         16777234,
         136028913,
         9440,
@@ -34,9 +34,9 @@
       ],
       "sha256": "3e06d28a84b2e516e93216a0c8f5b4bfa2e643847daca23caf5af59432e2b5b5"
     },
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe.c": {
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe.c": {
       "identity": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe.c",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe.c",
         16777234,
         136028815,
         1583,
@@ -166,9 +166,9 @@
       ],
       "sha256": "72d39b320e896b29a6937214d0e2b8361ea4f094f8c437fc39b9f72571fd7112"
     },
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/explicit-chatml-planning-render.txt": {
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/explicit-chatml-planning-render.txt": {
       "identity": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/explicit-chatml-planning-render.txt",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/explicit-chatml-planning-render.txt",
         16777234,
         136135295,
         85760,
@@ -177,9 +177,9 @@
       ],
       "sha256": "0402237584c7ee87238e5e156851c485d83d9c8ed19cb94e052e071ffdcff938"
     },
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/messages.json": {
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/messages.json": {
       "identity": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/messages.json",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/messages.json",
         16777234,
         136135293,
         94552,
@@ -188,9 +188,9 @@
       ],
       "sha256": "705afcdca5132108b48f7eea1f1b5ec3674fc9768d6e108929c8495a271b08a6"
     },
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/receipt.json": {
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/receipt.json": {
       "identity": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/receipt.json",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/receipt.json",
         16777234,
         136135296,
         1713,

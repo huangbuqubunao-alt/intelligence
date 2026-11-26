@@ -1,6 +1,6 @@
 # TASK-READINESS-SOURCELEVEL-SYNTHESIS-V3
 
-Implementer `/root/authority_finish`, sole writer `/Users/hua/Documents/yia-worktrees/readiness-source-level-synthesis-v3`, branch `codex/readiness-source-level-synthesis-v3`, base `7203c1f49b62139488027d3bdc7fadb937e6f519`. Root owns fixed-delta review, genuine semantic acceptance and any later fee decision.
+Implementer `/root/authority_finish`, sole writer `/Users/developer/Documents/yia-worktrees/readiness-source-level-synthesis-v3`, branch `codex/readiness-source-level-synthesis-v3`, base `7203c1f49b62139488027d3bdc7fadb937e6f519`. Root owns fixed-delta review, genuine semantic acceptance and any later fee decision.
 
 ## Pre-edit design and reuse
 
@@ -57,7 +57,7 @@ Ignored evidence root `.var/source-level-v3/`.
 
 The complete frontend retains React act(...) warnings in existing tests. The production build retains its >500kB bundle warning, currently 502.62kB. Those warnings were not suppressed.
 
-Exact relevant commands use the existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
+Exact relevant commands use the existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
 
 ```sh
 PYTHONPATH=src "$PYTHON" -m pytest tests/unit/test_synthesis_source_level_v3.py tests/unit/test_synthesis_reviewed_authority.py tests/unit/test_synthesis_attribution_v2.py tests/unit/test_synthesis_runtime.py tests/unit/test_synthesis_qualification_entry.py tests/unit/test_system_synthesis.py tests/unit/test_system_synthesis_persistence.py tests/unit/test_cloud_spending_policy.py tests/unit/test_backup_restore.py tests/unit/test_qa_launch_isolation.py tests/unit/test_task022d_provider_authorization.py tests/unit/test_local_api.py tests/integration/test_runtime_composition.py tests/integration/test_v1x_phase1c_governance.py -q

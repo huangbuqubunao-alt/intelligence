@@ -7,11 +7,11 @@ TASK-006/TASK-007 只读预检结果、ADR-007 `Proposed` 文档与关联控制�
 
 ## 固定基线与并行隔离
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Branch / base：`main@b335b12358bbbc9dada1abfafc5a2fe9a68494be`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
-- TASK-005 live worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- TASK-005 live worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 
 TASK-005 Codex Implementer 可能正在 live worktree 写入。本任务只允许操作 main；
 严禁读取、检查、等待、清理、写入或以任何方式访问 task-005 worktree。开始时 main

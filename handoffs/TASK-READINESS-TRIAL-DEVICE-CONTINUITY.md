@@ -5,7 +5,7 @@
 - Role: Implementer, sole writer `/root/v4_r2_finish`.
 - Base: `320e4b821e1568fcbf47f9bc86ac29606ea838a4`.
 - Branch: `codex/readiness-trial-device-continuity`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-trial-device-continuity`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-trial-device-continuity`.
 - Date: 2026-11-07.
 - Root owns independent review, acceptance, integration, actual preparation and fee decisions.
 - Reuse: DIRECT existing finite r2 controller, normal factory/proof reconstruction, immutable holds, ancestry verification and ordered locks; repository-owned code and Python standard library under the existing repository license/NOTICE. No new dependency or external adaptation.
@@ -24,11 +24,11 @@ The context is passed explicitly from `stopped_preclaim_parent` into historical 
 
 The original34→31 location witness remains exact, as do saved legacy binding hashes and frozen469/6fe/7203 source inventories. The r1 outer anchor is compared in its historical31 frame. The new r2 parent separately carries actual current32 file/control identities and the new continuity witness SHA/identity. Complete continuity validation is repeated at the beginning and end of each parent verification and at existing key/claim/wire boundaries through the original grant and lock checks. New r2 anchors continue to record their actual physical device.
 
-Root witness: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/fee-device-continuity-20261107.json`, SHA `0a1744f92194421d2ba36adda89fad02fd4325f84f47558a1a6cff3cb2217e85`, private0600,109 file records and4 control directories. Fresh r1 per-file inode pins are Root's current observations; they are not described as a pre-restart audit. The old94-file snapshot and comparison support the witness but are not independent permission. Original witness `041db3e008b5a5f97f3640cbbb715f2b17dd832a2e8c4cafe8e36ff85e88a84b` remains unchanged.
+Root witness: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/fee-device-continuity-20261107.json`, SHA `0a1744f92194421d2ba36adda89fad02fd4325f84f47558a1a6cff3cb2217e85`, private0600,109 file records and4 control directories. Fresh r1 per-file inode pins are Root's current observations; they are not described as a pre-restart audit. The old94-file snapshot and comparison support the witness but are not independent permission. Original witness `041db3e008b5a5f97f3640cbbb715f2b17dd832a2e8c4cafe8e36ff85e88a84b` remains unchanged.
 
 ## Verification evidence
 
-Approved Python: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Logs are retained under this worktree's `.var/device-continuity-checks/`.
+Approved Python: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Logs are retained under this worktree's `.var/device-continuity-checks/`.
 
 | Check | Result / evidence |
 |---|---|

@@ -5,7 +5,7 @@ satisfies all required gates. No decoding profile was activated. The production
 change rejects nonfinite JSON throughout the raw result before trusted storage.
 
 1. **Starting HEAD:** `0a0eef4b2c5f321f46b2c58ed2535d521af05b5d`.
-2. **Worktree/branch:** `/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation`,
+2. **Worktree/branch:** `/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation`,
    `chatgpt/v1x-acoustic-remediation`. Sole executor. [Initial verification](phase9r/worktree-start.json).
 3. **Final HEAD:** reviewed implementation HEAD `103c5f1`; the final documentation
    commit SHA is reported in the conversation. Documentation adds measured evidence

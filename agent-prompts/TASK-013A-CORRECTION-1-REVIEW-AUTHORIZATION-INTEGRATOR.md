@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@07b5f559cb47d43b761cb3444636213a65fc7cf3`，必须干净且为唯一父基线。
-- Correction source：`/Users/hua/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@d50c78e9502e3f65018b6af323823c98b3a882ba`，开始时必须干净。
+- Correction source：`/Users/developer/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@d50c78e9502e3f65018b6af323823c98b3a882ba`，开始时必须干净。
 - Correction `d50c78e...` 的唯一父提交必须为 `08542b84d550ca225dece520cf748a2fc654ab58`；Correction 只允许 `transcripts.py`、本地转写集成测试和 handoff。完整产品范围相对 `d96862f...` 不得超过获批四路径。
 
 ## 唯一允许提交范围

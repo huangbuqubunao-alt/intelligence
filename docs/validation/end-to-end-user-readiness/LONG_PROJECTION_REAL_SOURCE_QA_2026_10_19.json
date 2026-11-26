@@ -58,7 +58,7 @@
     "diff_check": "PASS"
   },
   "preserved_QA_failure": {
-    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-root.log",
+    "log": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-root.log",
     "error": "AttributeError: sqlite3.Row has no attribute hex in private inventory helper; fixed tuple(row), no product changes or model calls"
   }
 }

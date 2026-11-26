@@ -6,15 +6,15 @@
 
 ## 固定授权
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Required main base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Branch：`codex/task-005a-local-model-shared-contracts`
 - Implementer：Codex；Reviewer：完成后全新独立 Codex
 - User authorization：2026-07-17，允许本任务卡 8 个路径、已有锁定依赖的
   `uv sync --locked`（仅缓存缺失包下载）及离线验证/构建；不新增 Schema/migration、
   依赖或锁文件，不实现 Provider 或任何网络/模型/服务路径。
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须在 Required main base、身份正确、暂存区为空；工作区必须恰有下列 6 个
 已由主控准备的未暂存文件，且没有其他修改或未跟踪路径。目标 worktree/branch 必须均

@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-CORRECTION-1-CODEX.md` 必须解析为本 Correction 1 控制面提交，且 main 中 TASK-011=`IN_PROGRESS`。
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-CORRECTION-1-CODEX.md` 必须解析为本 Correction 1 控制面提交，且 main 中 TASK-011=`IN_PROGRESS`。
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report`。
 - 起始 source HEAD：`3759d54a74abaa8e6627b8107298d0938fbe3441`，唯一父为 implementation `0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`；worktree 必须干净。
 - 分配 base：`44fc64be2cb4602cb93c1d03f84d6dd2a1677750`；source 卡/状态为冻结快照，不得修改。
 

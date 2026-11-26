@@ -3,25 +3,25 @@
   "archive_sha256": "cdfaee591d3ba7753e1bb4ae28be228ef7488199f263b7f202e0eddc900c08f4",
   "safe_member_count": 59,
   "extracted_bytes": 586190797,
-  "runtime_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime",
+  "runtime_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime",
   "binary_equality": [
     {
       "name": "ollama",
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama",
       "bytes": 71493488,
       "sha256": "be4b054f8ebf8b3b185daa30671849a80f22c2b2ef45e064de562f69aba46a96",
       "matches_previous_0409": true
     },
     {
       "name": "llama-server",
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/llama-server",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/llama-server",
       "bytes": 19177440,
       "sha256": "831a41b83171eb00710d75e55bc1d995c8bc61e01bee547420ca52c02448275d",
       "matches_previous_0409": true
     },
     {
       "name": "libllama-server-impl.dylib",
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/libllama-server-impl.dylib",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/libllama-server-impl.dylib",
       "bytes": 3794944,
       "sha256": "c9d3c06fe860e99823811e0716766fae9589b40b800b91cbcb9f78dda1df2a7c",
       "matches_previous_0409": true
@@ -33,7 +33,7 @@
   "generations": 0,
   "classification": "ISOLATED_PINNED_OFFICIAL_RUNTIME_IDENTICAL_NO_APP_INSTALL",
   "package": {
-    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/diagnostic-freeze-r1-pinned0409.json",
+    "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/diagnostic-freeze-r1-pinned0409.json",
     "bytes": 42107,
     "sha256": "4d9704002ed49386c22b075401d56d74f58ab8c70b4311bb257a676cf0ea8a93"
   },
@@ -41,8 +41,8 @@
     "api_version": "0.40.9",
     "initial_loaded_models": [],
     "daemon_owner": {
-      "server": "4312 Sat Oct 24 20:14:26 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
-      "runtime_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime"
+      "server": "4312 Sat Oct 24 20:14:26 2026     /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
+      "runtime_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime"
     }
   },
   "independent_preflight": "PENDING",

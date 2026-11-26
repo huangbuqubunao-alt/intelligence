@@ -1,6 +1,6 @@
 # Source-level price selection follow-up
 
-Implementer `/root/v3_price_label` completed the bounded follow-up assigned by Root on 2026-11-07. Base `73669f0fcd53fe3667d08d98a6ecee8684f6c3f7`, worktree `/Users/hua/Documents/yia-worktrees/readiness-source-level-synthesis-v3`, branch `codex/readiness-source-level-synthesis-v3`. Root owns independent review and integration.
+Implementer `/root/v3_price_label` completed the bounded follow-up assigned by Root on 2026-11-07. Base `73669f0fcd53fe3667d08d98a6ecee8684f6c3f7`, worktree `/Users/developer/Documents/yia-worktrees/readiness-source-level-synthesis-v3`, branch `codex/readiness-source-level-synthesis-v3`. Root owns independent review and integration.
 
 ## Goal and reuse
 

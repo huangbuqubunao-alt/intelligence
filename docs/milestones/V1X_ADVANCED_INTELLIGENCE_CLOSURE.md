@@ -5,8 +5,8 @@ local mainline candidate. It is not Phase 7, a main update, or a release.
 
 ## Candidate and history
 
-Repository: `/Users/hua/youtube-intel`.
-Worktree: `/Users/hua/Documents/yia-worktrees/v1x-milestone-closure`.
+Repository: `/Users/developer/youtube-intel`.
+Worktree: `/Users/developer/Documents/yia-worktrees/v1x-milestone-closure`.
 Branch: `chatgpt/v1x-milestone-closure`.
 Accepted starting baseline: `b7aa90fd788150acb61f3f258d8353b5ec33edef`.
 Discovered local main: `41233ee9aac647c99ef3c847130ef06624bbeaa5`.

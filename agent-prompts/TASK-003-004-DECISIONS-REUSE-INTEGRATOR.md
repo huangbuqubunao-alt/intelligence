@@ -9,9 +9,9 @@
 - Task: `TASK-003/004 decisions and reuse policy sync`
 - Role: `Status Integrator`
 - Target branch: `main`
-- Repository: `/Users/hua/Documents/youtubek agent`
+- Repository: `/Users/developer/Documents/youtubek agent`
 - Required base: `main@e1e7b7c968c8b3fb2216a80a53a7176de615524a`
-- Active implementation: TASK-002 remains `IN_PROGRESS` in `/Users/hua/Documents/yia-worktrees/task-002`
+- Active implementation: TASK-002 remains `IN_PROGRESS` in `/Users/developer/Documents/yia-worktrees/task-002`
 - Suggested commit message: `docs: accept storage discovery and reuse decisions`
 
 开始前按顺序完整读取 `AGENTS.md`、`docs/COLLABORATION.md`、`docs/PROJECT_STATUS.md`、`docs/SYSTEM_DESIGN.md`、ADR-003、ADR-004、ADR-005、`docs/REUSE_REGISTER.md`、TASK-003、TASK-004 和本任务包。任一文件冲突、基线不符或范围异常时立即停止，不自行修订内容。
@@ -60,8 +60,8 @@
    git branch --show-current
    git rev-parse HEAD
    git status --short
-   git -C /Users/hua/Documents/yia-worktrees/task-002 branch --show-current
-   git -C /Users/hua/Documents/yia-worktrees/task-002 status --short
+   git -C /Users/developer/Documents/yia-worktrees/task-002 branch --show-current
+   git -C /Users/developer/Documents/yia-worktrees/task-002 status --short
    ```
 
 2. 运行：
@@ -105,7 +105,7 @@
    ```bash
    git status --short
    git rev-parse HEAD
-   git -C /Users/hua/Documents/yia-worktrees/task-002 status --short
+   git -C /Users/developer/Documents/yia-worktrees/task-002 status --short
    ```
 
    `main` 必须干净；TASK-002 worktree 状态不得被本轮改变。不要运行 `uv add`、`uv sync`、候选代码、真实网络冒烟或 TASK-003/004 Implementer。

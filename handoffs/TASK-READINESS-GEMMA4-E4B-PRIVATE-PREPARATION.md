@@ -4,7 +4,7 @@
 
 - Sole implementer: `/root/grounding_adapter_preflight`.
 - Base: `5a80acf7f8d6d9533bff224010e4ccebd5a78fc0`.
-- WT: `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-diagnostic`.
+- WT: `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-diagnostic`.
 - Branch: `codex/task-readiness-gemma4-e4b-diagnostic`.
 - Allowed: new ignored `.var/gemma4-e4b-diagnostic/**` and this handoff only.
 - Root alone owns G, downloads, installation and all real runtime/model actions.
@@ -29,7 +29,7 @@ Root's main-model transfer remains unverified. No partial is opened as a GGUF in
 
 Pure helper/preparation stage complete, author clean STOP after this handoff commit. **Activation implementation is not complete.** There is no executable first-case package, actual GGUF inspection, native N, owner or qualification. Root's transport recovery is a separate ongoing task and no download progress/partial file is bound as proof here.
 
-Private base: `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-diagnostic/.var/gemma4-e4b-diagnostic`.
+Private base: `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-diagnostic/.var/gemma4-e4b-diagnostic`.
 
 - Read `README.md` for exact upstream source lines, full new options, limits and pending stages.
 - `checks/artifact-manifest.json` SHA `771eda6a0d6a8b88ba913c3608f8d53525ac1e3891ea1f7fe3645d13e7c7baf0` binds all local source/tests/data/references/patches/README/template.

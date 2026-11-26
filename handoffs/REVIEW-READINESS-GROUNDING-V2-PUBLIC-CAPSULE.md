@@ -3,7 +3,7 @@
 Reviewer: `/root/bigmodel_audit_review`, independent reviewer, no subagents.
 Fixed author: `65bb6b34221373ceb158b3602f14cb889cee66f0`.
 Review base: `ec17b319331e9de26404bc081921e6cd05297781`.
-Review worktree: `/Users/hua/Documents/yia-worktrees/readiness-grounding-v2-public-capsule-review`.
+Review worktree: `/Users/developer/Documents/yia-worktrees/readiness-grounding-v2-public-capsule-review`.
 
 ## Verdict and mandatory external hold
 
@@ -30,7 +30,7 @@ The Oct28 China-date guard still applies; this report cannot extend or refresh i
 ## Exact reviewed capsule
 
 Author package:
-`/Users/hua/Documents/yia-worktrees/readiness-grounding-v2-public-capsule/.var/bigmodel-grounding-v2-public-case`.
+`/Users/developer/Documents/yia-worktrees/readiness-grounding-v2-public-capsule/.var/bigmodel-grounding-v2-public-case`.
 
 | Binding | Independently verified value |
 |---|---|
@@ -132,7 +132,7 @@ in this review and no fee authorization is inferred.
 ## Independent checks and retained verification failures
 
 Existing interpreter:
-`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
+`/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
 All source checks used explicit own src PYTHONPATH and PYTHONDONTWRITEBYTECODE=1;
 no installation or lock/dependency change.
 

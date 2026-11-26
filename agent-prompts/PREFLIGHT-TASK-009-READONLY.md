@@ -1,6 +1,6 @@
 # TASK-009 read-only preflight — Obsidian note and safe filesystem contracts
 
-Role: Read-only Scout. Work only in `/Users/hua/Documents/youtubek agent`.
+Role: Read-only Scout. Work only in `/Users/developer/Documents/youtubek agent`.
 
 This packet authorizes inspection only. Do not modify or create any repository, temporary
 Vault or temporary file, stage/commit, create a branch/worktree, run uv/tests/builds or

@@ -2,7 +2,7 @@
 
 - Role: Implementer `/root/cloud_preview_writer`, sole writer, no subagents.
 - Base: `523bff80d343949f57159b94e10ed1c4328144e5`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport`.
 - Branch: `codex/task-readiness-bigmodel-transport`.
 - Fixed author commit: reported with this handoff in the final chat; independent review/integration belongs to Root.
 
@@ -36,7 +36,7 @@ A definite connect refusal is pre-dispatch and retains the original WAITING_MODE
 
 ## Verification and failure evidence
 
-All Python runs use Root's existing interpreter `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport/src`.
+All Python runs use Root's existing interpreter `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport/src`.
 
 - Initial meaningful RED:36 new protocol tests failed because the candidate adapter was absent; then36PASS.
 - New service RED: keyless preview refused the new pair before finite consent/profile/preview integration.

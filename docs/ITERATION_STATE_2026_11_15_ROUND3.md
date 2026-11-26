@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-15 Round 3）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `312e867`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `5ad0704`）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `312e867`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，起始基线 `5ad0704`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b`）
 - **前置轮次状态**：Round 1（`docs/ITERATION_STATE_2026_11_14.md`）与 Round 2（`docs/ITERATION_STATE_2026_11_15_ROUND2.md`）已 100% 完成并交付。
 - **当前阶段**：`ROUND_3_COMPLETED`
@@ -10,7 +10,7 @@
 
 ## 一、第一阶段：Round 3 真实运行态接管与核验基线
 
-直接对 `/Users/hua/Documents/yia-worktrees/v1x-local-main/.var/owner/` 生产库（`state.sqlite3` + `.workspace-ai/hub.sqlite3`）执行只读内存态 API 投射（`FastReadApiApplication.handle`）与全部 7 个核心视图（`#Home`、`#Following`、`#Content`、`#Intelligence`、`#Topics`、`#Research`、`#Settings`）代码审计：
+直接对 `/Users/developer/Documents/yia-worktrees/v1x-local-main/.var/owner/` 生产库（`state.sqlite3` + `.workspace-ai/hub.sqlite3`）执行只读内存态 API 投射（`FastReadApiApplication.handle`）与全部 7 个核心视图（`#Home`、`#Following`、`#Content`、`#Intelligence`、`#Topics`、`#Research`、`#Settings`）代码审计：
 
 | 模块 / 场景 | 代码实现 | 自动化测试 | 真实用户体验可用性（2026-11-15 05:00） | 真实证据与核心缺口 |
 | --- | --- | --- | --- | --- |

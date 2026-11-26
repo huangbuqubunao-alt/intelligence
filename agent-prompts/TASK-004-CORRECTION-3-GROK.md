@@ -4,14 +4,14 @@
 
 ## 固定上下文
 
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Product base: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Required source head before correction: `f34cbb09d628ebb256bf5f2895adfd10dbd61812`
 - Reviewer: Codex，已结束；修复完成后等待主控预核验
 - Parallel work: TASK-003 Grok Reviewer；不得读取、写入、检查、清理或等待 TASK-003
 
-控制面文档必须从 main 读取，即 `/Users/hua/Documents/youtubek agent/AGENTS.md`、该目录下的 `docs/`、`tasks/TASK-004-discovery-metadata.md` 及 `agent-prompts/`；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取 AGENTS、状态/PRD/System Design 第 3/5/5.2/12 节、ADR-002 C-05、ADR-004 D-01 至 D-08、Reuse Register、任务卡、完整 handoff（尤其 Reviewer 结论）、原 Implementer 包、Correction 2 包和本包。若修复需要新依赖、ErrorCode、公共领域类型、范围外文件或真实网络，立即输出 `DECISION NEEDED`。
+控制面文档必须从 main 读取，即 `/Users/developer/Documents/youtubek agent/AGENTS.md`、该目录下的 `docs/`、`tasks/TASK-004-discovery-metadata.md` 及 `agent-prompts/`；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取 AGENTS、状态/PRD/System Design 第 3/5/5.2/12 节、ADR-002 C-05、ADR-004 D-01 至 D-08、Reuse Register、任务卡、完整 handoff（尤其 Reviewer 结论）、原 Implementer 包、Correction 2 包和本包。若修复需要新依赖、ErrorCode、公共领域类型、范围外文件或真实网络，立即输出 `DECISION NEEDED`。
 
 ## 仅允许修改的 5 个文件
 
@@ -35,7 +35,7 @@
 
 ## 开始、验证与提交
 
-开始前确认 worktree 干净、HEAD 为 `f34cbb...`、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`。修复后运行：
+开始前确认 worktree 干净、HEAD 为 `f34cbb...`、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`。修复后运行：
 
 ```bash
 uv lock --check

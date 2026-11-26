@@ -4,7 +4,7 @@
 
 - Role: Implementer；session `long_request_freeze_oct20`；reported 2026-10-20。
 - Base `25c7b015f253c9250e149a3ba52890a424343b23`。
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-long-request-freeze`。
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-long-request-freeze`。
 - Branch `codex/task-readiness-long-request-freeze`。
 - Implementation `d990c41`；证据/交接的最终提交 SHA 见最终回传及 `git log -1`。
 - 建议 `IN_REVIEW`；提交后 clean STOP；未自行 DONE、main、push、发布或接线。
@@ -59,7 +59,7 @@ prepare_long_request(
 | `PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .../.venv/bin/python -m pytest tests/unit/test_long_distillation_profile.py tests/unit/test_long_grounding_codec.py tests/unit/test_long_grounding_projection.py tests/unit/test_long_card_canonical.py tests/unit/test_local_grounding_profile.py tests/unit/test_local_grounding_qualification.py tests/unit/test_local_grounding_harness.py -q` | **424 PASS/16.44s**，含64新增测试及旧 Local/Cloud/request/identity goldens；没有 skip/delete/weaken |
 | `git diff --cached --check` 与 staged scope/full source diff review | PASS；只有 scoped NEW files，无 existing diff |
 
-以上 Python 绝对路径 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`，命令 cwd 本 task WT；复用现成环境，无安装。重点测试：可重复完整请求和 golden hashes；synthetic114/2406全 cues/runs/aliases；1/20/21/4102 references；正向20/21与NO_NEW完整N；unknown/duplicate/reorder/wrongrange/bool/claim/stance/extra字段拒绝；strict UTF8/nonfinite/duplicateJSON/depth/oversize；caller/共享schema mutation；完整原 context/side/source identities；IO monkeypatch禁止 sqlite/HTTP。
+以上 Python 绝对路径 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`，命令 cwd 本 task WT；复用现成环境，无安装。重点测试：可重复完整请求和 golden hashes；synthetic114/2406全 cues/runs/aliases；1/20/21/4102 references；正向20/21与NO_NEW完整N；unknown/duplicate/reorder/wrongrange/bool/claim/stance/extra字段拒绝；strict UTF8/nonfinite/duplicateJSON/depth/oversize；caller/共享schema mutation；完整原 context/side/source identities；IO monkeypatch禁止 sqlite/HTTP。
 
 ## 失败、跳过与剩余风险
 

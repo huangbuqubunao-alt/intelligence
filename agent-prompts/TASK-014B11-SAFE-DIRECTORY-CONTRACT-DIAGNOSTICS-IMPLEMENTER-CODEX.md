@@ -12,7 +12,7 @@ Role: Implementer
 Agent: Codex
 Implementation baseline: main@80aff83fc033a8bd2950108cad2e34feea5d396f
 Control-plane authorization: dynamic clean single-parent main commit containing ADR-021, TASK-014B11, this prompt, and the synchronized status/index documents; its sole parent must be 80aff83fc033a8bd2950108cad2e34feea5d396f
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
 Branch: codex/task-014b11-safe-directory-contract-diagnostics
 Required source HEAD: 80aff83fc033a8bd2950108cad2e34feea5d396f
 Required sole parent of first and only product commit: 80aff83fc033a8bd2950108cad2e34feea5d396f

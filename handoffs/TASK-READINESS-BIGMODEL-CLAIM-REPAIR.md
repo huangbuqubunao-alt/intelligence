@@ -1,6 +1,6 @@
 # TASK-READINESS-BIGMODEL-CLAIM-REPAIR
 
-Status IN_REVIEW; not accepted or merged. Sole implementer `/root/bigmodel_audit_writer`, new WT `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-claim-repair`, branch `codex/task-readiness-bigmodel-claim-repair`, base `b64cf87d5fce7789a7275fd1eb570b4a3f6f728f` (fixed2bf source plus only Root task/prompt). Original audit WT/896/2bf and all failure evidence remain unchanged.
+Status IN_REVIEW; not accepted or merged. Sole implementer `/root/bigmodel_audit_writer`, new WT `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-claim-repair`, branch `codex/task-readiness-bigmodel-claim-repair`, base `b64cf87d5fce7789a7275fd1eb570b4a3f6f728f` (fixed2bf source plus only Root task/prompt). Original audit WT/896/2bf and all failure evidence remain unchanged.
 
 ## Complete pre-edit invocation-write inventory
 
@@ -39,7 +39,7 @@ The fresh atomic path needed no implementation change: malformed raw arguments r
 
 ## Fixed-source verification
 
-All tests use explicit `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-claim-repair/src`, `PYTHONDONTWRITEBYTECODE=1`, existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, and independent SQLite/DATA fixtures. No provider HTTP/model, credentials, owner/Root GUI clone/service, dependency or production action occurred. Jev was not exposed in available tools; the existing strong/default workflow and independent review remain required. TDD/incremental implementation skills were followed.
+All tests use explicit `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-claim-repair/src`, `PYTHONDONTWRITEBYTECODE=1`, existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, and independent SQLite/DATA fixtures. No provider HTTP/model, credentials, owner/Root GUI clone/service, dependency or production action occurred. Jev was not exposed in available tools; the existing strong/default workflow and independent review remain required. TDD/incremental implementation skills were followed.
 
 | Check | Actual result |
 |---|---|

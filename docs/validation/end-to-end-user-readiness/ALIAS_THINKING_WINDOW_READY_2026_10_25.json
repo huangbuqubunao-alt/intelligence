@@ -16,7 +16,7 @@
       {
         "pid": 46802,
         "ppid": 46766,
-        "comm": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python"
+        "comm": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python"
       },
       {
         "pid": 46766,
@@ -45,7 +45,7 @@
     "new_global_generation_absent": true,
     "child_output_absent": true,
     "qualification": false,
-    "child_output_path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025",
+    "child_output_path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025",
     "child_path_probe_note": "Checked actual controller.CHILD_OUTPUT; initial probe used an incorrect unused sibling name. Global once absence and real waiting state were already confirmed."
   },
   "loads": 0,
@@ -53,5 +53,5 @@
   "formal_owner_access": false,
   "product_source_unchanged": true,
   "goal_tool_status": "usageLimited; manual conversation continuing",
-  "raw_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/model-chain-resolution-20261025"
+  "raw_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/model-chain-resolution-20261025"
 }

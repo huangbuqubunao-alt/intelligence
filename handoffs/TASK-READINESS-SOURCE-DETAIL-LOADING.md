@@ -5,7 +5,7 @@
 - Role：Implementer `/root/intel_bounded_review`，本任务不自审。
 - 独立 Reviewer：`/root/caption_resume`，其迁移实现结束后审查。
 - Base：`6805cec8ea91aaeb1bbb3441354dab50a7494271`
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-source-detail-loading`
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-source-detail-loading`
 - Branch：`codex/task-readiness-source-detail-loading`
 - Reported：2026-10-13
 - 实现 SHA：此交接所属限定提交，提交后回传主控。

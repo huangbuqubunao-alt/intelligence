@@ -94,13 +94,12 @@ export function NativeLocalImport({ available, onClose, onSaved, onImported, onY
     {available === null && <p role="status">{t("Checking native file selection…")}</p>}
     {available === false && (
       <>
-        <p role="alert" className="form-error">{t("Native file selection is unavailable. Reopen Intelligence using its current launcher.")}</p>
         {onUseBrowserUpload && (
           <div className="native-browser-fallback-callout">
             <p className="hint">
               {zh
-                ? "若通过命令行 youtube-intel start / demo 在浏览器访问，可直接切换为浏览器本地上传（仅在本机 127.0.0.1 传输，不经云端）。"
-                : "Running via youtube-intel start / demo in a browser? Switch to direct loopback browser upload (stays on 127.0.0.1, never leaves this device)."}
+                ? "浏览器直接上传（推荐 · 支持拖拽 .md / .txt / 音视频，数据仅留在本机 127.0.0.1，不经云端）："
+                : "Browser direct upload (Recommended — supports drag & drop, stays on 127.0.0.1, never leaves this device):"}
             </p>
             <button
               type="button"
@@ -114,6 +113,9 @@ export function NativeLocalImport({ available, onClose, onSaved, onImported, onY
             </button>
           </div>
         )}
+        <p role="alert" className="form-notice-muted">
+          {t("Native file selection is unavailable. Reopen Intelligence using its current launcher.")}
+        </p>
       </>
     )}
     {error && <p role="alert" className="form-error">{t(error)}</p>}
@@ -122,7 +124,11 @@ export function NativeLocalImport({ available, onClose, onSaved, onImported, onY
     {job?.state === "IMPORTING" && <p role="status">{t("Importing selected files…")}</p>}
     {job?.state === "CANCELLED" && <p role="status">{t("Selection cancelled. No new Content was added.")}</p>}
     {!!job?.files.length && <ul className="local-file-list">{job.files.map((file, index) => <FileState key={index} file={file} errors={errors} />)}</ul>}
-    {!busy && <button className="button button-secondary" aria-label={t("Choose local files")} disabled={available !== true || pending || job?.state === "SELECTED"} onClick={() => { acted.current = false; void request("choose"); }}>{t("Choose local files")}</button>}
+    {!busy && (available === true || job?.state === "SELECTED") ? (
+      <button className="button button-secondary" aria-label={t("Choose local files")} disabled={available !== true || pending || job?.state === "SELECTED"} onClick={() => { acted.current = false; void request("choose"); }}>{t("Choose local files")}</button>
+    ) : !busy && (
+      <button className="button button-ghost button-small" aria-label={t("Choose local files")} disabled={true} onClick={() => { acted.current = false; void request("choose"); }}>{t("Choose local files")}</button>
+    )}
     {job?.state === "SELECTED" && <button className="button button-primary" disabled={pending} onClick={() => void request("confirm")}>{t("Confirm import")}</button>}
     {busy && <button className="button button-secondary" disabled={pending} onClick={() => void request("cancel")}>{t("Cancel import")}</button>}
     {job?.files.filter(file => file.import).map((file, index) => <button key={index} className="button button-primary" onClick={() => onImported ? onImported(file.import!.content_id) : onSaved()}>{t("Open Content")}: {file.filename}</button>)}

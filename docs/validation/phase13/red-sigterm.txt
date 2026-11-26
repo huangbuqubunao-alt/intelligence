@@ -63,7 +63,7 @@ tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/p
 >           assert process.returncode == 0, output
 E           AssertionError:
 E           assert -15 == 0
-E            +  where -15 = <Popen: returncode: -15 args: ['/Users/hua/youtube-intel/.venv/bin/python', ...>.returncode
+E            +  where -15 = <Popen: returncode: -15 args: ['/Users/developer/youtube-intel/.venv/bin/python', ...>.returncode
 
 tests/integration/test_background_following.py:508: AssertionError
 =========================== short test summary info ============================

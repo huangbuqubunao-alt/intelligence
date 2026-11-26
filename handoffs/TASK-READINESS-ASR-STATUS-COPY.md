@@ -6,7 +6,7 @@
 - Role: Implementer
 - Agent/session: `/root/caption_resume`
 - Base: `2857acc146a0320cb9daf61ee460b556bb444fcc`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-asr-status-copy`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-asr-status-copy`
 - Branch: `codex/task-readiness-asr-status-copy`
 - Reported: 2026-10-13
 - Head: 此交接报告所属的实现提交；提交后向主控报告精确 SHA。
@@ -33,7 +33,7 @@ DIRECT 复用现有 `localStatus`、`transcriptionFailureCopy`、`UiLanguageProv
 | 真实 GUI、键盘、320–1440 | 待主控验收 | 主控既有隔离 5908 环境重放；本 implementer 没有推理、ASR 或正式服务调用 |
 
 Before 实证（主控保留，未修改）：
-`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/asr-invalid-input-status-before.png`。
+`/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/asr-invalid-input-status-before.png`。
 
 ## 检查结果
 

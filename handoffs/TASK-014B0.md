@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex`
 - Base branch/commit: `main@c62310ab79f01f5f311c9f54bb28365905f5a81a`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`
 - Branch: `codex/task-014-phase-b0-restricted-public-subtitle-smoke`
 - Initial implementation commit: `4e506847854f20a43011b0a15db3a1c8e320656d`
 - Started: `2026-07-26T14:46:38Z`
@@ -70,7 +70,7 @@
 
 - Reviewer agent/session: `Codex Reviewer`
 - Fixed implementation base/source HEAD/parent: `c62310ab79f01f5f311c9f54bb28365905f5a81a` / `4e506847854f20a43011b0a15db3a1c8e320656d` / `c62310ab79f01f5f311c9f54bb28365905f5a81a`.
-- Source branch/worktree: `codex/task-014-phase-b0-restricted-public-subtitle-smoke` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`.
+- Source branch/worktree: `codex/task-014-phase-b0-restricted-public-subtitle-smoke` / `/Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`.
 - Pre-append Git evidence: source HEAD and sole parent matched the fixed values; `git status --short` was clean; `git diff --name-status base...source` contained exactly `docs/operations.md`, `handoffs/TASK-014B0.md`, `src/youtube_intel/cli.py`, `src/youtube_intel/public_subtitle_smoke.py`, `tests/integration/test_operations.py`, and `tests/integration/test_public_subtitle_smoke.py`; `git diff --check base...source` passed.
 - Static boundary evidence: `PublicSubtitleSmoke` validates a non-existing absolute root and 1--3 distinct existing-rule video IDs before initialization; initializes only `state.sqlite`, `data/`, `test-vault/`, and `logs/`; uses 30 seconds for both locked adapters; processes IDs sequentially with one `fetch`, one `enumerate_tracks`, one first-ranked `read_track`, no retry loop, and deletes the in-memory read result. It only initializes SQLite and never calls Pipeline/Job/ProviderCall/Artifact writes. JSONL inputs are fixed metadata/counters/error code/duration and use `JsonlLogger`; no result body, track URL, exception message, root path, credential, or user content enters the logger.
 - Static adapter/reuse evidence: no dependency, lockfile, schema/migration, state, domain/config, Provider Adapter, B-1 evidence, or task-status path is in the fixed range. The existing locked yt-dlp adapters retain `ignoreconfig`, `skip_download`, no media/subtitle/thumbnail writes, `usenetrc=False`, and no configured Cookie/login/remote-component/ffmpeg path. The new graph contains no model, OpenAI, Ollama, Whisper, paid-provider, launchd, media-download, or real-Vault service call.

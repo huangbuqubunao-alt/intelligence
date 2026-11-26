@@ -4,13 +4,13 @@
 
 ## 固定基线
 
-- Repository: `/Users/hua/Documents/youtubek agent`
+- Repository: `/Users/developer/Documents/youtubek agent`
 - Branch: `main`
 - Base HEAD: `5f8646645bbaad274c094777261deff4636521fc`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`
+- Git identity: `Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 
-TASK-004 第四次独立 Reviewer 可能正在 `/Users/hua/Documents/yia-worktrees/task-004` 工作。本任务与其并行时只允许操作 main；不得读取、检查、写入、清理、等待或以任何方式访问该 source worktree。开始时 main 任一基线、分支、身份或洁净度范围不符，立即停止并报告 `BLOCKED`；不得 stash、reset、清理或选择新 SHA。
+TASK-004 第四次独立 Reviewer 可能正在 `/Users/developer/Documents/yia-worktrees/task-004` 工作。本任务与其并行时只允许操作 main；不得读取、检查、写入、清理、等待或以任何方式访问该 source worktree。开始时 main 任一基线、分支、身份或洁净度范围不符，立即停止并报告 `BLOCKED`；不得 stash、reset、清理或选择新 SHA。
 
 ## 唯一允许提交的文件
 
@@ -79,7 +79,7 @@ docs: accept ADR-006 subtitle acquisition contract
 - 新提交范围精确为上述 10 文件；
 - main `git status --short` 无输出；
 - ADR-006 为 Accepted，TASK-004 为 IN_REVIEW，TASK-005 为 BLOCKED/UNASSIGNED；
-- Git author/committer 均为 `Mozhu <huangbuqubunao@gmail.com>`；
+- Git author/committer 均为 `Mozhu <maintainer@example.invalid>`；
 - 没有访问 TASK-004 source worktree，没有创建 TASK-005 worktree。
 - 新提交是 `TASK-004-REVIEWER-4-RESUME-CODEX.md` 的最近添加提交，可由 Reviewer 动态解析为恢复授权。
 

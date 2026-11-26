@@ -1,7 +1,7 @@
 # V1X Phase 4 Research Lite — final acceptance
 
 Completed locally on `chatgpt/v1x-research-lite` in
-`/Users/hua/Documents/yia-worktrees/v1x-research-lite`, starting exactly from
+`/Users/developer/Documents/yia-worktrees/v1x-research-lite`, starting exactly from
 `ba9f27fd2869e24a0b30e58f3ef6e5e29c747a7b` (schema 30).
 Reviewed implementation HEAD: `3c08ec7a1e1c908c284d23a9ff726f943c2b9405`.
 The final documentation commit adds this report and the validation manifest only.

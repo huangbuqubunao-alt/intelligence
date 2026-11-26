@@ -8,17 +8,17 @@
 
 ## 固定对象与开工门禁
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch：`main`
 - Execution base：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-INTEGRATOR.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-INTEGRATOR.md`
 - Authorization parent：`7ed6a3ea096e05a1861a4e56c1c9207ef5aaebd0`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Source head / accepted review evidence：`d5268ef08b360e932b5dda9d0fb70d71b13587a4`
 - Source head parent / Correction 3：`abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`
 - Task base：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Git identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须位于动态 execution base 且干净；source 必须位于固定 source head、分支正确且干净；TASK-005 必须为 `ACCEPTED`，fourth Reviewer verdict 必须为 `APPROVE`，且 P0/P1=0。任一条件不符立即 `BLOCKED`。不得 stash、reset、checkout、rebase、cherry-pick、pull、force 操作、修改 source 或清理任何分支/worktree。
 

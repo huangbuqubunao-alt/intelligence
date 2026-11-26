@@ -7,13 +7,13 @@ worktree，并提交主控已经准备好的控制面文件。不得实现产品
 
 ## 固定授权
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Required main base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Implementer：Codex
 - Reviewer：实现 commit 完成后启动全新独立 Codex 会话
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 产品负责人已批准 ADR-008 A-01 至 A-15，以及 TASK-008A 使用

@@ -4,7 +4,7 @@
 
 - Role: Implementer; agent `local_rejection_accounting`.
 - Base: `a989873773c0f4018cc696930789566925e88c7c`; task/package由root提交于`4614a25`，根目录原件已读，未复制改写。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-local-rejection-accounting`; branch `codex/task-readiness-local-rejection-accounting`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-local-rejection-accounting`; branch `codex/task-readiness-local-rejection-accounting`。
 - Product/test commit: `ac2ea9d4585f3215b9f2330da4062f6fed95b1f5`；此报告/摘要单独后续提交。
 - 日期：2026-10-20。目标只修复真实R13响应拒绝收尾与对应诊断串案；不授模型资格，不调整预算。
 - 实际产品范围：`src/youtube_intel/distillation.py`、`scripts/qualify_local_grounding_v1.py`；新增隔离回归文件与本报告/结果摘要。

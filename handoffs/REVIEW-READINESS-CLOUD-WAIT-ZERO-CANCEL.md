@@ -5,7 +5,7 @@ Base `e46f9a31f967a2a7743a37cdf6609554b6f5fb3b`;
 initial fixed author `706b165e8b4b66c6a98d6fe9f4db2fb481ee87a9`.
 Same-task P2 repair `af71317d1b8a87fa022aed80744c2c2b36eee94a`, reviewed as
 `deeb6ac` in this WT after cherry-picking only that fixed delta.
-Own WT `/Users/hua/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel-review`.
+Own WT `/Users/developer/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel-review`.
 
 ## Verdict
 
@@ -88,8 +88,8 @@ Final commands for the delta were:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 \
-PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel-review/src \
-/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q \
+PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel-review/src \
+/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q \
  tests/unit/test_cloud_wait_zero_cancel.py tests/unit/test_local_api.py \
  -k 'cloud_wait_identity_and_proof_reach_actual_content_and_activity_dto or video_detail_distinguishes_not_processed_admitted_and_no_new' \
  --tb=short -p no:cacheprovider
@@ -144,7 +144,7 @@ rollback leaves42 unchanged. No destructive down-migration was introduced.
 
 ## Independent verification
 
-Interpreter: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`;
+Interpreter: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`;
 explicit own-WT/src PYTHONPATH and PYTHONDONTWRITEBYTECODE=1. No installation.
 Graph was consulted first; own WT was unindexed and Root graph still showed the old
 037 implementations, so the fixed Git/source diff was used.
@@ -171,8 +171,8 @@ Graph was consulted first; own WT was unindexed and Root graph still showed the 
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 \
-PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel-review/src \
-/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q \
+PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel-review/src \
+/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q \
  tests/unit/test_cloud_wait_zero_cancel.py tests/unit/test_backup_restore.py \
  tests/integration/test_state_store.py \
  -k 'test_cloud_wait_zero_cancel or waiting_model_zero_invocation or cancel_does_not_release or cloud_model_wait_never or cancel_rejects_claimed or model_wait_cancellation_requires or cancelled_wait_parent or cancellation_does_not_change or preflight_cancel_and_dispatch or cancelled_wait_corruption or schema36_backup_restore or cancel_api_is_content_bound or all_supported_schema_backups or zhipu_429_audit or m042_failure or m042_unpublished' \

@@ -21,7 +21,7 @@
       "log": ".var/closure/focused-authority-final.log",
       "sha256": "6df866fe05f4cc2ae04886e5d5e82e343a6a9672061041a95d2c8d2b98011160",
       "tail": [
-        "  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'",
+        "  /Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'",
         "    return self._open_to_write(zinfo, force_zip64=force_zip64)",
         "",
         "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
@@ -92,7 +92,7 @@
       "tail": []
     },
     "chrome_integrated": {
-      "command": "YIA_INTEGRATION_UI_URL=http://127.0.0.1:5491/ YIA_PHASE2_FIXTURE_ROOT=/Users/hua/Documents/yia-worktrees/v1x-milestone-closure/.var/phase6/closure-integrated node v1x-integration.e2e.mjs",
+      "command": "YIA_INTEGRATION_UI_URL=http://127.0.0.1:5491/ YIA_PHASE2_FIXTURE_ROOT=/Users/developer/Documents/yia-worktrees/v1x-milestone-closure/.var/phase6/closure-integrated node v1x-integration.e2e.mjs",
       "outcome": "8 flows PASS",
       "log": ".var/closure/integrated-browser-final.log",
       "sha256": "82e2e85873abdd5932726b5b80c16f957897a1b4be04e7d17f144dd7ce6d0b2b",
@@ -205,7 +205,7 @@
       "log": ".var/closure/launcher-build.log",
       "sha256": "a6eddef520a7eda066901709967efc0f6f4e04f143921a14a326f1497381176c",
       "tail": [
-        "/Users/hua/Documents/yia-worktrees/v1x-milestone-closure/.var/Intelligence.app"
+        "/Users/developer/Documents/yia-worktrees/v1x-milestone-closure/.var/Intelligence.app"
       ]
     }
   },

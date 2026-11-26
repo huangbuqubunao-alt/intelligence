@@ -2,11 +2,11 @@
 
 **APPROVE_BOUND_WAITING_COMMAND_ONLY.** No unresolved P0/P1/P2 finding. This approves one exact bound waiting command under its unchanged runtime gates; it does not establish available resources, actual native N, model quality, qualification or adoption.
 
-Reviewer `/root/alias_thinking_independent_review`, 2026-10-26; clean reviewer WT `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready-review`, branch `codex/task-readiness-gemma4-e4b-ready-review`. Prior ready-source review `4bdc13b318c5dfced1ced992ff86f738fa5a9aca`; author remains `33f75810f26db46f702dcd1155ba08b686b87d38`. Root dispatch/task package `0d10dea`. Read new task/prompt and G/cold-metadata-binding.json; source/spec/isolated-decision and earlier reviews remain applicable. Only this NEW handoff and own ignored `.var/gemma4-ready-review/binding/**` were written. No subagents/source/author/G/product/credentials/configuration changes, HTTP, model/runtime/Terminal launch, signals or app closure by reviewer.
+Reviewer `/root/alias_thinking_independent_review`, 2026-10-26; clean reviewer WT `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready-review`, branch `codex/task-readiness-gemma4-e4b-ready-review`. Prior ready-source review `4bdc13b318c5dfced1ced992ff86f738fa5a9aca`; author remains `33f75810f26db46f702dcd1155ba08b686b87d38`. Root dispatch/task package `0d10dea`. Read new task/prompt and G/cold-metadata-binding.json; source/spec/isolated-decision and earlier reviews remain applicable. Only this NEW handoff and own ignored `.var/gemma4-ready-review/binding/**` were written. No subagents/source/author/G/product/credentials/configuration changes, HTTP, model/runtime/Terminal launch, signals or app closure by reviewer.
 
 ## Exact independently checked bindings
 
-C = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`; G = root `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025`.
+C = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`; G = root `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025`.
 
 | Artifact | SHA-256 / result |
 |---|---|
@@ -24,7 +24,7 @@ Planned wait command is byte-for-byte the reviewed Wait template with exactly th
 
 ## Actual cold ownership and captured metadata
 
-Independently observed exact current owner: `59941 Mon Oct 26 08:16:40 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve`. Current PPID1; vmmap ARM64 launch **2026-10-26 08:16:40.052 +0800**. Fixed main mapping device/inode/path/start constraints and exact loopback11438 listener ownership pass. No fixed llama-server runner exists. Same complete owner/no-runner state was rechecked after file/metadata verification.
+Independently observed exact current owner: `59941 Mon Oct 26 08:16:40 2026     /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve`. Current PPID1; vmmap ARM64 launch **2026-10-26 08:16:40.052 +0800**. Fixed main mapping device/inode/path/start constraints and exact loopback11438 listener ownership pass. No fixed llama-server runner exists. Same complete owner/no-runner state was rechecked after file/metadata verification.
 
 Recorded metadata helper ancestry59932→zsh59896→login59895→Terminal36172→launchd1 has exact pid/ppid/executable links and no Codex/ChatGPT ancestor. Live Terminal36172/path/PPID1 was independently confirmed. Historical helper chain is captured evidence, not a currently live helper. Reviewed helper plus daemon-process record fixes private G/models store/11438/no-cloud; exact store payloads/tags corroborate it. Unrelated process environment/credentials were not read.
 

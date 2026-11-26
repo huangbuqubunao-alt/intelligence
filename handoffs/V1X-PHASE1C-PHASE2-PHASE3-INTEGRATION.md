@@ -7,7 +7,7 @@ real-vault write or new qualification attempt.
 
 ## 1–5. Worktree, history and source verification
 
-- Worktree: `/Users/hua/Documents/yia-worktrees/v1x-integration`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/v1x-integration`.
 - Branch: `chatgpt/v1x-integration`; created independently from
   `432f085d76824dfa51a447622aa2dba23ff8bfc8`.
 - Validated implementation HEAD: `afd6c94ec972977ca7fe1803b634f207cd4d77f1`.
@@ -19,7 +19,7 @@ real-vault write or new qualification attempt.
   `chatgpt/v1x-obsidian-deep-analysis`, source `../v1x-obsidian`.
 - Phase 3: `795275c3359a808e6faab80e7e35daeb35568024`, branch
   `chatgpt/v1x-knowledge-delta`, source `../v1x-knowledge-delta`.
-- All sources share `/Users/hua/youtube-intel/.git`, exist as commits, are clean,
+- All sources share `/Users/developer/youtube-intel/.git`, exist as commits, are clean,
   match the exact reported tips and descend from the common ancestor. No later
   commit was substituted. Initial `pwd`, root, branch, HEAD, status and
   `git diff --check` confirmed a clean integration worktree at the base.

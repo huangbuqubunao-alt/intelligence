@@ -10,7 +10,7 @@ Task: TASK-014B2 — formal console entry
 Role: Product Integrator
 Agent: Codex
 Execution base: dynamic main authorization commit (sole parent 97178cda2eda0373010962bb37450af3418fa6a4)
-Source worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry
+Source worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry
 Source branch: codex/task-014-phase-b2-console-entry
 Accepted source: 835f5ff507308f08b7b88c794a6d7d11b3a9dd74
 Required parent: f6e71e027c86f16cc34e062fef0a753c73b42d05

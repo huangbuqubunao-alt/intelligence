@@ -2,7 +2,7 @@
   "observed_at": "2026-10-20T21:58:26.846201+00:00",
   "status": "PREPARED_ONLY_NO_RUNTIME_OR_ACCEPTANCE",
   "root_head": "a571880",
-  "qa_stock": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/long-wait-gui-20261021",
+  "qa_stock": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/long-wait-gui-20261021",
   "schema": 40,
   "all_sql_tables": 77,
   "all_physical_data": 19,

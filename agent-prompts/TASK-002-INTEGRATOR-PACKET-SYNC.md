@@ -9,8 +9,8 @@
 - Task: `TASK-002 integrator-packet sync`
 - Role: `Status Integrator`
 - Required base: `main@1d8d16115173297aecb04a1a2ecfc2dc2927e3ff`
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- TASK-002 worktree: `/Users/hua/Documents/yia-worktrees/task-002`，严格只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- TASK-002 worktree: `/Users/developer/Documents/yia-worktrees/task-002`，严格只读
 - Required source/review head: `d98de3537187ac346e404d7899d0a9d90c228483`
 
 ## 唯一允许提交的 2 个文件
@@ -38,9 +38,9 @@ git var GIT_AUTHOR_IDENT
 git var GIT_COMMITTER_IDENT
 git diff --check
 git diff --name-only
-git -C "/Users/hua/Documents/yia-worktrees/task-002" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-002" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-002" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-002" status --short
 ```
 
 `user.useConfigOnly` 不是 `true`、身份为空或含 `.local` 时停止。只暂存上述 2 个文件，运行 `git diff --cached --check` 和 `git diff --cached --name-only`。提交消息：

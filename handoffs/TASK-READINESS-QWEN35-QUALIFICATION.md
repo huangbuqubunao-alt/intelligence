@@ -4,7 +4,7 @@
 
 - Role: Implementer; Agent/session: `/root/caption_resume`.
 - Base: `08e02e2a1a3cabcf72f52ee2565eb3c14f3be7b5`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-qwen35-qualification`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-qwen35-qualification`.
 - Branch: `codex/task-readiness-qwen35-qualification`.
 - Reported: 2026-10-13. Suggested state: IN_REVIEW; worker does not mark DONE or merge.
 

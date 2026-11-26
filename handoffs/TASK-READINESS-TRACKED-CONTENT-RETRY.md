@@ -3,7 +3,7 @@
 ## 当前结论与精确提交
 
 - Implementer: `tracked_retry_resume_oct19`，恢复既有WIP；没有重新开任务、覆盖旧作者或第二writer。
-- WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry`；branch `codex/task-readiness-tracked-content-retry`。
+- WT `/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry`；branch `codex/task-readiness-tracked-content-retry`。
 - 累计基础为 `c312ee4a544556616c9b102d57ec44cf56a21b90`；恢复时HEAD `4b9aa0ad34bb56e82cbab0e6061948b217866c6a`，包含基础 `43e0c75` 及已审picker `26a2984/4b9aa0a`。
 - 后端/恢复/迁移/协议测试/精确合同：`7809c61`。
 - UI、双语copy、前端测试、普通factory隔离fixture、真实Chrome脚本与截图：`30372a6`。
@@ -43,7 +43,7 @@ Chrome使用普通`build_local_source_run_runtime`、真实loopback API/SQLite/�
 
 ## 原失败与修正均保留
 
-- 共享venv初始未指定PYTHONPATH，导入`/Users/hua/youtube-intel`旧代码导致collection失败；后续全部`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:.`指向当前WT，没有改环境或安装依赖。
+- 共享venv初始未指定PYTHONPATH，导入`/Users/developer/youtube-intel`旧代码导致collection失败；后续全部`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:.`指向当前WT，没有改环境或安装依赖。
 - 额外源头预算前对event revision误作精确等于projection，合法heartbeat只增revision不加event的双进程反证失败；恢复原monotonic gap合同，epoch/typed事件仍严格；真实process后重验通过。
 - 扩展旧测试的latest39期望导致48个setup失败；仅更新latest40和追加040 migration期望，保留全部旧历史/断言；48重跑通过。混合来源恢复版本39断言同样精确改40，单项通过。
 - Chrome初版`/tmp`祖先symlink被managed_directory拒绝，HTTP500；只修隔离fixture root.resolve，不放宽产品路径保护。又发现同hash导航保留旧DOM，旧截图不算PASS；改真实document加载+每状态文案断言，最终重新输出全部截图。
@@ -68,7 +68,7 @@ Chrome使用普通`build_local_source_run_runtime`、真实loopback API/SQLite/�
 ## 元数据与当前范围
 
 - Implementer: `local_text_repair_resume`；base `c312ee4a544556616c9b102d57ec44cf56a21b90`。
-- WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry`；branch `codex/task-readiness-tracked-content-retry`。
+- WT `/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry`；branch `codex/task-readiness-tracked-content-retry`。
 - 2026-10-17 checkpoint，**尚非完整任务/不可整合采用**。按root要求在合适后端检查点commit clean STOP，供root顺序整合已审picker UI提交后继续本任务。
 - 此段仅040三表、冻结admission/基础reader、稳定锁、generic隔离和对应测试；没有API/runtime/worker/IO/Backup接线，没有frontend变化。
 - DIRECT SQLite/fcntl/managed_directory/现provider hash builder/verify_tracking/现字幕metadata类型；无新依赖。ADAPT仅新协议边界，不造SourceRun/旧stage成功。

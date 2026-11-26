@@ -25,4 +25,4 @@ DIRECT复用最终IQ2私人141测试/harness4b82152a…，原135guards和新增6
 | source-after-final.json | 4168bca68905974a405f4b7a6d9f81f4015c59bb25f2971609b3f0fbf120bee2 | 110824 |
 | actual-artifact-source-bindings.json | eae7e9dc1facb13fbe1f91bf9c5c08f3590aa23f1bc8de4914646630e8d05155 | 1780 |
 
-私人目录 .var/model-diagnostic-q4km-text/。root下一步固定原来源/语义/历史失败/真实四payload/新冷owner/实现与tests的具体package，独立复核后才实际调用。CLI需显式PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/src，使用root既有 .venv/bin/python 执行本WT diagnostic.py --package <独审固定文件> --package-sha256 <完整SHA> --output <本WT私人目录下全新real-once> --execute；不得执行占位符或旧包。正式配置/用户数据/main/Schema/产品catalog/资格均未变，0付费云调用。剩余阻塞是具体包独审及真实模型质量未知，root继续负责实际验证；本交接不声称Goal完成。
+私人目录 .var/model-diagnostic-q4km-text/。root下一步固定原来源/语义/历史失败/真实四payload/新冷owner/实现与tests的具体package，独立复核后才实际调用。CLI需显式PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/src，使用root既有 .venv/bin/python 执行本WT diagnostic.py --package <独审固定文件> --package-sha256 <完整SHA> --output <本WT私人目录下全新real-once> --execute；不得执行占位符或旧包。正式配置/用户数据/main/Schema/产品catalog/资格均未变，0付费云调用。剩余阻塞是具体包独审及真实模型质量未知，root继续负责实际验证；本交接不声称Goal完成。

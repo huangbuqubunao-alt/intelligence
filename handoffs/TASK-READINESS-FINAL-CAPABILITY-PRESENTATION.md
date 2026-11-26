@@ -4,7 +4,7 @@
 
 - Role: Implementer `local_text_repair_resume`; Reviewer 由 root 串行分配。
 - Base: `6854ed3c3e0d90d7f4852faa8a7ccc6f6db07b42`，branch `codex/task-readiness-final-capability`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-final-capability`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-final-capability`。
 - 持续默认授权及 root `74dc50a` 允许 service 的极小公开只读 binding / 实际执行语言接口。
 - 两个提交分别呈现精确能力和追加物理备份统计；不合并/发布，不改资格、模型资源、Schema、依赖、配置、CODE_FILES 或现有 execution admission。
 - 复用 DIRECT 既有 reviewed qualification reader、服务语言 callback、React/TypeScript、validated backup manifest、标准库；无新依赖/许可证。

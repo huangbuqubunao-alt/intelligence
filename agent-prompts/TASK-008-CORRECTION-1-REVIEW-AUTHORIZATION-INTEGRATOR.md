@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@33ab12dc8abe6267c8c011c85822e34c6fbc8274`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@8317cd9c2a13f6c38fa366ab9f40c326e59d8731`，必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@8317cd9c2a13f6c38fa366ab9f40c326e59d8731`，必须干净。
 - Correction：`8317cd9...` 唯一父为 review evidence `b61f46f6bca3303d5590aac76d8c8c9b53ec4131`；Correction 仅改 `analysis.py`、`test_summary_provider.py` 和 `handoffs/TASK-008.md`。
 - Original base：`473119704c7638d7afd4e68d84d00e85064ceabd`；完整 Diff 仅为 TASK-008 七个批准路径组中的六个实际路径，且无依赖/锁、共享契约、`state.py`、Schema/migration、CLI、TASK-009 改动。
 - Source 的任务/项目状态是固定 base 的历史快照；实时状态只能以 main 本提交中 TASK-008=`IN_REVIEW` 为准。
@@ -28,7 +28,7 @@
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、干净 index/worktree、Correction 三路径及完整范围。
+1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、干净 index/worktree、Correction 三路径及完整范围。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 和精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、模型、Vault、凭据或文件删除命令。
 4. main 将 TASK-008 标为 `IN_REVIEW`，授权全新独立 Reviewer 2；TASK-009 继续 `IN_REVIEW` 且不触碰。

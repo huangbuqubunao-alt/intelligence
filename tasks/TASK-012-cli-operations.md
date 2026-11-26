@@ -78,7 +78,7 @@
 
 - TASK-011 已整合并 `DONE`，ADR-011 O-06 上游依赖满足。Base：
   `main@8e322f362d2ff0972ee987b7c06c8453a9dce73d`；worktree：
-  `/Users/hua/Documents/yia-worktrees/task-012`；branch：`codex/task-012-cli-operations`。
+  `/Users/developer/Documents/yia-worktrees/task-012`；branch：`codex/task-012-cli-operations`。
 - Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。只允许本卡列出的十二个路径、标准库和
   离线门禁；`plutil -lint` 仅检查静态样例。禁止新增依赖/锁、Schema/migration、Provider、网络、模型、凭据、
   真实 Vault/用户内容、`launchctl`、服务注册/加载及测试目录外文件操作。

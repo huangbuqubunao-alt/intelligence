@@ -4,7 +4,7 @@
 
 起始 main / origin/main：`fa906148aef506bb19ae7036d2309f3cdd7b47ca`。
 代码提交：`8a14cd247f43937a14073d893945d0870d35c128`、`47b4eb2234f955411131f61eee4cff7bf0618fc7`。
-候选分支：`codex/task-user-journey-remediation`。工作树：`/Users/hua/Documents/yia-worktrees/user-journey-remediation`。
+候选分支：`codex/task-user-journey-remediation`。工作树：`/Users/developer/Documents/yia-worktrees/user-journey-remediation`。
 
 ## 已解决的问题
 

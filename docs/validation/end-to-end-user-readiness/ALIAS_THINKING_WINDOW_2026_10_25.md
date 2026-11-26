@@ -18,7 +18,7 @@
 
 ## 接续必须先读（不能盲重跑）
 
-新BASE：`/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic`
+新BASE：`/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic`
 
 - 控制器：BASE/controller.py，SHA5478a41226c5e55e706622ad702d4dc49fe6e2e6ed526dbce6bd6c7379a41d8d；launch-start.json已存在，重复启动拒绝。
 - 等待/结果：BASE/run-20261025/wait-observations.jsonl、controller-result.json、child-stdout.log、child-stderr.log、可选cleanup-slots.json。

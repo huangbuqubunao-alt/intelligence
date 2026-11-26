@@ -6,14 +6,14 @@ CredentialResolver、编排或任何真实资源路径。
 
 ## 固定执行状态
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main assignment authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-ASSIGNMENT-INTEGRATOR.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-ASSIGNMENT-INTEGRATOR.md`
 - Required assignment parent / source base：
   `82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始前，动态 assignment authorization 必须是 Required assignment parent 的单一

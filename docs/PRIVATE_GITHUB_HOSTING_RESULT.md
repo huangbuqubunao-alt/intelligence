@@ -27,7 +27,7 @@ does not create a product release or alter the authoritative release state.
 
 | Check | Result |
 | --- | --- |
-| Current tracked tree | No real credential, private key, `.env`, runtime Vault data, provider output, SQLite/cache/log artifact, media artifact, personal-email shape, or absolute `/Users/hua/...` path found. |
+| Current tracked tree | No real credential, private key, `.env`, runtime Vault data, provider output, SQLite/cache/log artifact, media artifact, personal-email shape, or absolute `/Users/developer/...` path found. |
 | Reachable history | No non-test change matched the scanner-equivalent API-key, bearer-auth, AWS-assignment, generic credential-assignment, URL-credential, or PEM-private-key patterns. No historical `.env` file addition was found. |
 | Known fixture disposition | The exact eleven canonical `api-key` findings remain the documented intentional-positive synthetic test fixtures in two test files; they are not credentials and are absent from wheel/sdist. |
 | Historical privacy metadata | Pre-existing machine-local path and commit identity metadata remains a documented controlled-Git hygiene **P2**, requiring re-review before broader/public source distribution. It is not a credential, Vault payload, or current artifact finding. |

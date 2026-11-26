@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-15 Round 8）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，运行于 http://127.0.0.1:5488 与 http://127.0.0.1:5489）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，运行于 http://127.0.0.1:5488 与 http://127.0.0.1:5489）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（保持 `18f366b` 完全干净）
 - **前置轮次状态**：Round 1–7 已全部完成并客观验收（见 `docs/ITERATION_STATE_2026_11_14.md` 至 `docs/ITERATION_STATE_2026_11_15_ROUND7.md`）。
 - **当前阶段**：`ROUND_8_COMPLETED`（全部后端/前端 TDD 切片、实机联调缺陷修复、正式版构建与独立浏览器端到端验收均已 PASS）
@@ -26,7 +26,7 @@
   - `5dd68f4`：`feat(workspace-ai): sync weekly delta shifts/opportunities in markdown and add topic channel breakdown`
   - `edf413c`：`feat(ui): surface weekly delta shifts, link topic/content wikilinks, and index Q&A sessions in Cmd+K`
   - `ef8dc26`：`fix(cmdk): match video_count schema for channel quick-filters and decouple endpoint resolution`
-- **正式交付分支 `main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`）**：
+- **正式交付分支 `main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`）**：
   - `dd14aec`：cherry-pick `5dd68f4`
   - `e35a5c1`：cherry-pick `edf413c`
   - `9388053`：cherry-pick `ef8dc26`
@@ -47,7 +47,7 @@
 3. **独立浏览器子代理端到端实机验收（PASS，`BROWSER_HOST_FACTS` 宿主核验）**：
    - 子代理会话：`d4fe266b-836a-4882-a565-3a4b4000d7a0`
    - 宿主核验源：`visited_origins: http://127.0.0.1:5488`，`blocked_origins: none`
-   - 宿主截图证据：`/Users/hua/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/d4fe266b-836a-4882-a565-3a4b4000d7a0/final_step_107.png`
+   - 宿主截图证据：`/Users/developer/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/d4fe266b-836a-4882-a565-3a4b4000d7a0/final_step_107.png`
    - 实测核验项：
      - `#Home` 演进对比条渲染 `本期新风向` 3 条真实趋势胶囊，Obsidian Markdown 预览包含 `> - **本期新趋势风向**：` 与 `> - **本期新产品切口**：`；
      - `⌘K` 搜 `Mozilla` 命中 `AI 深度问答存档` 并直达 `#Research` 激活对应 5 处引用解答；搜 `Greg Isenberg` 命中 `筛选频道干货：Greg Isenberg` 并直达 `#Content` 频道视图；

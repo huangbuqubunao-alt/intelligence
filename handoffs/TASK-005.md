@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex`
 - Base branch/commit: `main@b28f52d0e4950f78dba315d4afe211ea5f75b93c`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-005`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-005`
 - Branch: `codex/task-005-subtitle-pipeline`
 - Head commit: 本交接文件所在实现提交；最终 SHA 见 Implementer 回传
 - Started: `2026-07-16`
@@ -175,7 +175,7 @@ TranscriptArtifact(
   `38f1caa1c957b4b305afbe0f87c2e082b1ffc929`；main 为 `main` 且干净。
 - source 为 `codex/task-005-subtitle-pipeline`，HEAD 精确为固定实现 SHA，唯一父提交
   为固定 base，工作区开审时干净。
-- Git 身份为 `Mozhu <huangbuqubunao@gmail.com>`，
+- Git 身份为 `Mozhu <maintainer@example.invalid>`，
   `user.useConfigOnly=true`。
 - 相对 base 只有一个非 merge 实现提交；产品 Diff 精确为任务包规定的 11 个文件，
   没有 review commit、额外产品文件或未跟踪提交内容。
@@ -597,7 +597,7 @@ retryable `LOCAL_RESOURCE` 前调用现有
   分支为 `main` 且干净。
 - source 开审时位于
   `codex/task-005-subtitle-pipeline@55156f9f53a610ccbf9c8806f19f19f2c16bb1cf`
-  且干净；Git 身份为 `Mozhu <huangbuqubunao@gmail.com>`，
+  且干净；Git 身份为 `Mozhu <maintainer@example.invalid>`，
   `user.useConfigOnly=true`。
 - 父链逐项通过：
   - `98d19700818bcae14efc412aaaaeb6eed97a1535` 唯一父提交为
@@ -1110,7 +1110,7 @@ uv build --offline
   分支为 `main` 且干净。
 - source 开审时位于
   `codex/task-005-subtitle-pipeline@f95bdb1b5ac0fcdc8906b2daa7138f2f6d60138f`
-  且干净；Git 身份为 `Mozhu <huangbuqubunao@gmail.com>`，
+  且干净；Git 身份为 `Mozhu <maintainer@example.invalid>`，
   `user.useConfigOnly=true`。
 - 父链逐项通过：
   - `98d19700818bcae14efc412aaaaeb6eed97a1535` 唯一父提交为 base；
@@ -1621,7 +1621,7 @@ nonretryable `INVALID_RESPONSE`。
 ### 授权、父链与范围门禁
 
 - main 位于动态 authorization `f571470d80b1d5805b77960591e7549eae86fe48`，其唯一父提交为要求的 `d783f705bd749b9e691456fd85f8af1635d9f32f`；main 开审及提交前均干净。
-- source 开审时精确为 `codex/task-005-subtitle-pipeline@abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`，唯一父提交为 `30c665181db77607648aa1a6fdbb1d5502b71d7d`，且干净。身份为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+- source 开审时精确为 `codex/task-005-subtitle-pipeline@abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`，唯一父提交为 `30c665181db77607648aa1a6fdbb1d5502b71d7d`，且干净。身份为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 - 原实现、三个 review/correction 链均为预期单父提交；`30c665...` 只修改 handoff。Correction 3 Diff 精确为 `handoffs/TASK-005.md`、`src/youtube_intel/providers/subtitles.py`、`src/youtube_intel/transcripts.py`、`tests/integration/test_subtitle_provider.py`。
 - 完整 base...Correction 3 产品 Diff 仍精确为批准的 8 个路径组/11 个文件。`domain.py`、contracts test、`state.py`、migration、`complete_stage`、配置、CLI、discovery/youtube Adapter、`pyproject.toml` 与 `uv.lock` 未被 Correction 3 修改；后两者相对 base 字节未变。
 - 未发现真实数据、凭证、Cookie、媒体、数据库、cache 或构建产物；`git diff --check b28f52d...abf2acb...` 通过。离线构建后确认 sdist 与 wheel 都包含 `migrations/001_initial.sql`、`transcripts.py`、`providers/subtitles.py`；只删除本轮 ignored `dist/`。

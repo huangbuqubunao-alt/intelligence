@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@a8a46afdc393a346ad90016bc9b40301f3c4fd66`，必须干净且为唯一父基线。
-- Reviewed source：`/Users/hua/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@62d87067af84171a2ee7195f3e7d4c4fddcb9980`，开始时必须干净。
+- Reviewed source：`/Users/developer/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@62d87067af84171a2ee7195f3e7d4c4fddcb9980`，开始时必须干净。
 - Review evidence `62d8706...` 的唯一父提交为 Correction 1 `d50c78e9502e3f65018b6af323823c98b3a882ba`，且只修改 `handoffs/TASK-013A.md`；Verdict=`APPROVE`，P0–P3=0。
 - 完整产品范围相对 `d96862f...` 不得超过获批四路径；当前实际路径为 `transcripts.py`、本地转写集成测试和 handoff；锁文件不变。
 

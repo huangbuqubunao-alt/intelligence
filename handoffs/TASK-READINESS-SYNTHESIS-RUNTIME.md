@@ -3,10 +3,10 @@
 ## Identity and scope
 
 - Role: Implementer, `schema44_guard_resume`; 2026-11-04 Asia/Shanghai.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-synthesis-runtime`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-synthesis-runtime`.
 - Branch: `codex/readiness-synthesis-runtime`.
 - Exact base: `2c97703b40f79e22cbeb65bf54a243a26338f017`.
-- Task: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-SYNTHESIS-RUNTIME.md` and Root's bounded continuation instructions.
+- Task: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-SYNTHESIS-RUNTIME.md` and Root's bounded continuation instructions.
 - Reuse DIRECT existing PersonalizedDistillationService, fixed official Moonshot HTTP/envelope parser, schema44 proof/reserve/claim/receipt/cancellation, trusted reader, Save/Topic/Evidence and Backup/Restore. ADAPT a finite transport subclass and minimal profile branches. No second execution engine, migration, dependency or default model switch.
 
 ## Changes
@@ -21,7 +21,7 @@
 
 ## Actual verification
 
-All Python commands used the existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, with `PYTHONPATH=src`; strict tests additionally used `MYPYPATH=src:tests`. Existing frontend node_modules were reused by ignored symlink, without package or lockfile edits.
+All Python commands used the existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, with `PYTHONPATH=src`; strict tests additionally used `MYPYPATH=src:tests`. Existing frontend node_modules were reused by ignored symlink, without package or lockfile edits.
 
 | Check | Actual result |
 |---|---|

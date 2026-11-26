@@ -6,7 +6,7 @@
 - Reviewer：`/root/backup_reconnect_review`，独立于实现者。
 - Base：`b2e5fc5e4d8a7cd260577f686a01f6db88615024`。
 - Candidate：`66e624be0f1e7decc46434419aa85a0cec1c2d17`（产品提交 `5618cb0bb3010d8dab0da82302367e1be3fc7f4f`，后续仅handoff）。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-empty-content-entry-review`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-empty-content-entry-review`。
 
 ## 规格、实现与边界
 

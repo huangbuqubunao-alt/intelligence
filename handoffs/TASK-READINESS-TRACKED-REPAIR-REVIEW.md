@@ -4,7 +4,7 @@
 
 ## 范围与证据纪律
 
-- Base `b14788c6575ffb9796d62c72be8a6e4bb9ca255a` → candidate `166ab39207136e5fe572ad730a9cf73a0494b221`。独立WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-repair-review`，branch `codex/review-readiness-tracked-repair`；作者clean STOP，起点clean。
+- Base `b14788c6575ffb9796d62c72be8a6e4bb9ca255a` → candidate `166ab39207136e5fe572ad730a9cf73a0494b221`。独立WT `/Users/developer/Documents/yia-worktrees/readiness-tracked-repair-review`，branch `codex/review-readiness-tracked-repair`；作者clean STOP，起点clean。
 - 已读root复审包、TASK、最新执行合同、原4950db REJECT与原私有反证、新交接/validation及全部16文件diff。产品仅store/worker；F3仅当前正常升级期望39→40一行；前端、Schema/迁移、依赖、配置、资格零diff。未删除/削弱原断言或特殊ZIP安全规则。
 - 使用 code-review-and-quality、git-workflow-and-versioning；图查询无新符号，fallback固定candidate源码。DIRECT既有stdlib/SQLite/事件和Backup边界，无外部实现或依赖。Jev因禁止网络/模型未调用，审查未降级。
 - 全部运行使用root既有venv，`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:.`；实际打印模块路径确认来自本reviewWT。无真实源/用户库/owner/凭据、holdout、thinking、网络、tokenizer、模型或付费IO。仅隔离fixture/临时SQLite/DATA；review只新增本报告。

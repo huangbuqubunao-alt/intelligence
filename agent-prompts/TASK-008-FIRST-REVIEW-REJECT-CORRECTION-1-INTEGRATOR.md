@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@d44477bd0fa945383769b83f3672d1c606f3c365`；必须是干净单父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@b61f46f6bca3303d5590aac76d8c8c9b53ec4131`，必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@b61f46f6bca3303d5590aac76d8c8c9b53ec4131`，必须干净。
 - 审查 evidence：`b61f46f...` 的唯一父必须为 implementation `10478a9083df4eedae061d99d941c88cb4954179`，且 evidence 只改 `handoffs/TASK-008.md`。
 - 固定原始 base：`473119704c7638d7afd4e68d84d00e85064ceabd`；`base...source` 完整范围只能是 TASK-008 的七个批准路径组。
 - Source 中的任务卡和项目状态为分配前冻结快照；实时状态仅以 main 本提交为准。
@@ -28,7 +28,7 @@
 
 ## 必须执行
 
-1. 先确认 main/source 分支、HEAD、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、干净 index/worktree 和上述父链/范围。
+1. 先确认 main/source 分支、HEAD、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、干净 index/worktree 和上述父链/范围。
 2. 确认准备文件仅为上述五个路径；记录 SHA-256，检查后再次核对，若任何字节变化立即停止、不覆盖。
 3. `git diff --check`、LF/EOF、tailing whitespace、`git diff --cached --check` 和暂存范围必须通过。
 4. 不运行 uv、pytest、build、import、数据库、网络、模型、Vault、凭据或文件删除命令。

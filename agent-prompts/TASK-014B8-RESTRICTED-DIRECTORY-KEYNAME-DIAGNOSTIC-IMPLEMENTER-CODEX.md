@@ -9,7 +9,7 @@ Task: TASK-014B8 — restricted directory keyname diagnostic
 Role: Implementer
 Agent: Codex
 Implementation baseline: main@43f2c748c43215facb231f76a0c93ac45d350657
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic
 Branch: codex/task-014b8-restricted-directory-keyname-diagnostic
 Required source HEAD: 43f2c748c43215facb231f76a0c93ac45d350657
 Read-only failure evidence: 8f5dfce33ac77a45800f4ff53ff6e7054d8f68b0 (must not merge, rewrite, rerun, or call passing)

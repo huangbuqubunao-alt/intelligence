@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-15 Round 7）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `3797f5d`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `682a3ea`）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `3797f5d`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，起始基线 `682a3ea`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b`）
 - **前置轮次状态**：Round 1–6 已全部完成并客观验收（见 `docs/ITERATION_STATE_2026_11_14.md` 至 `docs/ITERATION_STATE_2026_11_15_ROUND6.md`）。
 - **当前阶段**：`ROUND_7_COMPLETED`（前后端 TDD、全量自动化门禁、正式环境热部署与独立浏览器实机验收全部 `PASS`）
@@ -42,7 +42,7 @@
 - **真实浏览器端到端验收（宿主事实核验 `BROWSER_HOST_FACTS`）**：
   - 独立子代理：`7e556242-bfa0-448d-8a36-fe352b802b79`
   - 宿主确认访问源：`http://127.0.0.1:5488`（`blocked_origins: none`）
-  - 宿主实机截图：`/Users/hua/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/7e556242-bfa0-448d-8a36-fe352b802b79/final_step_55.png`
+  - 宿主实机截图：`/Users/developer/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/7e556242-bfa0-448d-8a36-fe352b802b79/final_step_55.png`
   - 验收详情：`#Home` 周报 Markdown 预览已校准为 `精选 31 条必看干货` 并包含 `> **较上期演进对比**（对比 2026-11-13）`；`#Following` 真实渲染 `OpenAI`（`干货 23/100 (23%) · 必看 20 · 均分 8.4 · 折叠 77 Shorts`）、`Greg Isenberg`（`干货 11/12 (92%) · 必看 9 · 均分 8.5 · 折叠 1 Shorts`）与 `本地资料库`（`干货 2/3 (67%) · 必看 2 · 均分 9.2 · 折叠 1 Shorts`），`看干货 (11)` 精准联动 `#Content` 频道筛选（`全部 11`），`问此频道` 精准激活 `#Research` 的 `Greg Isenberg (10)` 来源胶囊；`#Research` 历史检索、`围绕引用视频追问 (4)` 与 `同范围继续追问`（自动勾选 2 节本地实战课并聚焦提问框）全部通过；全程 `0` 控制台报错、`0` HTTP `>= 400` 异常（`PASS`）。
 
 ---

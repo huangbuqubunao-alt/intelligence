@@ -1,6 +1,6 @@
 {
-  "original_isolated_database": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/native-track-real-gui/state.sqlite3",
-  "test_copy": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/native-track-recovery-20261015/state.sqlite3",
+  "original_isolated_database": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/native-track-real-gui/state.sqlite3",
+  "test_copy": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/native-track-recovery-20261015/state.sqlite3",
   "ordinary_GUI_retry_count": 1,
   "old_job_rows_unchanged": true,
   "old_provider_call_rows_unchanged": true,

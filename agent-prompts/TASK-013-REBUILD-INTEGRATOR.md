@@ -4,10 +4,10 @@
 
 ## 动态授权与固定对象
 
-- Execution base：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-INTEGRATOR.md` 必须解析为本授权提交；main 中 TASK-013 必须是 `ACCEPTED`。
-- Accepted source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@d76307fcde73631931f61493c30c75dbda02f028`，必须干净。
+- Execution base：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-INTEGRATOR.md` 必须解析为本授权提交；main 中 TASK-013 必须是 `ACCEPTED`。
+- Accepted source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@d76307fcde73631931f61493c30c75dbda02f028`，必须干净。
 - `d76307fcde73631931f61493c30c75dbda02f028` 是最新 handoff-only Reviewer evidence，唯一父提交精确为 `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`，其 Verdict=`APPROVE`、P0–P3=0。
-- 禁止访问、修改、清理或复用历史 `/Users/hua/Documents/yia-worktrees/task-013` worktree/branch。
+- 禁止访问、修改、清理或复用历史 `/Users/developer/Documents/yia-worktrees/task-013` worktree/branch。
 
 ## 固定范围
 
@@ -23,7 +23,7 @@
 
 ## 合并、验证与收尾
 
-1. 合并前核验 identity `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、main/source SHA、source evidence 父链、两个工作区清洁、完整范围、锁文件不变与 `git diff --check`。
+1. 合并前核验 identity `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、main/source SHA、source evidence 父链、两个工作区清洁、完整范围、锁文件不变与 `git diff --check`。
 2. 在 main 使用 `git merge --no-ff d76307fcde73631931f61493c30c75dbda02f028` 创建 merge commit；即使无冲突也必须保留双父 merge。不得预写或修改 TASK-013 状态。
 3. 在 merge 结果仅执行以下离线门禁：
 

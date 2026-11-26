@@ -18,9 +18,9 @@
 
 再从 main 控制面只读以下绝对路径；不得修改、暂存、merge 或 cherry-pick：
 
-8. `/Users/hua/Documents/youtubek agent/docs/decisions/ADR-003-sqlite-state-store-contract.md` 中 `target_stage` 的职责
-9. `/Users/hua/Documents/youtubek agent/tasks/TASK-002-config-domain-contracts.md` 的“主控预审修复轮”
-10. `/Users/hua/Documents/youtubek agent/agent-prompts/TASK-002-CORRECTION-GROK.md`
+8. `/Users/developer/Documents/youtubek agent/docs/decisions/ADR-003-sqlite-state-store-contract.md` 中 `target_stage` 的职责
+9. `/Users/developer/Documents/youtubek agent/tasks/TASK-002-config-domain-contracts.md` 的“主控预审修复轮”
+10. `/Users/developer/Documents/youtubek agent/agent-prompts/TASK-002-CORRECTION-GROK.md`
 
 worktree 基于较早控制面 commit，可能看不到本修复包及最新任务卡，这是预期隔离。本文件内容由主控直接分配，不得把最新 `main` merge/cherry-pick 到任务分支。
 
@@ -31,7 +31,7 @@ worktree 基于较早控制面 commit，可能看不到本修复包及最新任�
 - Agent: `Grok`
 - Original base: `main@46f8497e771e1461034942dd7967f19d85f79f81`
 - Required current head before changes: `4355a59f6f95e409bcf15b3b8004bb112d0033b3`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-002`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-002`
 - Branch: `grok/task-002-config-domain-contracts`
 - Reviewer: Codex，继续等待修复证据
 - Reuse decision: `DIRECT` 使用现有 Pydantic/PyYAML；不新增组件或依赖

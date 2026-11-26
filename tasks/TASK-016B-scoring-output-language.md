@@ -4,7 +4,7 @@
 - Assignee: `Codex`
 - Base: `main@60551f2b8606e50ed8e4bd8d161ac5636a8a9266`
 - Branch: `codex/task-016b-scoring-output-language`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016b-scoring-output-language`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016b-scoring-output-language`
 - Dependencies: TASK-016A `DONE`、ADR-023 `Accepted`
 - Reuse decision: `DIRECT` — 复用 Pydantic、现有 Ollama Adapter、一次 repair、SQLite
   Artifact/ProviderCall 与 Runtime provenance；Round 11 经用户明确批准固定

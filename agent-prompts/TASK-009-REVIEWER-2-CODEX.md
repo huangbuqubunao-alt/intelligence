@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-REVIEWER-2-CODEX.md`；main 中 TASK-009 必须为 `IN_REVIEW`。
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-009` /
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-REVIEWER-2-CODEX.md`；main 中 TASK-009 必须为 `IN_REVIEW`。
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-009` /
   `codex/task-009-obsidian-notes@d16498fe2a1939c6bec7babd03039e623782d027` /
   `473119704c7638d7afd4e68d84d00e85064ceabd`。
 - Source head 的唯一父为 implementation `956e37a15ab29106f16c45873fccb813cc5a959f`；首轮 evidence 仅追加 handoff。

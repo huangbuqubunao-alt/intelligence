@@ -1,6 +1,6 @@
 # ADR-008 / ADR-009 acceptance sync
 
-Role: Status Integrator. Work only in `/Users/hua/Documents/youtubek agent`.
+Role: Status Integrator. Work only in `/Users/developer/Documents/youtubek agent`.
 
 This is a control-plane-only task. Commit the prepared product-owner acceptance of
 ADR-008/ADR-009, the exact dependency approvals and resulting task gates. Do not install
@@ -10,7 +10,7 @@ credentials/Vaults, call networks, start Workers, push, merge or clean anything.
 ## Fixed inputs
 
 - Required main: `main@d48a752215c28f1326b3f4bd027bc64efcfeb7c5`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`
+- Git identity: `Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 - ADR-008 A-01 through A-15 approved by the product owner on 2026-07-20
 - ADR-009 N-01 through N-15 approved by the product owner on 2026-07-20

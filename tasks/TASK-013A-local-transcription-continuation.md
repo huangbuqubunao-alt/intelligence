@@ -10,7 +10,7 @@
 
 ## 分配
 
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-013a`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-013a`
 - Branch: `codex/task-013a-local-transcription-continuation`
 - Base: `main@d96862f287d523dd524addf79f86c9b0642a4d31`
 - Review: 实现提交后，必须由全新独立 Codex Reviewer 审查；不得预写 verdict、ACCEPTED、merge 或 DONE。

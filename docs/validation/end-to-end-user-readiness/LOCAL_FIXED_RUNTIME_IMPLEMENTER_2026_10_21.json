@@ -6,7 +6,7 @@
   "product_test_commit": "e021fb5646acfa09caef0819eab52610fa964524",
   "recorded_at_utc": "2026-10-20T16:43:00.928215+00:00",
   "recorded_at_asia_shanghai": "2026-10-21T00:43:00.928215+08:00",
-  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-local-fixed-runtime",
+  "worktree": "/Users/developer/Documents/yia-worktrees/readiness-local-fixed-runtime",
   "branch": "codex/task-readiness-local-fixed-runtime",
   "source_sha256": {
     "src/youtube_intel/local_distillation_profile.py": "8f72d3820980f3e900b4fce98d370babb75dad44369b37e056cc92d194f040fb",
@@ -140,7 +140,7 @@
     "DIRECT": "Installed stdlib and existing request/profile/session/host/lease/SQLite/strict observer implementations; no dependency changes.",
     "REFERENCE": "Ollama MIT official commit cf2a313a298066d572c36812e5ad30a21c0db13b routes.go/sched.go/llm/llama_server.go; root independent handover audit. No third-party implementation copied.",
     "legacy_argv_evidence": "Read-only root .var/end-to-end-user-readiness/olama-serve-20261020.log lines 449 and 1086; only starting llama-server lines read.",
-    "root_audit_path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md"
+    "root_audit_path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md"
   },
   "actual_external_operations": {
     "real_HTTP": 0,

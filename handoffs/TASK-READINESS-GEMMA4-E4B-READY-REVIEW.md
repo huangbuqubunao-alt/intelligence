@@ -2,14 +2,14 @@
 
 **APPROVE_READY_SOURCE_ONLY.** No unresolved P0/P1/P2 finding. This is approval of the new activated private source and fixed owner-null template, not a real runtime result, concrete-owner package approval, model qualification or adoption.
 
-- Reviewer `/root/alias_thinking_independent_review`, 2026-10-26; new WT `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready-review`, branch `codex/task-readiness-gemma4-e4b-ready-review`, base `03fdc226b335c43433a44edd5969e6e66aa1c60f`.
-- Exact reviewed author **`33f75810f26db46f702dcd1155ba08b686b87d38`**, clean; author base `28fc7d683d7b8d9998f0b4c3480f3e3af9675bd0`, WT `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready`. Tracked author diff is only its assigned handoff.
+- Reviewer `/root/alias_thinking_independent_review`, 2026-10-26; new WT `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready-review`, branch `codex/task-readiness-gemma4-e4b-ready-review`, base `03fdc226b335c43433a44edd5969e6e66aa1c60f`.
+- Exact reviewed author **`33f75810f26db46f702dcd1155ba08b686b87d38`**, clean; author base `28fc7d683d7b8d9998f0b4c3480f3e3af9675bd0`, WT `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready`. Tracked author diff is only its assigned handoff.
 - C = author `.var/gemma4-e4b-ready`; B = prior `.var/gemma4-e4b-diagnostic` in its original WT. Read current task/prompt, original READY task, isolated decision, verified-artifact record, prior pure preparation/review, new handoff/README/summary, actual source/tests/patches/templates and root immutable proofs. Five-axis review follows `code-review-and-quality`.
 - Reviewer writes only this new handoff plus own ignored `.var/gemma4-ready-review/**`. No author/B/G/product/config/credentials/qualification/dependency/Schema/formal-data changes; no subagents. No actual HTTP, metadata/daemon/model/controller/Terminal launch, process signal or app closure. Complete artifact SHA and bounded header reads were explicitly allowed; no tensor decoding/GPU/model load or partial/download-log read occurred.
 
 ## Independent checks and evidence
 
-Evidence root: reviewer `.var/gemma4-ready-review/`. All Python used root `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, bytecode disabled, explicit author WT `src` PYTHONPATH; import location independently confirmed. Only old exact-node isolation loading additionally appended C. Pytest cache disabled and all temp/output paths remained reviewer-owned.
+Evidence root: reviewer `.var/gemma4-ready-review/`. All Python used root `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, bytecode disabled, explicit author WT `src` PYTHONPATH; import location independently confirmed. Only old exact-node isolation loading additionally appended C. Pytest cache disabled and all temp/output paths remained reviewer-owned.
 
 | Independent check | Result / evidence |
 |---|---|

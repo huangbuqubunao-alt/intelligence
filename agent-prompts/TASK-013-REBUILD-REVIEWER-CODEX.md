@@ -4,8 +4,8 @@
 
 ## 固定对象与授权
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013=`IN_REVIEW`。
-- Reviewed source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@0a9e16887e7dc0b287be941a34e2908766e3992e`；开始时必须干净，唯一父提交为 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013=`IN_REVIEW`。
+- Reviewed source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@0a9e16887e7dc0b287be941a34e2908766e3992e`；开始时必须干净，唯一父提交为 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`。
 - 历史 `task-013` worktree/branch 是已拒绝证据，禁止访问或修改。
 - 相对 base 只允许：`tests/e2e/test_mvp_flow.py`、`tests/e2e/test_failure_recovery.py`、`tests/e2e/fixtures/**`、`docs/ACCEPTANCE_REPORT.md`、`handoffs/TASK-013.md`。
 - 真实 YouTube、Whisper 模型/ffmpeg、Ollama/模型、OpenAI/API/密钥/付费调用、网络、真实 Vault/用户笔记、媒体、launchd、测试目录外写入均未授权。

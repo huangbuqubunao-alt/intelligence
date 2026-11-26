@@ -5,7 +5,7 @@
 Implementer `/root/cloud_preview_writer`, sole writer/no subagents. Base
 `6a55e1c7f711d7aa97db98c85f73a4df65f098a7`; branch
 `codex/task-readiness-grounded-prompt-v2`; worktree
-`/Users/hua/Documents/yia-worktrees/readiness-grounded-prompt-v2`.
+`/Users/developer/Documents/yia-worktrees/readiness-grounded-prompt-v2`.
 Head reported in final chat. Suggested status IN_REVIEW; Root alone accepts and integrates.
 
 Only product file `src/youtube_intel/distillation.py`, one new offline test file and
@@ -102,9 +102,9 @@ SQL, new-test and protected first-case-script hashes;13 protected v1 builder/tra
 symbols are source-byte-equal to base. No old test file changed. Strict mypy122PASS,
 RuffPASS, in-memory compile122 source+new test=123PASS, git diff --check PASS.
 
-All checks use `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`
+All checks use `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`
 with explicit `PYTHONDONTWRITEBYTECODE=1` and
-`PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-grounded-prompt-v2/src`;
+`PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-grounded-prompt-v2/src`;
 the exact full pytest argv and hash manifest are in the final JSON above. The shared
 editable-install default path is never trusted. No real HTTP/model/key operation was
 used as evidence. Final scoped commit is reported in chat; clean STOP pending review.

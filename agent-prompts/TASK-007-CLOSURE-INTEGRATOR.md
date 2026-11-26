@@ -2,7 +2,7 @@
 
 Close only the already-integrated TASK-007; do not run product commands or access TASK-006.
 
-Main `/Users/hua/Documents/youtubek agent` must be `main@3d49ecaf31a4ab800d6a58b5b44f815ab830a06c`, clean index. Verify merge has exactly parents `7b33f6fd73ee5ab7019a7647d71a3b5e78b99e35` and `95087c115b799d6f4e1e063a0adba0a6d10352ce`, the accepted source is an ancestor, and merge first-parent range is exactly the 11 TASK-007 paths. Source worktree must remain `codex/task-007-local-scoring@95087c...` clean. Confirm identity `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+Main `/Users/developer/Documents/youtubek agent` must be `main@3d49ecaf31a4ab800d6a58b5b44f815ab830a06c`, clean index. Verify merge has exactly parents `7b33f6fd73ee5ab7019a7647d71a3b5e78b99e35` and `95087c115b799d6f4e1e063a0adba0a6d10352ce`, the accepted source is an ancestor, and merge first-parent range is exactly the 11 TASK-007 paths. Source worktree must remain `codex/task-007-local-scoring@95087c...` clean. Confirm identity `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 
 Stage/commit exactly five prepared Markdown files:
 

@@ -1,6 +1,6 @@
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
-rootdir: /Users/hua/Documents/yia-worktrees/muse-final-audit
+rootdir: /Users/developer/Documents/yia-worktrees/muse-final-audit
 configfile: pyproject.toml
 plugins: anyio-4.14.2
 collected 179 items
@@ -14,9 +14,9 @@ tests/unit/test_ollama_local_distillation.py ....                        [100%]
 
 =============================== warnings summary ===============================
 tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
-  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+  /Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
     return self._open_to_write(zinfo, force_zip64=force_zip64)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-- generated xml file: /Users/hua/Documents/yia-worktrees/muse-final-audit/docs/validation/muse-final-audit/checks/final-focused.xml -
+- generated xml file: /Users/developer/Documents/yia-worktrees/muse-final-audit/docs/validation/muse-final-audit/checks/final-focused.xml -
 ================== 179 passed, 1 warning in 83.56s (0:01:23) ===================

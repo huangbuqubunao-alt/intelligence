@@ -10,7 +10,7 @@
 - Phase B implementation commit: `e942615cb852f7a1e6d7e06b11833076b1a4ade9`
 - Phase C implementation commit: `da1154d69789d96d2c14dca19a4eeb2abe10013a`
 - Phase C correction commit: `TBD` (final SHA to be filled by reviewer)
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Started: `2026-08-14`
 - Reported: `2026-08-14`

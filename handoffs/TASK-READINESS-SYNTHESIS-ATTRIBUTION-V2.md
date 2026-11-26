@@ -1,6 +1,6 @@
 # TASK-READINESS-SYNTHESIS-ATTRIBUTION-V2 — Implementer design
 
-- Sole writer `/root/schema44_guard_resume`; WT `/Users/hua/Documents/yia-worktrees/readiness-synthesis-attribution-v2`, branch `codex/readiness-synthesis-attribution-v2`, exact base2423345acf2372a8b598aa5602825fe564b9c3b0. New WT created per task because it did not yet exist; other worktrees untouched.
+- Sole writer `/root/schema44_guard_resume`; WT `/Users/developer/Documents/yia-worktrees/readiness-synthesis-attribution-v2`, branch `codex/readiness-synthesis-attribution-v2`, exact base2423345acf2372a8b598aa5602825fe564b9c3b0. New WT created per task because it did not yet exist; other worktrees untouched.
 - DIRECT existing pure synthesis/proof/profile/transport/claim/admission/reader, same spending journal and stdlib. No Schema, migration, dependency, registry or second execution engine.
 
 ## Exact version map, before edits
@@ -26,7 +26,7 @@ Read-only r4 manifest SHA01d7020ba1fe621a4b59d566e1b4816086463c0365ebffdb79807c5
 
 ## Checks and preserved failures
 
-Commands run in this WT with existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, runtime `PYTHONPATH=src`. No dependency install/upgrade; frontend reused a COW copy of existing fixed node_modules into this owned WT. An initial copy target typo caused `tsc not found`; correcting the local target enabled the checks, no package/lock/config changed.
+Commands run in this WT with existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, runtime `PYTHONPATH=src`. No dependency install/upgrade; frontend reused a COW copy of existing fixed node_modules into this owned WT. An initial copy target typo caused `tsc not found`; correcting the local target enabled the checks, no package/lock/config changed.
 
 - New and complete existing synthesis/runtime/persistence/normal-budget/owner-entry group: **183 PASS142.32s** (`.var/attribution-v2/final-synthesis-group.log`). New regression file has24 cases: frozen golden v1 bytes; explicit/missing/mixed/first-person/injected stored sources unchanged by v2; mixed/unknown/rehashed proof/descriptor/price/origin refusal; actual purpose-bound fake-wire positive/NO_NEW/error/unknown/truncated/old-output lifecycle; reader/Save/Topic/all-table+DATA restore; cancelled restart/restore; old review/authority refusal; shared journal holds; actual factory budget→matching-profile preview without eligibility.
 - Complete existing reader+Backup files: **186 PASS246.94s**, one intentional duplicate-name warning from invalid ZIP fixture (`reader-backup-old.log`). Existing v1 positive/NO_NEW/failed/cancelled persistence/restore paths remain verifiable, old34–44 restoration and corrupt/unknown extra-file refusal preserved.

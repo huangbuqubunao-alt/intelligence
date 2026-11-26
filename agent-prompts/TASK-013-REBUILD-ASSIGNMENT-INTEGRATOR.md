@@ -5,8 +5,8 @@
 ## 固定对象
 
 - Main base：`main@2a59dfe3860161a5989f2c08161f03c73aa4ca86`，必须干净且为唯一父基线。
-- 新目标 worktree：`/Users/hua/Documents/yia-worktrees/task-013-rebuild`；新分支：`codex/task-013-e2e-acceptance-rebuild`。两者开始时必须不存在。
-- 历史 worktree `/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance@2afd95a...` 是已拒绝证据，必须保留且不得访问、修改、清理或复用。
+- 新目标 worktree：`/Users/developer/Documents/yia-worktrees/task-013-rebuild`；新分支：`codex/task-013-e2e-acceptance-rebuild`。两者开始时必须不存在。
+- 历史 worktree `/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance@2afd95a...` 是已拒绝证据，必须保留且不得访问、修改、清理或复用。
 - TASK-013A 已为 `DONE`；产品负责人已批准 TASK-013 在全新 worktree 中重建离线验收，Codex 是唯一 Implementer，完成后由全新独立 Codex Reviewer 审查。
 
 ## source 唯一允许路径组
@@ -29,7 +29,7 @@
 
 ## 必须执行
 
-1. 核验 main identity `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree、目标路径/分支不存在及精确五文件范围。
+1. 核验 main identity `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree、目标路径/分支不存在及精确五文件范围。
 2. 从固定 base 创建新 branch/worktree，核验 branch、HEAD 和洁净度。source 内 `BLOCKED/UNASSIGNED` 是固定 base 快照；实时控制面只在 main。
 3. 对准备文件做两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围核验；字节漂移立即停止。
 4. main 将 TASK-013 设为 `IN_PROGRESS/Codex`，记录新 worktree、分支、base、五路径范围及离线资源边界；不得预写 Reviewer verdict、ACCEPTED、merge 或 DONE。TASK-014 继续 BLOCKED。

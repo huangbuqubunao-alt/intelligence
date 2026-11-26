@@ -5,7 +5,7 @@
 - Task: TASK-READINESS-NATIVE-RAW-CAPTURE
 - Role: Implementer /root/source_context; Reviewer: /root/intel_bounded_review
 - Base: c5da5e8007f8a1343207045d5203558e0a8f253d
-- Worktree: /Users/hua/Documents/yia-worktrees/readiness-native-raw-capture
+- Worktree: /Users/developer/Documents/yia-worktrees/readiness-native-raw-capture
 - Branch: codex/task-readiness-native-raw-capture
 - Head: implementation commit identified by this branch and root report; no main merge.
 - Reported: 2026-10-13

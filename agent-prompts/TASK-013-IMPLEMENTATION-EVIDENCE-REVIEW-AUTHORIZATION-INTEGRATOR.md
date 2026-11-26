@@ -18,7 +18,7 @@
 
 ## 必须执行
 
-1. 核验 main/source 的分支、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、洁净度、source 的精确五路径范围，以及 source 无依赖/锁/生产代码改动。
+1. 核验 main/source 的分支、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、洁净度、source 的精确五路径范围，以及 source 无依赖/锁/生产代码改动。
 2. 初始 index 必须为空。工作树只允许存在上述五个主控准备文件；对其做两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围核验。字节漂移或任何范围外路径立即停止。
 3. 不运行 uv、pytest、mypy、Ruff、build、imports、数据库、网络、Vault、云端、模型、凭据、launchctl 或任何产品文件 I/O 命令。
 4. main 将 TASK-013 设为 `IN_REVIEW`，只登记全新独立 Codex Reviewer 已授权未启动；不得预写 APPROVE、ACCEPTED、merge SHA 或 DONE。TASK-014 继续 `BLOCKED/UNASSIGNED`。

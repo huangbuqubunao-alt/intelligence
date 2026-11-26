@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@b77e8656bb7dd42084e833993fe2ab5b6ba5c545`，必须干净且为唯一父基线。
-- Accepted source：`/Users/hua/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@4333b1d2bcd0a4b32162ab2d67f112c92fa7d0a3`，必须干净。
+- Accepted source：`/Users/developer/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@4333b1d2bcd0a4b32162ab2d67f112c92fa7d0a3`，必须干净。
 - Reviewer 2 evidence `4333b1d...` 的唯一父为 Correction 1 `d046c394e3c6bcf47c05231f71dbf50db4c1f5f8`，且只修改 source handoff；完整 source Diff 严格为 12 个批准路径。
 - `pyproject.toml` 仅为 `[tool.uv.build-backend].source-include`；依赖、`uv.lock`、build backend 和工具链未变。
 
@@ -27,7 +27,7 @@
 
 ## 必须执行
 
-1. 核验 main/source HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、Reviewer evidence handoff-only scope、完整 12 路径范围与 pyproject/依赖/锁边界。
+1. 核验 main/source HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、Reviewer evidence handoff-only scope、完整 12 路径范围与 pyproject/依赖/锁边界。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据、launchctl、plutil 或任何产品文件 I/O 命令。
 4. main 将 TASK-012 设为 `ACCEPTED`，授权 Product Integrator；不得预写 merge SHA 或 DONE。TASK-013/014 保持 `BLOCKED/UNASSIGNED`。

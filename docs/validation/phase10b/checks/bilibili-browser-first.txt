@@ -6,7 +6,7 @@ AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
 
   assert.ok(body.includes(text('Timestamped key points', '带时间戳的要点')))
 
-    at file:///Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/bilibili-provider.e2e.mjs:55:12 {
+    at file:///Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/frontend/bilibili-provider.e2e.mjs:55:12 {
   generatedMessage: true,
   code: 'ERR_ASSERTION',
   actual: false,

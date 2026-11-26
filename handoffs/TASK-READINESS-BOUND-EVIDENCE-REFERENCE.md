@@ -1,7 +1,7 @@
 # TASK-READINESS-BOUND-EVIDENCE-REFERENCE — Implementer
 
 - Date:2026-10-29; role `/root/cloud_preview_writer`; suggested IN_REVIEW, clean STOP after the commit containing this report.
-- Base `ee3f82d1a77b066f8ae5956a2efa7f953d025eb9`; WT `/Users/hua/Documents/yia-worktrees/readiness-bound-evidence-reference`; branch `codex/task-readiness-bound-evidence-reference`.
+- Base `ee3f82d1a77b066f8ae5956a2efa7f953d025eb9`; WT `/Users/developer/Documents/yia-worktrees/readiness-bound-evidence-reference`; branch `codex/task-readiness-bound-evidence-reference`.
 - Exact assigned task/proposal plus Root's refinements: model never echoes a full input hash; stable chronological catalog; old terminal UNKNOWN Backup behavior preserved. No new real execution authorization.
 
 ## Result / reuse
@@ -24,7 +24,7 @@ For v3 only, service dispatch requires the exact new result carrier, verifies or
 
 ## Checks / preserved failures
 
-Python commands all explicitly used `PYTHONDONTWRITEBYTECODE=1`, `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bound-evidence-reference/src`, and `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Local ignored evidence is `.var/bound-evidence-reference/`.
+Python commands all explicitly used `PYTHONDONTWRITEBYTECODE=1`, `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bound-evidence-reference/src`, and `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Local ignored evidence is `.var/bound-evidence-reference/`.
 
 | Evidence | Result |
 |---|---|

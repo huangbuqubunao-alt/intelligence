@@ -1,6 +1,6 @@
 # TASK-016A Correction 1 Implementer — finite Evidence timestamps
 
-固定 source：`/Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`
+固定 source：`/Users/developer/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`
 分支 `codex/task-016a-intelligence-contract-foundation`，HEAD 必须为 Reviewer evidence
 `6a564b18a3c91e4366c1b744733910dc5584854b`，其唯一父必须为 implementation
 `210dd203e722eabf3453808f490f4afe52139183`。开始前核验 source 干净和 Review 1

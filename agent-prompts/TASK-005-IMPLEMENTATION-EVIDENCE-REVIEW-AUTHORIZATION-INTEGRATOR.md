@@ -7,11 +7,11 @@ source，不得运行产品测试/构建/uv/数据库/网络命令，不得启�
 
 ## 固定基线与 source
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@38f1caa1c957b4b305afbe0f87c2e082b1ffc929`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Implementation base：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
 - Expected source HEAD：`98d19700818bcae14efc412aaaaeb6eed97a1535`

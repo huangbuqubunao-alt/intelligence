@@ -16,7 +16,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex /root`
 - Base branch/commit: `main@6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-007`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-007`
 - Branch: `codex/task-007-local-scoring`
 - Head commit: 本报告与实现提交在同一 HEAD；最终 SHA 由主控回传记录。
 - Started: `2026-07-19`
@@ -388,7 +388,7 @@ implementation source was not amended.
 
 - Reviewer: fresh independent Codex Reviewer; this reviewer did not implement TASK-007
   or Correction 1.
-- Dynamic authorization: `git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H --
+- Dynamic authorization: `git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H --
   agent-prompts/TASK-007-REVIEWER-2-CODEX.md` resolved to
   `1eb3380ea329592a4259b5ead24fde5403f7fa0f`; the main task card lists TASK-007 as
   `IN_REVIEW`.

@@ -6,7 +6,7 @@
 - Role: `Implementer / adversarial reviewer`
 - Agent/session: `Codex`
 - Approved base / START_HEAD: `92874d4994ec2507e192d18eeafc694fc143a0ff`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-025-weekly-foundation`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-025-weekly-foundation`
 - Branch: `codex/task-025-weekly-foundation`
 - Implementation commit: `54dd03a435ed42dfdbc7325c8aace243f70a3a56`
 - Started / reported: `2026-09-08`

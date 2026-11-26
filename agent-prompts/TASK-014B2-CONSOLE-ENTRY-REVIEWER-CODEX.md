@@ -10,7 +10,7 @@ Task: TASK-014B2 — formal console entry
 Role: Reviewer
 Agent: Codex
 Main control-plane base: main@b4d6981e56da8366f0c512a8f0544396d47cd209
-Source worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry
+Source worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry
 Source branch: codex/task-014-phase-b2-console-entry
 Review HEAD: f6e71e027c86f16cc34e062fef0a753c73b42d05
 Required parent: b4d6981e56da8366f0c512a8f0544396d47cd209

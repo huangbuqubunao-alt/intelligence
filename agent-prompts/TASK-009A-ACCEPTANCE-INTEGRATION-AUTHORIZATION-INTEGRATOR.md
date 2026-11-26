@@ -8,7 +8,7 @@
 - Accepted source：`e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`
 - Correction：`9ef4b2f63df65d09569ba119c6873805dcd9de17`
 - Review evidence：`e30b40c7bfb388748ff1aee0420177f2ee6c2e2e` 的唯一父必须为 Correction，且只改 source handoff。
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
 
 ## 唯一允许提交范围
 

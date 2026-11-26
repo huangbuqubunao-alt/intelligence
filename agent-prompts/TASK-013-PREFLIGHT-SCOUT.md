@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-PREFLIGHT-SCOUT.md` 必须解析为本 preflight 控制面提交。
-- 只在 main `/Users/hua/Documents/youtubek agent` 做只读核验；开始时 main、index 和 identity 必须干净。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-PREFLIGHT-SCOUT.md` 必须解析为本 preflight 控制面提交。
+- 只在 main `/Users/developer/Documents/youtubek agent` 做只读核验；开始时 main、index 和 identity 必须干净。
 - 当前基线 TASK-012 已 `DONE`；TASK-013 仍是 `BLOCKED/UNASSIGNED`。本包不构成实现、依赖、worktree、Reviewer 或真实冒烟授权。
 
 ## 必读材料

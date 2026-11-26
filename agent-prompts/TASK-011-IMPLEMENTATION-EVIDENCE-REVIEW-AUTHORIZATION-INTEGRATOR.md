@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@0aa7e8d607656ded7c47c017ad1387bf361781b4`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`，必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`，必须干净。
 - Implementation 唯一父为固定 base `44fc64be2cb4602cb93c1d03f84d6dd2a1677750`；完整 Diff 精确为 `reporting.py`、`state.py`、`providers/obsidian.py`、`templates/weekly.md`、两份既定 tests 和 source handoff，未改依赖/锁。
 - Source 的 `IN_PROGRESS` 卡是分配 base 快照；实时状态仅以 main 本提交为准。
 
@@ -26,7 +26,7 @@
 
 ## 必须执行
 
-1. 核验 main/source HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、7 路径 source 范围与未变锁文件。
+1. 核验 main/source HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、7 路径 source 范围与未变锁文件。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. main 将 TASK-011 设为 `IN_REVIEW`，授权全新独立 Reviewer；不得预写 Verdict、ACCEPTED、merge 或 DONE。TASK-012 保持 `BLOCKED/UNASSIGNED`。

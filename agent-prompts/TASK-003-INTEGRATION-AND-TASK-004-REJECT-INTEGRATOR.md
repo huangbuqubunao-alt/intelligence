@@ -27,7 +27,7 @@ main 初始 HEAD 必须为 `fb1cdd7...`；准备内容必须精确属于这 7 �
 
 ## 必查事实
 
-1. 身份为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+1. 身份为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 2. TASK-003 source worktree 只读且干净，HEAD `f07795...`；仍为 `ACCEPTED`，TASK-003 Integrator 包只授权后续 non-fast-forward merge 与任务卡门禁，不能在本轮执行 merge 或改 `DONE`。
 3. TASK-004 source worktree 只读且干净，HEAD `5d66c28...`；review evidence 父提交必须为 `30932e1...` 且只修改 handoff。完整 Diff 相对 `dcc7d85...` 仍为 17 个批准文件。`REJECT` 的 P1 必须逐字准确：非法 `age_limit` 的 `AppError.video_id` 为 None；RSS entry 缺 channelId 被请求 channel 回填，造成 candidate/cursor 提交。不得把它们写成已修复。
 4. correction 4 只允许五个既有 TASK-004 文件；TASK-003 Integrator 和 TASK-004 correction 4 在本次同步提交后可并行启动，但不得同时写 main。
@@ -42,12 +42,12 @@ git var GIT_AUTHOR_IDENT
 git var GIT_COMMITTER_IDENT
 git diff --check
 git diff --name-only
-git -C "/Users/hua/Documents/yia-worktrees/task-003" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-003" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-004" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-004" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-004" rev-list --parents -n 1 5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58
-git -C "/Users/hua/Documents/yia-worktrees/task-004" diff --name-status 30932e1742e948683f9e1c0f63236451b8d731bd..5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58
+git -C "/Users/developer/Documents/yia-worktrees/task-003" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-003" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-004" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-004" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-004" rev-list --parents -n 1 5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58
+git -C "/Users/developer/Documents/yia-worktrees/task-004" diff --name-status 30932e1742e948683f9e1c0f63236451b8d731bd..5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58
 git diff --cached --check
 git diff --cached --name-only
 ```

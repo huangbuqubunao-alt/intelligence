@@ -6,7 +6,7 @@
 - Original author `e9f790a8ad16fbbbc138db6d34857b4a672234f5`; original REJECT `d77889f5778114773cbbdb6491471343976ca8ac` preserved.
 - Fixed repair `f9a8cdbae81d4420d32cb2b196ffa707d5a96c86`.
 - Review baseline `8d9bb2a320ea833d41e0691f4b828464b4ae0461`, fixed source plus only Root review task/prompt.
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-settings-review-r2`; branch `codex/task-readiness-bigmodel-settings-review-r2`.
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-settings-review-r2`; branch `codex/task-readiness-bigmodel-settings-review-r2`.
 - **Verdict: APPROVE cumulative e9+f9, bounded configuration/UI engineering only. Both original P2 findings are closed. No remaining confirmed P0/P1/P2 within this slice.** Root retains acceptance/integration and actual user-key QA. This does not approve the separately rejected transport/audit snapshot path, grant model qualification or declare the whole Goal/production adoption complete.
 
 Only this report was added to tracked files. No product/test edits, native Keychain, environment/actual key reads, external requests, model calls, owner/Root QA data, state/SQL, dependencies/configuration/main modifications occurred. Tests use fake stores and synthetic key strings. The ignored frontend/node_modules symlink only reuses Root's existing dependencies, explicitly authorized; no install/package/lock/toolchain change.
@@ -40,7 +40,7 @@ The full backend tests also cover zero-width/surrogate cases and valid `!~`/2048
 
 ## Independent complete checks
 
-Existing interpreter `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; all Python uses `PYTHONDONTWRITEBYTECODE=1` and explicit `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-settings-review-r2/src`. API probes additionally include this review's tests/unit import path. Compile preceded pytest; all databases/DATA are separate temporary fixtures, no system credential store.
+Existing interpreter `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; all Python uses `PYTHONDONTWRITEBYTECODE=1` and explicit `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-settings-review-r2/src`. API probes additionally include this review's tests/unit import path. Compile preceded pytest; all databases/DATA are separate temporary fixtures, no system credential store.
 
 | Command/check | Independent actual result |
 |---|---|

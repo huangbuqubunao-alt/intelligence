@@ -4,7 +4,7 @@
 
 - Role: Implementer; sole writer `cloud_preview_writer`; recommendation: **IN_REVIEW**, not accepted or merged.
 - Base: `eb02af9f12de2565f51e4afb3eeeeb8b81f8d5d2`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-cloud-readonly-preview`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-cloud-readonly-preview`.
 - Branch: `codex/task-readiness-cloud-readonly-preview`; head is the commit containing this handoff.
 - Source scope: `distillation.py`, `local_api.py`, `runtime_composition.py`, one atomic helper in `state.py`; related backend tests. Root additionally authorized minimal frontend ticket compatibility: `App.tsx`, one bilingual sentence in `uiLanguage.tsx`, its unit assertion, and the existing mocked consent browser fixture assertion.
 - No Schema, dependency/lockfile, production configuration or model-qualification change. No actual provider HTTP/model invocation, credential value/.env/Keychain/owner-database access, main change, external action, fee or private upload.
@@ -38,7 +38,7 @@ A concurrent duplicate or a fresh ticket after restart cannot make another invoc
 
 ## Verification
 
-All Python commands use `PYTHONDONTWRITEBYTECODE=1`, explicit `PYTHONPATH` to this worktree's `src`, and `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` (the shared editable default is not trusted).
+All Python commands use `PYTHONDONTWRITEBYTECODE=1`, explicit `PYTHONPATH` to this worktree's `src`, and `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` (the shared editable default is not trusted).
 
 | Check | Result |
 |---|---|

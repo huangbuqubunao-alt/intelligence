@@ -2,9 +2,9 @@
 
 **APPROVE_BOUND_MANUAL_RECOVERY_COMMAND_ONLY.** No unresolved P0/P1/P2 finding. This approves the exact planned manual command and current cold-owner/package/launch bindings under the already reviewed runtime guards. It does not prove resource availability, model quality, qualification or adoption.
 
-Reviewer `/root/preexec_recovery_review`, 2026-10-26; continuing WT `/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery-review`, branch `codex/task-readiness-gemma4-preexec-recovery-review`, prior source review `f73183c1ce9f9e9ea3285247c8c29667e0acdab3`. Reviewed unchanged author `8e864d91bbba0a9c5800ab1792438488f374f39c`; Root stage2 task/prompt at `7e9d09b`. Read both appended stage2 instructions and immutable Root cold-binding receipt. Only this new handoff and own ignored `binding/**` evidence were written. No source/C/G/Root/product/configuration/credentials/qualification changes, HTTP, runtime/Terminal/model startup, signals, app closure or subagents.
+Reviewer `/root/preexec_recovery_review`, 2026-10-26; continuing WT `/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery-review`, branch `codex/task-readiness-gemma4-preexec-recovery-review`, prior source review `f73183c1ce9f9e9ea3285247c8c29667e0acdab3`. Reviewed unchanged author `8e864d91bbba0a9c5800ab1792438488f374f39c`; Root stage2 task/prompt at `7e9d09b`. Read both appended stage2 instructions and immutable Root cold-binding receipt. Only this new handoff and own ignored `binding/**` evidence were written. No source/C/G/Root/product/configuration/credentials/qualification changes, HTTP, runtime/Terminal/model startup, signals, app closure or subagents.
 
-Y = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`; C = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`; G = `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025`.
+Y = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`; C = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`; G = `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025`.
 
 ## Exact independent bindings
 

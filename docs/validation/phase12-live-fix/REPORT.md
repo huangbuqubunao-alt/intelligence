@@ -9,7 +9,7 @@ were delegated. Phase 13/14 remain frozen.
 1. **Starting failed candidate:** `d0679d50b3a7a0f2e8a3006fdab8ccc268614a18`.
    Created the remediation worktree from this exact commit, initially clean.
    The independent live failure supersedes the previous local completion claim.
-2. **Worktree / branch:** `/Users/hua/Documents/yia-worktrees/phase12-live-fix`,
+2. **Worktree / branch:** `/Users/developer/Documents/yia-worktrees/phase12-live-fix`,
    `codex/phase12-live-fix`. No merge, push, PR or accepted-history rewrite.
 3. **Starting protected fingerprints:** [protected-start.json](protected-start.json)
    records paths, branches, HEADs, full porcelain status, tracked/cached patch

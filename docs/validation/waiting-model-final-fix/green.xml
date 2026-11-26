@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="1.518" timestamp="2026-10-11T22:07:20.252877+08:00" hostname="192.168.0.101"><testcase classname="tests.unit.test_backup_restore" name="test_waiting_model_zero_invocation_cancel_is_durable_idempotent_and_backup_safe" time="0.480"><failure message="sqlite3.OperationalError: no such table: distillation_waiting_model_cancellations">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/green/test_waiting_model_zero_invoca0')
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="1.518" timestamp="2026-10-11T22:07:20.252877+08:00" hostname="192.168.0.101"><testcase classname="tests.unit.test_backup_restore" name="test_waiting_model_zero_invocation_cancel_is_durable_idempotent_and_backup_safe" time="0.480"><failure message="sqlite3.OperationalError: no such table: distillation_waiting_model_cancellations">tmp_path = PosixPath('/Users/developer/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/green/test_waiting_model_zero_invoca0')
 
     def test_waiting_model_zero_invocation_cancel_is_durable_idempotent_and_backup_safe(tmp_path: Path) -&gt; None:
         database, data_root, vault, repository, artifact = _workspace(tmp_path)
@@ -48,7 +48,7 @@ now = datetime.datetime(2026, 9, 23, 8, 0, tzinfo=datetime.timezone.utc)
                     )
 E                   sqlite3.OperationalError: no such table: distillation_waiting_model_cancellations
 
-src/youtube_intel/state.py:9458: OperationalError</failure></testcase><testcase classname="tests.unit.test_backup_restore" name="test_cancel_does_not_release_another_pending_execution" time="0.261"><failure message="sqlite3.OperationalError: no such table: distillation_waiting_model_cancellations">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/green/test_cancel_does_not_release_a0')
+src/youtube_intel/state.py:9458: OperationalError</failure></testcase><testcase classname="tests.unit.test_backup_restore" name="test_cancel_does_not_release_another_pending_execution" time="0.261"><failure message="sqlite3.OperationalError: no such table: distillation_waiting_model_cancellations">tmp_path = PosixPath('/Users/developer/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/green/test_cancel_does_not_release_a0')
 
     def test_cancel_does_not_release_another_pending_execution(tmp_path: Path) -&gt; None:
         _, _, _, repository, _ = _workspace(tmp_path)

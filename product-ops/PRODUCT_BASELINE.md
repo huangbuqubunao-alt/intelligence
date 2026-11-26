@@ -1,8 +1,7 @@
 # 产品与技术基线审计报告（Product Baseline Audit）
 
-- **审计更新日期**：2026-11-24（`Asia/Shanghai`）
-- **审计人**：AI 产品负责人（CPO / Market & UX / Tech Lead / QA / Growth & Ops）
-- **活跃开发分支 & 公开主线（`main` & `origin/main`）**：`main@4f3fe70`（已执行 `FD-009` 将 Iteration #10 / `BL-013` 全套缺陷修复、实机浏览走查及第 14 组云端 CI 守卫线性合入主线，[`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 双端全绿，无 GitHub Release，仓库保留 4 个历史 tag）
+- **审计更新日期**：2026-11-24（`Asia/Shanghai` · Iteration #11 / `BL-014`）
+- **当前研发分支 vs 公开主线**：研发分支 `antigravity/task-user-readiness-20261112` 已完成 Codex Round 2 全量缺陷清零、当前树 995 份历史文件隐私脱敏、CI 扩容至 `7,124` 项 Python 分片回归及 `qwen3.5:9b` 逐句/要点 100% 引用实测，待创始人审批合流 `main`；当前公开主线仍为 `main@d1b58f7`（仅文档跟随提交，前置代码基线 `main@4f3fe70` 在 [`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 获双端绿标，无 GitHub Release，仓库保留 4 个历史 tag）。
 - **当前运营边界**：**内部自主迭代与产品完善阶段**（严格不招募真实外部用户、不发起真人试跑、不把 AI 模拟体验当成真人需求证据）
 
 ---
@@ -17,8 +16,8 @@
 | **4. UI/UX 设计与实机交互质量** | Iteration #3–#5 连续闭环首日冷启动、内容详情与首轮引导；Iteration #8 在 `#Content/<id>` `#section-intelligence` 新增双主题响应式关键帧卡片、PPT/讲者筛选与键盘无障碍 Lightbox；Iteration #10 补齐 `#Content` 200+ 分页/全库搜索（含 `>100` 续拉）、`⌘K` 命中截断总数明示、尾段直达聚焦、切专题清除旧锁、IME 保护、Lightbox 焦点归还与同页历史切换；实机 Chromium（`8793` Demo + `8794` 355 条库）桌面/移动双主题 **`0px` 溢出、`0` console error、`0` HTTP `>=400`**。 | 首次体验、多模态图卡可读性与跨页切换一致性均达到内部验收标准。 | 真实首次用户在脱离提示下能否自如完成“引导 → 导入 → 图文抽帧 → 导出”。 |
 | **5. 前后端架构** | Python 3.12+ 后端（137 个 `src` `.py` 源文件受 `mypy` 覆盖，`visual_keyframes.py` + `FastReadApiApplication` 关键帧/证据直达/全库检索路由 + `BEGIN IMMEDIATE` 原子计账 + `dir_fd` `O_NOFOLLOW` 安全校验 + 复用 `repo_conn` 保持冷读连接不超限）；React + TypeScript + Vite 前端（`WorkspaceVisualKeyframes` 响应式图卡/Lightbox、`CommandPalette` 全库联动与总数截断提示）；大库分页、全库分块读取与 `include_markdown=False` 列表冷读加速生效。 | 单进程回环静态托管 + Sidecar 隔离图像代数目录（`gen-<uuid>` `0o700`/`0o600`）兼顾极简部署与安全边界。 | 当个人库长期沉淀数百组关键帧包后的本地磁盘占用整理需求。 |
 | **6. 数据结构与存储机制** | 双 SQLite 分离：核心事实库 `state.sqlite3` 保持零 Schema 改动；Sidecar AI 库 `.workspace-ai/hub.sqlite3` 维护 `video_visual_analyses` 与 `.workspace-ai/keyframes/<hash16>/gen-<uuid>/`（仅提交成功后切换代数并在单视频锁与提交后回收旧目录）；Iteration #10 备份快照通过 SHA-256 校验打包离线 JPEG 资产并在超出 `40 MiB` 关键帧原图预算或 `64 MiB` JSON 总包预算时分级优雅降级、输出 `skipped_visual_assets` + 告警而完整保留摘要/问答/配置，恢复时主库权威复核（覆盖摘要要点、有据引用与拒答关联片段 `related_excerpts`）并同步重生成 `NEEDS_REVERIFICATION` Obsidian Markdown 与 `.zip` 导出包。 | 分库 + SHA-256 资产校验 + 分级预算降级 + 原子代数切换确保恢复可自闭环、导出必可还原且不漏出未经核验的 Markdown 正文或片段。 | 长期运行生成较多离线图包后的主动清理阈值设计。 |
-| **7. 测试覆盖与质量现状** | **公开主线 `main@4f3fe70` 云端与实机全绿**：GitHub Actions [`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 双作业 `success`——`Frontend Build & Vitest` `1m37s`（`vite build` `1.37s` + `57/57` / `1257/1257`）、`Python Lint, Typecheck & Public Beta Integration` `5m55s`（`ruff` / `mypy` 137 文件 0 错 + 14 组全量 **`175 passed in 309.20s`**）；本地 16 组 **`202 passed`**，双端口 `8793`/`8794` 实机浏览器全部通过。 | Codex 22 项、Claude 3 轮独立对抗复核与实时实机走查均已完成闭环保护与上云持久守卫。 | 真实外网长视频在多变 `yt-dlp` 字幕与多类型课件画面上的长期效果（待后续观察）。 |
-| **8. 技术债与潜在安全风险** | **安全扫描**：`scripts/security_scan.sh` 对新增与修改的源码/前端/测试/`product-ops/` 全部 **0 命中**（仅历史测试哨兵 17 条）。<br>**已核实风险**：① GitHub 仓库维持被动 `PUBLIC` 状态（严守零外宣、无 GitHub Release、本轮未新增发布标签、零招募）；② BYOK 文本/视觉双路派发已统一启用拒绝重定向传输层，本地推理前阻断纯文本模型盲发视觉请求；③ 原生非 WSL Windows 因 `fcntl` 不可用受限（已有运行时错误引导）；④ 外部真人体检指标仍为 0。 | 在内部阶段，最大系统风险已从工程/信任漏洞收敛至“尚缺外部真实留存样本”。 | 待授权转入真人试验后的未知平台接口限流/反爬摩擦分布。 |
+| **7. 测试覆盖与质量现状** | **公开主线 `main@d1b58f7`（前置绿标 `4f3fe70` [`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823)）+ 研发分支 `ce6f8dcc` 实测全绿**：<br>· 分支 `.github/workflows/ci.yml` 新增 `tsc --noEmit`、4 分片 `python-unit-full`（`3,955` 项）及 8 分片 `python-integration-full`（`3,169` 项），合计 **`7,124` 项 Python CI 覆盖**（并在 `RELEASE_CHECKLIST.md` 透明披露 `GOV-001` 6 文件 `211` 项 + 2 密封单测及 `21` 项外部 worktree 夹具）；<br>· 本地默认 Vitest **`57/57` / `1,259/1,259 passed`（`65.21s`）** + `14 组` 核心子集 `181 passed` + `ce6f8dcc` 复跑 `32 passed` + 本机 `qwen3.5:9b` 逐句/要点 100% 实测。 | Codex 两轮审查、Claude 3 轮对抗复核与实时实机走查均已完成代码闭环并接入全仓分片 CI 守卫（待合流 `main` 上云）。 | 真实外网长视频在多变 `yt-dlp` 字幕与多类型课件画面上的长期效果（待后续观察）。 |
+| **8. 技术债与潜在安全风险** | **安全与隐私扫描**：`scripts/security_scan.sh` 对 `src/`、`frontend/`、`scripts/`、`product-ops/` 全部 **0 命中**（整体输出 `status=findings count=17`：16 条预置假测试哨兵 + 1 条历史集合日志 `docs/validation/dogfood-day2-d2-02/full-suite-collection.txt`）；当前工作树 995 份历史文档脚本脱敏后 `git grep` 匹配为 `0`；全形式 SSRF/DNS 重绑定/`4 MiB` 上限/回环直连与 GB18030/UTF-16 解码均已落地。<br>**已核实风险**：① GitHub 仓库维持被动 `PUBLIC` 状态（严守零外宣、无 GitHub Release、本轮未新增发布标签、零招募）；② 原生非 WSL Windows 因 `fcntl` 不可用受限（已有运行时错误引导）；③ 外部真人体检指标仍为 0。 | 在内部阶段，最大系统风险已从工程/信任漏洞收敛至“尚缺外部真实留存样本”。 | 待授权转入真人试验后的未知平台接口限流/反爬摩擦分布。 |
 | **9. 现有运营与商业化准备情况** | 基础设施已就绪：GitHub `PUBLIC` + Apache-2.0 `LICENSE`/`NOTICE` + `ci.yml` + 每日日报生成器 `scripts/generate_daily_ops_report.py` + 创始人已在 Antigravity 面板启用 21:00 日报自动化侧车；零额外第三方 SaaS 开销。商业化仍停留在方案推演与定价锚点对比期，**无真实付费转化数据**。 | 在未过外部留存门禁前，坚持“Apache-2.0 单机核心免费 + 按工作流效率/团队协同收费假设”比自研计费中台或倒卖 Token 更合理。 | 个人用户对“$\$29\text{–}\$49$ 买断工作流包”与团队席位付费的实际接受度。 |
 | **10. 历史开发决策及依据** | `DEC-OPS-001`~`DEC-OPS-014`（涵盖前期闭环、冷启动、Stage D、Iteration #4–#9 合流 `main` 以及 Iteration #10 Codex 审查 15 P1 + 7 P2 缺陷清零）。每次迭代均先核验痛点或实机证据，严控边界不盲目扩线。 | 维持小步快跑、实机验真与严控边界策略有效防止了“功能膨胀却失控消费”。 | 未来何时启动受控真人首测或推进下一轮高优细节打磨。 |
 
@@ -54,5 +53,5 @@
 - **真实外部用户数据（DAU / 激活率 / Day-7 留存 / NPS / 真实付费转化）**：**当前不可评估**（项目严格处于**内部自主迭代与产品完善阶段**，严禁私自触达真人用户）。
 - **已实际跑通的内部依据**：
   - 全仓静态、构建、CI 单元测试及集成测试 100% 全绿；
-  - `EXP-002` 真实本机 `qwen3.5:9b` 双语盲测（非合成 LLM 桩）达成 `100%` 有引用作答与 `100%` 诱导拒答；
+  - `EXP-002` 真实本机 `qwen3.5:9b` 双语盲测（非合成 LLM 桩）达成 **3/3 (100%) `GROUNDED`**、**2/2 (100%) 诱导拒答**、**13/13 (100%) 逐句引用命中**与 **18/18 (100%) 要点/行动引用命中**；
   - AI 模拟四类用户旅程（新手首次启动、深度双语研究者、异常对抗与边界输入、移动端响应式 `375×812`）实机通过，最新结果完整登记于 [`TEST_LOG.md`](./TEST_LOG.md)。

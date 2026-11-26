@@ -10,7 +10,7 @@
 - Contract: `docs/decisions/ADR-002-config-domain-contracts.md`、`docs/SYSTEM_DESIGN.md` V1.1
 - Approval: `APPROVED` — 2026-07-14 产品负责人任务级授权
 - Base: `main@46f8497e771e1461034942dd7967f19d85f79f81`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-002`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-002`
 - Branch: `grok/task-002-config-domain-contracts`
 
 ## 目标
@@ -86,7 +86,7 @@
 ## 分配记录
 
 - Assigned at: 2026-07-14
-- Implementer: Grok，独占 `/Users/hua/Documents/yia-worktrees/task-002` 的写入权。
+- Implementer: Grok，独占 `/Users/developer/Documents/yia-worktrees/task-002` 的写入权。
 - Initial reviewer assignment: Codex；从未启动，后由产品负责人改派为独立 Grok Reviewer。
 - Implementer packet: `agent-prompts/TASK-002-IMPLEMENTER-GROK.md`
 - Parallel read-only work: `agent-prompts/PREFLIGHT-TASK-003-004-READONLY.md`；不构成后续任务开工授权。
@@ -156,6 +156,6 @@
 - Merge parents: `e2aef7cd88f5c0f0f4e323a79234e71ca6a95845`、`d98de3537187ac346e404d7899d0a9d90c228483`
 - First-parent scope: 精确为任务批准的 8 个文件；无范围外文件。
 - Post-merge checks: `uv lock --check`、`uv sync --locked`、focused/full pytest（46/47 passed）、mypy、Ruff、CLI help、cached diff 与祖先关系全部 `PASS`。
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`；main 与 source worktree 均干净，source 分支/worktree 保留。
+- Git identity: `Mozhu <maintainer@example.invalid>`；main 与 source worktree 均干净，source 分支/worktree 保留。
 - Final status: `DONE`
 - Downstream release: `TASK-003` 与 `TASK-004` 的依赖已满足，均转为 `READY`。

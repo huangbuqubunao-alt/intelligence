@@ -4,7 +4,7 @@ Status: READY. Root scopes this ordinary UI correction under the user request to
 fix misleading local-import/transcription journeys; no new sensitive persistence.
 Implementer: /root/caption_resume; reviewer: /root/intel_bounded_review.
 Base: 2857acc146a0320cb9daf61ee460b556bb444fcc.
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-asr-status-copy.
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-asr-status-copy.
 Branch: codex/task-readiness-asr-status-copy.
 
 ## Real reproduction and done criteria

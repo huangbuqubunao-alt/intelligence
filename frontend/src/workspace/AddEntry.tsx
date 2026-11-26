@@ -132,7 +132,11 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
           <button type="button" className="button button-secondary" disabled={busy} onClick={() => setLocal(true)}>{t("Import local file")}</button>
         </div>
       </form>
-      <p className="hint">{t("YouTube · Local files · Bilibili public-video import")}</p>
+      <p className="hint">
+        {zh
+          ? "B 站与本地文件国内直连即可使用；YouTube 链接需当前网络可访问 YouTube。"
+          : "Bilibili and local files work without VPN; YouTube links require reachable access to YouTube."}
+      </p>
     </>}
     {busy && <p role="status" aria-live="polite">{t(recognized?.kind === "YOUTUBE_CHANNEL" ? "Establishing tracking…" : "Starting import…")}</p>}
     {result && <div role="status" aria-live="polite"><p>{t(result.kind === "YOUTUBE_CHANNEL" ? "Channel followed. Check Following for its starting point and source health." : "Import accepted. Processing and any required attention appear in Content.")}</p>

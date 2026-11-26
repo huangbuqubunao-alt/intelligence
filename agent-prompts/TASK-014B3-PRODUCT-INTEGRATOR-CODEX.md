@@ -8,7 +8,7 @@
 Task: TASK-014B3 — public subtitle directory diagnostics
 Role: Product Integrator
 Control-plane base: main@e3dec4bad02c59bff6e42f357aa3fdb666575efb
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation
 Accepted source branch: codex/task-014b3-public-subtitle-diagnostics-implementation
 Accepted review evidence: b0ddf9d7749840fbf507426f67ba38a28b7030f8
 Required sole parent of evidence: 77f2690c28ab80eb9886e8ca8eadb0e47481cd51

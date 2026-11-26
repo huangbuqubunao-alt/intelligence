@@ -5,9 +5,9 @@
 ## 固定对象
 
 - Main base：`main@001eaa96dfc1737169323a3e4503a9415b0b39c9`，必须干净且为唯一父基线。
-- Rejected review evidence：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`，开始时必须干净；唯一父提交为 Correction 1 `ae724990f6f3628a054bfca000e9e28d83f3def7`，且只修改 `handoffs/TASK-013.md`。
+- Rejected review evidence：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`，开始时必须干净；唯一父提交为 Correction 1 `ae724990f6f3628a054bfca000e9e28d83f3def7`，且只修改 `handoffs/TASK-013.md`。
 - Verdict=`REJECT`，P1-1：评分失败后的新组合仍读取旧 `_OfflineMvpFlow` 的内存 `transcripts`、`scores`、`analyses`，无法仅凭持久 SQLite/Artifact 从 `TRANSCRIPT_READY` 与 `RETRY_PENDING` 恢复。
-- 历史 `/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，禁止访问、修改或清理。
+- 历史 `/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，禁止访问、修改或清理。
 
 ## 唯一允许提交范围
 

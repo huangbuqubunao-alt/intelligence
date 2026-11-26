@@ -4,7 +4,7 @@
 
 ## 启动条件与观察基线
 
-- Repository: `/Users/hua/Documents/youtubek agent`
+- Repository: `/Users/developer/Documents/youtubek agent`
 - Branch: `main`
 - 本包只有在提交它的 Status Integrator 返回 `INTEGRATED` 后才能执行。
 - 用以下只读命令取得添加本包的确定控制面 commit：
@@ -15,9 +15,9 @@ test -n "$control_sync_head"
 printf '%s\n' "$control_sync_head"
 ```
 
-开始时 main HEAD 必须等于 `control_sync_head`，工作树和暂存区必须干净，Git 身份必须为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。若不一致，停止并报告 `BLOCKED`。
+开始时 main HEAD 必须等于 `control_sync_head`，工作树和暂存区必须干净，Git 身份必须为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。若不一致，停止并报告 `BLOCKED`。
 
-TASK-004 correction 5 可能在另一 worktree 并行写入。你不得读取、检查、等待、清理或以任何方式访问 `/Users/hua/Documents/yia-worktrees/task-004` 的 live filesystem。需要参考 TASK-004 时，只能读取固定 Git 对象 `1883367d313623c42d9d3624b16307ca8d502709`，例如 `git show 1883367d313623c42d9d3624b16307ca8d502709:src/youtube_intel/discovery.py`；该对象不会随并行写入变化。
+TASK-004 correction 5 可能在另一 worktree 并行写入。你不得读取、检查、等待、清理或以任何方式访问 `/Users/developer/Documents/yia-worktrees/task-004` 的 live filesystem。需要参考 TASK-004 时，只能读取固定 Git 对象 `1883367d313623c42d9d3624b16307ca8d502709`，例如 `git show 1883367d313623c42d9d3624b16307ca8d502709:src/youtube_intel/discovery.py`；该对象不会随并行写入变化。
 
 ## 严格只读边界
 

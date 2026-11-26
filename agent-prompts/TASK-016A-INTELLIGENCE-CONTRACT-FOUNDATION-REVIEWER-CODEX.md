@@ -11,7 +11,7 @@ Task: TASK-016A — Intelligence Mode、配置与 Knowledge V2 契约基础
 Role: Independent Reviewer
 Control-plane baseline: main@36969c5c5f7af75a2cf2255b63f742c12cf4fb0c
 Execution main: dynamic single-parent authorization commit containing this prompt and synchronized status documents
-Reviewed worktree: /Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation
+Reviewed worktree: /Users/developer/Documents/yia-worktrees/task-016a-intelligence-contract-foundation
 Reviewed branch: codex/task-016a-intelligence-contract-foundation
 Reviewed implementation HEAD: 210dd203e722eabf3453808f490f4afe52139183
 Required sole parent: 36969c5c5f7af75a2cf2255b63f742c12cf4fb0c

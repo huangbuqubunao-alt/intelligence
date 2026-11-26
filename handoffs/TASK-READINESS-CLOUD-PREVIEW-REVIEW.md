@@ -7,7 +7,7 @@
 - Independent reviewer: `/root/cloud_preview_review`.
 - Author: `bcb2df474a687395b3aa26732241502bc6c094af`.
 - Diff base: `eb02af9f12de2565f51e4afb3eeeeb8b81f8d5d2`.
-- Review worktree: `/Users/hua/Documents/yia-worktrees/readiness-cloud-preview-review`.
+- Review worktree: `/Users/developer/Documents/yia-worktrees/readiness-cloud-preview-review`.
 - Review source baseline: `fd422e2ed1c4bd0eb397dbd33eda9b79c14f2b3a`; its only additions to the author commit are Root's review task and public-source planning documents. Product/test files match the fixed author commit byte-for-byte (`git diff --quiet ... -- src frontend/src frontend/m13-cloud-consent.e2e.mjs tests`).
 - Only this handoff is committed by the reviewer. No business code, tests, dependencies, Schema, credential, owner data, production configuration or main change.
 
@@ -37,7 +37,7 @@ The frontend still gates the preview entry on its old cloud availability and doe
 
 ## Independent verification on the fixed source
 
-All Python checks used `PYTHONDONTWRITEBYTECODE=1`, `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-cloud-preview-review/src` and `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Only isolated temporary databases/DATA and injected offline transports were used. No real provider/model operation, credential resolution, owner database, external upload or fee occurred.
+All Python checks used `PYTHONDONTWRITEBYTECODE=1`, `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-cloud-preview-review/src` and `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Only isolated temporary databases/DATA and injected offline transports were used. No real provider/model operation, credential resolution, owner database, external upload or fee occurred.
 
 | Check | Independent result |
 |---|---|

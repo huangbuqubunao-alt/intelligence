@@ -19,7 +19,7 @@
   },
   "chunk_frames": 400000,
   "overlap_frames": 0,
-  "model": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+  "model": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
   "samples": [
     {
       "profile": "A",

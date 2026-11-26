@@ -4,11 +4,11 @@
 
 ## 固定事实
 
-- Main：`/Users/hua/Documents/youtubek agent` / `main@6ff45f196ed2229d21482e8df1594e96c036f7d8`
-- Source：`/Users/hua/Documents/yia-worktrees/task-008` /
+- Main：`/Users/developer/Documents/youtubek agent` / `main@6ff45f196ed2229d21482e8df1594e96c036f7d8`
+- Source：`/Users/developer/Documents/yia-worktrees/task-008` /
   `codex/task-008-deep-analysis@10478a9083df4eedae061d99d941c88cb4954179`
 - Source base：`473119704c7638d7afd4e68d84d00e85064ceabd`；implementation commit 的唯一父必须是该 base。
-- 身份必须是 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+- 身份必须是 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 - Source worktree 中的 `tasks/` 与 `docs/PROJECT_STATUS.md` 是分配前固定快照；实时 TASK-008=`IN_REVIEW` 状态仅以 main 的本次提交和 Reviewer 包为准，历史状态不得视为冲突或写回 source。
 
 ## 唯一允许提交范围

@@ -52,7 +52,7 @@ inject their provider capability; this does not enable production access.
 - Ruff, strict mypy (96 source files), compileall, both DESIGN.md lints and
   scoped `git diff --check` passed. No repo-wide formatting occurred.
 
-Backend commands use the existing `/Users/hua/youtube-intel/.venv/bin/python`
+Backend commands use the existing `/Users/developer/youtube-intel/.venv/bin/python`
 with `PYTHONPATH=src`, e.g. `-m pytest -q`, `-m mypy --strict src`,
 `-m compileall -q src tests scripts`; Ruff checks source/tests and the two new
 validation scripts. Frontend uses existing dependency bytes, `npm test -- --run`,
@@ -64,7 +64,7 @@ was fixed by waiting for the actual check-stale response and terminal check stat
 No assertion was removed or weakened, and no test/CI script was changed to hide
 failure. Fresh text logs normalize trailing whitespace and blank EOF lines only; raw captures and
 SHA-256 mapping are retained outside the repository in
-`/Users/hua/Documents/phase12-preservation/raw-resume-logs/`.
+`/Users/developer/Documents/phase12-preservation/raw-resume-logs/`.
 Original paused raw logs retain every byte, including existing whitespace.
 
 ## Browser, restart and Backup/Restore — FIXTURE/REPLAY

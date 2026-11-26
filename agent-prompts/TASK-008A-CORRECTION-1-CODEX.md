@@ -7,17 +7,17 @@ Reviewer。
 
 ## 固定状态与启动门禁
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main correction authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-CORRECTION-1-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-CORRECTION-1-CODEX.md`
 - Required authorization parent：`3eac5f9897bdfb59e764afde411e632822dcfb66`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - First review evidence / required source start：
   `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`
 - Reviewed implementation：`382251298af7fcbfadba66c1902af6de0a425179`
 - Original base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始时 main 必须位于动态 correction authorization、其唯一父为 Required

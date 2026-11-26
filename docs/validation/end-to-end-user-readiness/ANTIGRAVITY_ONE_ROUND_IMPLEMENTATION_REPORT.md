@@ -2,7 +2,7 @@
 
 交接日期：2026-10-29  
 分支：`antigravity/user-testable-delivery`  
-工作树路径：`/Users/hua/Documents/yia-worktrees/antigravity-user-testable`  
+工作树路径：`/Users/developer/Documents/yia-worktrees/antigravity-user-testable`
 起始 HEAD：`aaad75405fa417e0ae5604f3e6975f57242dc527`  
 交付 Commit SHA：`04bdb8126cead397d4d6e48a95697160c89d3575` (final freeze)  
 
@@ -103,12 +103,12 @@
 - **启动方法**：
   1. 启动后端 API：
      ```bash
-     cd /Users/hua/Documents/yia-worktrees/antigravity-user-testable
-     PYTHONPATH=src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m youtube_intel --project-root .var/antigravity-candidate serve-api --database .var/antigravity-candidate/state.sqlite3 --port 6378
+     cd /Users/developer/Documents/yia-worktrees/antigravity-user-testable
+     PYTHONPATH=src /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m youtube_intel --project-root .var/antigravity-candidate serve-api --database .var/antigravity-candidate/state.sqlite3 --port 6378
      ```
   2. 启动前端页面：
      ```bash
-     cd /Users/hua/Documents/yia-worktrees/antigravity-user-testable/frontend
+     cd /Users/developer/Documents/yia-worktrees/antigravity-user-testable/frontend
      YIA_API_BASE=http://127.0.0.1:6378 node_modules/.bin/vite --host 127.0.0.1 --port 6379 --strictPort
      ```
 - **停止方法**：

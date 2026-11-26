@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@8c9f266da1eac00f39789f56062f5de6816065cf`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes@f778163dca83807f1baec5e568c4dbd734829171`，必须干净且无 `.codebase-memory/` 或其他未跟踪工件。
+- Source：`/Users/developer/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes@f778163dca83807f1baec5e568c4dbd734829171`，必须干净且无 `.codebase-memory/` 或其他未跟踪工件。
 - Reviewer 2 evidence：`f778163...` 唯一父必须为 first-review evidence `d16498fe2a1939c6bec7babd03039e623782d027`，其唯一父为 implementation `956e37a15ab29106f16c45873fccb813cc5a959f`；evidence 只改 `handoffs/TASK-009.md`。
 - Original base：`473119704c7638d7afd4e68d84d00e85064ceabd`；完整 Diff 仅为 TASK-009 七个批准路径组中的六个实际路径。
 - Source 的任务/项目状态为分配前冻结快照；实时状态仅以 main 本提交为准。
@@ -29,7 +29,7 @@
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、evidence 单文件范围和完整 source 范围。
+1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、evidence 单文件范围和完整 source 范围。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. main 将 TASK-009 退回原 Codex Implementer 的 `IN_PROGRESS`，冻结 Correction 1；不得预写 Reviewer verdict、ACCEPTED、merge 或 DONE。TASK-008 必须保持 `IN_REVIEW` 且未触碰。

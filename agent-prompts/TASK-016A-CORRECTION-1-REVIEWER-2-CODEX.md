@@ -6,7 +6,7 @@
 固定对象：
 
 ```text
-Worktree: /Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation
+Worktree: /Users/developer/Documents/yia-worktrees/task-016a-intelligence-contract-foundation
 Branch: codex/task-016a-intelligence-contract-foundation
 Correction HEAD: 26a74cd508b28c9fd89e86af741414c8653f2721
 Correction sole parent / Review 1 evidence: 6a564b18a3c91e4366c1b744733910dc5584854b

@@ -6,7 +6,7 @@
 - Base: `2065e49777ffd83ef1c36f0085c0b936cc4d7f6e`.
 - Fixed author: `e9f790a8ad16fbbbc138db6d34857b4a672234f5`.
 - Review baseline: `ef16b2b7bdf6221f3c7019c00b602d974eacdb59`, author source plus only Root review task/prompt.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-settings-review`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-settings-review`.
 - Branch: `codex/task-readiness-bigmodel-settings-review`; date2026-10-27.
 - **Verdict: REJECT fixed e9, two confirmed P2 findings.** No new P0/P1 was confirmed in this bounded configuration-only slice. Original writer and Root received both counterexamples. Later repair/WIP is not included in this review.
 
@@ -44,7 +44,7 @@ Minimal repair: make the new service, new API validation and new UI validation s
 
 ## Independent checks and exact results
 
-All Python runs use existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1` and explicit `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-settings-review/src`. Compile preceded tests. No packages were installed: the first frontend command exited127 (`vitest: command not found`) because this new worktree lacked dependencies. With Root's explicit permission only the ignored `frontend/node_modules` symlink was created pointing to Root's existing frontend/node_modules. Package files, lockfiles and dependency versions are unchanged.
+All Python runs use existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1` and explicit `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-settings-review/src`. Compile preceded tests. No packages were installed: the first frontend command exited127 (`vitest: command not found`) because this new worktree lacked dependencies. With Root's explicit permission only the ignored `frontend/node_modules` symlink was created pointing to Root's existing frontend/node_modules. Package files, lockfiles and dependency versions are unchanged.
 
 | Check | Independent result |
 |---|---|

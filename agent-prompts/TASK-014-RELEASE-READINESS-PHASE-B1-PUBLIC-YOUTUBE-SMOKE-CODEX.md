@@ -2,7 +2,7 @@
 
 > **已废止，不得执行。** 此历史包绑定的 final worktree 与分配已由
 > `TASK-014-RELEASE-READINESS-PHASE-B1-RETRY-CODEX.md` 取代。唯一可执行 source 为
-> `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
+> `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
 > `codex/task-014-phase-b1-console-entry-retry@49869c6ff2bbc53673c6a35071c5f1407c269cba`。
 > 下文只保留历史授权记录；不得据此启动 Executor、访问旧 final worktree 或把任何历史 evidence 写为成功。
 
@@ -19,15 +19,15 @@ Task: TASK-014 Phase B-1 — Final public YouTube subtitle smoke execution
 Role: Smoke Executor
 Agent: Codex
 Control-plane baseline: main@3165009df00c54f62c9b92a8f154bfd7ed664bea
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-final
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-b1-final
 Branch: codex/task-014-release-readiness-phase-b1-final
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — 已锁定的 yt-dlp Adapter、项目 CLI 与 Python/Git 文本资料；不新增或复制第三方代码
 ```
 
-旧 `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
+旧 `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
 合并、cherry-pick 或复用其中的 blocker evidence。旧
-`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
+`/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
 同样不得访问、修改、合并、清理或复用。只可使用本 worktree 中已整合的 `smoke-public-subtitles` 入口。
 
 ## 产品目标与完成标准

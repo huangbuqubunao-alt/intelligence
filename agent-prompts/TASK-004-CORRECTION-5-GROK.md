@@ -4,18 +4,18 @@
 
 ## 固定位置与起点
 
-- Main repository: `/Users/hua/Documents/youtubek agent`
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Main repository: `/Users/developer/Documents/youtubek agent`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - 开始时 source HEAD 必须精确为 review evidence `1883367d313623c42d9d3624b16307ca8d502709`
 - 该 evidence 的唯一父提交必须为 correction 4 `54c0ab201388cba35e481d7a511f21575946ad14`
 - source worktree 必须干净
-- Git identity 必须为 `Mozhu <huangbuqubunao@gmail.com>`，且 `user.useConfigOnly=true`
+- Git identity 必须为 `Mozhu <maintainer@example.invalid>`，且 `user.useConfigOnly=true`
 
 本包只有在 Status Integrator 已把它提交到 main 并返回 `INTEGRATED` 后才能执行。不要猜同步 SHA。用下面的 Git 历史查询取得**添加本包的确定提交**：
 
 ```bash
-control_sync_head="$(git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-004-CORRECTION-5-GROK.md)"
+control_sync_head="$(git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-004-CORRECTION-5-GROK.md)"
 test -n "$control_sync_head"
 printf '%s\n' "$control_sync_head"
 ```

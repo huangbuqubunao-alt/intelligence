@@ -39,7 +39,7 @@ const chinese: Record<string, string> = {
   "BigModel key saved. No model was run; quality and account eligibility remain unverified.": "智谱密钥已保存，未运行模型；质量与账号权益仍未验证。",
   "BigModel key deleted. Other providers and existing Content are unchanged.": "智谱密钥已删除，其他服务商和现有内容保持不变。",
   "This credential is separate from Moonshot. It does not change local transcription, Summary or model qualification. Keys are excluded from backups.": "此密钥与 Moonshot 独立，不改变本地转写、摘要或模型资格。备份不包含密钥。",
-  "Explore optional cloud Intelligence setup": "了解可选云端洞察设置",
+  "Explore optional cloud Intelligence setup": "配置总结模型（本地 / 云端）",
 
   "Local Intelligence model setup": "本地洞察模型设置",
   "This selection is only for Intelligence. It does not change the local model used for scoring and Summary.": "此选择仅用于洞察，不会改变评分和摘要使用的本地模型。",
@@ -1396,6 +1396,8 @@ const chinese: Record<string, string> = {
   "Jump · Language": "速跳 · 语言",
   "Jump · Interests": "速跳 · 兴趣规则",
   "Jump · Models": "速跳 · 模型与云端",
+  "Jump · Speech": "速跳 · 语音转写",
+  "Jump · YouTube": "速跳 · YouTube 授权",
   "Jump · Backup": "速跳 · 备份恢复",
   Timeline: "时间线",
   "Related Topics": "关联主题",

@@ -1,10 +1,10 @@
 {
   "exact_equality": true,
   "worktrees": [
-    "/Users/hua/Documents/yia-worktrees/v1x-youtube-following",
-    "/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume",
-    "/Users/hua/Documents/yia-worktrees/phase12-live-validation",
-    "/Users/hua/Documents/yia-worktrees/m13-dogfood"
+    "/Users/developer/Documents/yia-worktrees/v1x-youtube-following",
+    "/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume",
+    "/Users/developer/Documents/yia-worktrees/phase12-live-validation",
+    "/Users/developer/Documents/yia-worktrees/m13-dogfood"
   ],
   "compared_fields": [
     "path",

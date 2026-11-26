@@ -7,13 +7,13 @@
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@3ee490c19950482ecd014668ce510ba5c742b743`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - Source implementation base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
 - Source implementation head：`85cd5362460044773317a48cbaae58e55aa735af`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须精确位于 Required main base、身份正确、暂存区为空；工作区必须恰有
 下列 5 个准备 Markdown 文件且无其他 tracked、untracked 或 staged 内容。source 必须
@@ -63,8 +63,8 @@ source 从 assignment 前 base 创建，故 source 内 `tasks/TASK-005A-...` / P
 git diff --check
 git diff --name-status
 git diff
-git -C "/Users/hua/Documents/yia-worktrees/task-005a" diff --check 82f45a1c04f9eba3264cd743b28bc339d79b34fc...85cd5362460044773317a48cbaae58e55aa735af
-git -C "/Users/hua/Documents/yia-worktrees/task-005a" diff --name-status 82f45a1c04f9eba3264cd743b28bc339d79b34fc...85cd5362460044773317a48cbaae58e55aa735af
+git -C "/Users/developer/Documents/yia-worktrees/task-005a" diff --check 82f45a1c04f9eba3264cd743b28bc339d79b34fc...85cd5362460044773317a48cbaae58e55aa735af
+git -C "/Users/developer/Documents/yia-worktrees/task-005a" diff --name-status 82f45a1c04f9eba3264cd743b28bc339d79b34fc...85cd5362460044773317a48cbaae58e55aa735af
 ```
 
 全部通过后，只暂存上述 5 个文件，运行 `git diff --cached --check` 和 cached scope

@@ -114,7 +114,7 @@
 ## 正式分配记录
 
 - Approved base：`main@82f45a1c04f9eba3264cd743b28bc339d79b34fc`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Branch：`codex/task-005a-local-model-shared-contracts`
 - Implementer：Codex 独立会话，独占该 worktree 写入权
 - Reviewer：全新独立 Codex 会话；只在 Implementer 提交并由主控固定 source SHA 后启动

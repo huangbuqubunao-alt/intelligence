@@ -1,10 +1,10 @@
 # TASK-007 Correction 3 — Codex Implementer
 
-You are the original Codex Implementer. Work only in `/Users/hua/Documents/yia-worktrees/task-007` on `codex/task-007-local-scoring`.
+You are the original Codex Implementer. Work only in `/Users/developer/Documents/yia-worktrees/task-007` on `codex/task-007-local-scoring`.
 
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
 - Start head and required sole parent: `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`
-- Main authority: `git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-007-CORRECTION-3-CODEX.md` must resolve to the active authorization; TASK-007 is `IN_PROGRESS` with you as original Implementer.
+- Main authority: `git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-007-CORRECTION-3-CODEX.md` must resolve to the active authorization; TASK-007 is `IN_PROGRESS` with you as original Implementer.
 
 Do not access TASK-006. Stop on dirty source, wrong parent/state, scope expansion, lockfile change, secret or any real-resource action.
 

@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex /root`
 - Base branch/commit: `main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-008a`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-008a`
 - Branch: `codex/task-008a-cloud-analysis-shared-contracts`
 - Head commit: 本报告与实现位于同一个新提交；精确 SHA 由提交后的完成报告记录。
 - Started: `2026-07-20`
@@ -132,7 +132,7 @@
 - 重新运行的检查：
   - `uv lock --check`：PASS，`Resolved 84 packages`。
   - `uv sync --locked --offline`：首次因沙箱无权读取
-    `/Users/hua/.cache/uv` 失败；按既有任务级包缓存授权原样重跑后 PASS，
+    `/Users/developer/.cache/uv` 失败；按既有任务级包缓存授权原样重跑后 PASS，
     `Resolved 84 packages`、`Checked 61 packages`，未访问 API。
   - `uv run python -m pytest tests/unit/test_contracts.py`：PASS，`66 passed`。
   - `uv run python -m pytest`：PASS，`318 passed`。
@@ -422,7 +422,7 @@ encoding/version、配置脱敏和空描述行为均由最终 contracts/full sui
 - source 分支、HEAD、父链、身份与洁净度均通过：分支为
   `codex/task-008a-cloud-analysis-shared-contracts`，HEAD 精确为 reviewed head，
   其唯一父为 `0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`；Git 身份为
-  `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+  `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 - Correction range 精确为 handoff、`domain.py`、`config.py`、contracts test 和固定
   tokenizer resource 五个路径；完整 base range 精确为获准的八个路径，
   `pyproject.toml` 与 `uv.lock` 相对 reviewed implementation 均未变化。无 Provider、

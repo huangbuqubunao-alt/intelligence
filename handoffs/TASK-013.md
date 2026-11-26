@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex`
 - Base branch/commit: `main@2a59dfe3860161a5989f2c08161f03c73aa4ca86`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-013-rebuild`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-013-rebuild`
 - Branch: `codex/task-013-e2e-acceptance-rebuild`
 - Head commit: use `git rev-parse HEAD` after this handoff commit.
 
@@ -136,7 +136,7 @@
 ## Correction 1 — Independent Reviewer 2 (2026-07-26)
 
 - Reviewer agent/session: Codex（全新独立 Reviewer 2）
-- Dynamic authorization: `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-1-REVIEWER-CODEX.md` resolved to `001eaa96dfc1737169323a3e4503a9415b0b39c9`; main states TASK-013 Correction 1 is awaiting independent review / `IN_REVIEW`.
+- Dynamic authorization: `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-1-REVIEWER-CODEX.md` resolved to `001eaa96dfc1737169323a3e4503a9415b0b39c9`; main states TASK-013 Correction 1 is awaiting independent review / `IN_REVIEW`.
 - Reviewed source: `codex/task-013-e2e-acceptance-rebuild@ae724990f6f3628a054bfca000e9e28d83f3def7`; worktree was clean; its sole parent is `3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`.
 
 ### Re-run checks completed before the blocking finding
@@ -190,7 +190,7 @@
 ## Correction 2 — Independent Reviewer (2026-07-26)
 
 - Reviewer agent/session: Codex（全新独立 Reviewer）
-- Dynamic authorization: `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-2-REVIEWER-CODEX.md` resolved to `d7e1fe8793b8d446257a8a6a0ad5ce88a39bde87`; main 的 `tasks/TASK-013-e2e-acceptance.md` is `IN_REVIEW` and names source `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28` with parent `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`.
+- Dynamic authorization: `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-2-REVIEWER-CODEX.md` resolved to `d7e1fe8793b8d446257a8a6a0ad5ce88a39bde87`; main 的 `tasks/TASK-013-e2e-acceptance.md` is `IN_REVIEW` and names source `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28` with parent `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`.
 - Reviewed source: `codex/task-013-e2e-acceptance-rebuild@f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`; branch and sole parent matched exactly. Source was clean before review. No `.codegraph/` index existed, and none was created.
 - Range/lineage: relative to rebuild base `2a59dfe3860161a5989f2c08161f03c73aa4ca86`, only `tests/e2e/test_mvp_flow.py`, `tests/e2e/test_failure_recovery.py`, `docs/ACCEPTANCE_REPORT.md`, and this handoff differ. `git diff --check` passed. No production code, production composition, test configuration, dependency/lockfile, Schema/migration, secret/configuration, or task-status file changed.
 

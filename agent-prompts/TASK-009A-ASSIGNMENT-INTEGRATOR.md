@@ -5,10 +5,10 @@
 ## 固定授权
 
 - Required base：`main@e4271e41910bba54b37b48df709dcf632fe3b0eb`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-009a`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-009a`
 - Branch：`codex/task-009a-obsidian-note-shared-contracts`
 - Implementer：Codex；Reviewer：实现 commit 后启动全新独立 Codex Reviewer。
-- 身份必须为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+- 身份必须为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 
 ## 唯一允许的 main 提交范围
 

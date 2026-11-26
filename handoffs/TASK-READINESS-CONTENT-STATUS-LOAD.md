@@ -2,7 +2,7 @@
 
 2026-10-14。Implementer `/root/caption_resume`，独立 Reviewer `/root/intel_bounded_review`。
 Base `2d167d8afa4d09b030fde4b3f1ea4f0c78721a7f`；tree
-`/Users/hua/Documents/yia-worktrees/readiness-content-status-load`；branch
+`/Users/developer/Documents/yia-worktrees/readiness-content-status-load`；branch
 `codex/task-readiness-content-status-load`。本交接所属提交完成后 STOP，建议 IN_REVIEW。
 原 Schema 工作树停止写入，未在此 UI 夹带其返修。
 

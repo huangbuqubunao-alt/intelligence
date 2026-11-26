@@ -2,19 +2,46 @@ import { useState } from "react";
 import { useUiLanguage } from "./uiLanguage";
 
 export const onboardingStorageKey = "intelligence.onboarding.completed.v1";
-export function onboardingCompleted() {
-  try { return localStorage.getItem(onboardingStorageKey) === "true"; }
+export const demoOnboardingStorageKey = "intelligence.onboarding.completed.demo.v1";
+export const onboardingReturnStepKey = "intelligence.onboarding.returnStep.v1";
+function resolveOnboardingKey(demoMode = false) {
+  return demoMode ? demoOnboardingStorageKey : onboardingStorageKey;
+}
+export function onboardingCompleted(demoMode = false) {
+  try { return localStorage.getItem(resolveOnboardingKey(demoMode)) === "true"; }
   catch { return false; }
 }
-export function completeOnboarding() {
-  try { localStorage.setItem(onboardingStorageKey, "true"); } catch { /* In-memory state still works when browser storage is unavailable. */ }
+export function completeOnboarding(demoMode = false) {
+  try {
+    localStorage.setItem(resolveOnboardingKey(demoMode), "true");
+    sessionStorage.removeItem(onboardingReturnStepKey);
+  } catch { /* In-memory state still works when browser storage is unavailable. */ }
+}
+export function getOnboardingReturnStep(): number | null {
+  try {
+    const raw = sessionStorage.getItem(onboardingReturnStepKey);
+    if (raw === "0" || raw === "1" || raw === "2") return Number(raw);
+  } catch { /* ignore storage errors */ }
+  return null;
+}
+export function setOnboardingReturnStep(step: number | null) {
+  try {
+    if (step === null) sessionStorage.removeItem(onboardingReturnStepKey);
+    else sessionStorage.setItem(onboardingReturnStepKey, String(step));
+  } catch { /* ignore storage errors */ }
 }
 
-export function FirstRunOnboarding({ onAddFollowing, onSkip }: {
-  onAddFollowing: () => void; onSkip: () => void;
+export function FirstRunOnboarding({ onAddFollowing, onSkip, initialStep = 0, onOpenSetup }: {
+  onAddFollowing: () => void;
+  onSkip: () => void;
+  initialStep?: number;
+  onOpenSetup?: (target: "models" | "transcription", step: number) => void;
 }) {
-  const { t } = useUiLanguage();
-  const [step, setStep] = useState(0);
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
+  const [step, setStep] = useState(
+    initialStep >= 0 && initialStep <= 2 ? initialStep : 0,
+  );
   const steps = ["1. Core flow", "2. Local & privacy", "3. First import"] as const;
   return <section className="onboarding-panel" aria-labelledby="onboarding-title">
     <div className="onboarding-progress" aria-label={`${t("Onboarding step")} ${step + 1} / 3`}>
@@ -51,16 +78,33 @@ export function FirstRunOnboarding({ onAddFollowing, onSkip }: {
         <p>{t("Use local capability first. Never make a paid cloud call unless you explicitly opt in.")}</p>
         <p>{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
         <div className="button-row onboarding-setup-links">
-          <a className="button button-secondary" href="#Settings/models/bigmodel" onClick={onSkip}>{t("Explore optional cloud Intelligence setup")}</a>
-          <a className="button button-secondary" href="#Settings/transcription" onClick={onSkip}>{t("Set up local transcription")}</a>
+          <a
+            className="button button-secondary"
+            href="#Settings/models/bigmodel"
+            onClick={() => (onOpenSetup ? onOpenSetup("models", step) : onSkip())}
+          >
+            {t("Explore optional cloud Intelligence setup")}
+          </a>
+          <a
+            className="button button-secondary"
+            href="#Settings/transcription"
+            onClick={() => (onOpenSetup ? onOpenSetup("transcription", step) : onSkip())}
+          >
+            {t("Set up local transcription")}
+          </a>
         </div>
+        <p className="hint">
+          {zh
+            ? "对话总结用 AI 模型；本地语音转写仅导入无字幕音视频时需要。跳去配置后可随时返回继续第 3 步。"
+            : "Choose an AI summary model (local Ollama or cloud Key); local speech transcription is only needed for uncaptioned local media. Your onboarding progress is preserved when you return."}
+        </p>
       </div>}
       {step === 2 && <>
         <p>{t("Paste a YouTube video or channel link, import a public Bilibili video, or choose local files.")}</p>
         <ul className="onboarding-source-list">
-          <li><strong>YouTube</strong><span>{t("Video link or channel follow")}</span></li>
-          <li><strong>Bilibili</strong><span>{t("Public BV video one-time import")}</span></li>
-          <li><strong>{t("Local files")}</strong><span>{t("TXT, MD notes or local audio/video")}</span></li>
+          <li><strong>YouTube</strong><span>{zh ? "单视频或频道关注（需当前网络可访问 YouTube）" : "Video link or channel follow (requires YouTube network access)"}</span></li>
+          <li><strong>Bilibili</strong><span>{zh ? "公开 BV 视频导入（国内直连，无需 VPN）" : "Public BV video import (direct access, no VPN needed)"}</span></li>
+          <li><strong>{t("Local files")}</strong><span>{zh ? "TXT/MD 笔记或本地音视频（完全离线，无需 VPN）" : "TXT, MD notes or local audio/video (100% offline)"}</span></li>
         </ul>
         <p className="hint">{t("Channels follow future uploads. Video links and local files are one-time imports. Bilibili creator following is unavailable.")}</p>
       </>}

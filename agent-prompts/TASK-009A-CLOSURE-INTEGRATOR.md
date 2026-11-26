@@ -4,12 +4,12 @@
 
 ## 固定事实
 
-- 工作目录/分支：`/Users/hua/Documents/youtubek agent` / `main`
+- 工作目录/分支：`/Users/developer/Documents/youtubek agent` / `main`
 - Required base 与 TASK-009A merge：`9b0269eddbd29cee83a056d44951d7973c87492b`
 - Merge parents（顺序固定）：`1fd031629fc6a7fda2a81e1944ef7a439b9b8259`、`e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`
 - Accepted source：`codex/task-009a-obsidian-note-shared-contracts@e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-009a`
-- 身份必须是 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-009a`
+- 身份必须是 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 
 ## 唯一允许提交范围
 

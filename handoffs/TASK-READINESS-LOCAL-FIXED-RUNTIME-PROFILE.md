@@ -4,7 +4,7 @@
 
 - Role: Implementer；agent/session `/root/local_fixed_runtime`，接替已停止旧会话。
 - Base: `b3410a489f06d17ea8c62d2f27d637d3bbe25cc2`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-local-fixed-runtime`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-local-fixed-runtime`。
 - Branch: `codex/task-readiness-local-fixed-runtime`。
 - Product/test commit: `e021fb5646acfa09caef0819eab52610fa964524`；本报告与结果摘要后续独立提交。
 - Reported: 2026-10-21 00:43 Asia/Shanghai（工具实际 UTC 2026-10-20 16:43 换算）。

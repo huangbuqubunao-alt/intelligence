@@ -4,10 +4,10 @@
 
 ## 固定授权
 
-- Main：`/Users/hua/Documents/youtubek agent` / `main@473119704c7638d7afd4e68d84d00e85064ceabd`
-- 身份必须是 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
-- TASK-008：创建 `/Users/hua/Documents/yia-worktrees/task-008`，分支 `codex/task-008-deep-analysis`，固定于 base；Codex Implementer，完成后全新独立 Codex Reviewer。
-- TASK-009：创建 `/Users/hua/Documents/yia-worktrees/task-009`，分支 `codex/task-009-obsidian-notes`，固定于同一 base；Codex Implementer，完成后全新独立 Codex Reviewer。
+- Main：`/Users/developer/Documents/youtubek agent` / `main@473119704c7638d7afd4e68d84d00e85064ceabd`
+- 身份必须是 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
+- TASK-008：创建 `/Users/developer/Documents/yia-worktrees/task-008`，分支 `codex/task-008-deep-analysis`，固定于 base；Codex Implementer，完成后全新独立 Codex Reviewer。
+- TASK-009：创建 `/Users/developer/Documents/yia-worktrees/task-009`，分支 `codex/task-009-obsidian-notes`，固定于同一 base；Codex Implementer，完成后全新独立 Codex Reviewer。
 - 两项可并行，范围不重叠。TASK-008 只允许离线 Fake/子进程隔离 SDK 实现与测试，禁止真实 OpenAI、密钥、付费/API 调用。TASK-009 只允许测试临时目录内的原子写、替换、清理与 symlink 安全测试，禁止真实 Obsidian Vault、真实用户笔记与外部文件删除。
 
 ## 唯一允许提交范围
@@ -31,8 +31,8 @@
 2. 创建目录父级后，依次执行：
 
 ```bash
-git worktree add "/Users/hua/Documents/yia-worktrees/task-008" -b codex/task-008-deep-analysis 473119704c7638d7afd4e68d84d00e85064ceabd
-git worktree add "/Users/hua/Documents/yia-worktrees/task-009" -b codex/task-009-obsidian-notes 473119704c7638d7afd4e68d84d00e85064ceabd
+git worktree add "/Users/developer/Documents/yia-worktrees/task-008" -b codex/task-008-deep-analysis 473119704c7638d7afd4e68d84d00e85064ceabd
+git worktree add "/Users/developer/Documents/yia-worktrees/task-009" -b codex/task-009-obsidian-notes 473119704c7638d7afd4e68d84d00e85064ceabd
 ```
 
 3. 核验两份 source worktree 的分支、HEAD、洁净度；两份 source 卡仍显示旧 `BLOCKED/UNASSIGNED` 是预期冻结快照，main 的本提交和绝对路径 Implementer 包才是实时授权。

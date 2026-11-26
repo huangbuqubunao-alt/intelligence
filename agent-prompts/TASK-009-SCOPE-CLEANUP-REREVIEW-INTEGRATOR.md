@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@03a5f6ea83ca3c452808d255fffd438cb33c0c78`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes@d16498fe2a1939c6bec7babd03039e623782d027`，必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes@d16498fe2a1939c6bec7babd03039e623782d027`，必须干净。
 - Evidence：`d16498f...` 唯一父为 implementation `956e37a15ab29106f16c45873fccb813cc5a959f`，且只修改 `handoffs/TASK-009.md`。
 - Original base：`473119704c7638d7afd4e68d84d00e85064ceabd`；完整 `base...source` 仍只允许 TASK-009 的七个路径组。
 - Source 的任务/项目状态文档为共同 base 的历史快照；实时状态只以 main 动态包为准。
@@ -28,7 +28,7 @@
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、source 完整范围和 evidence 单文件范围。
+1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、source 完整范围和 evidence 单文件范围。
 2. 仅上述五个准备文件可变；两轮 SHA-256、LF-at-EOF、无尾随空白、`git diff --check`、`git diff --cached --check`、精确暂存范围必须通过。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据、真实或临时产品文件 I/O 命令。
 4. main 将 TASK-009 继续标为 `IN_REVIEW`，授权全新独立 Reviewer 2；不得预写 `APPROVE`、`ACCEPTED`、merge 或 `DONE`。

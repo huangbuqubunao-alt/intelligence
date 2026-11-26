@@ -1,13 +1,13 @@
 # TASK-READINESS-V4-R2-BOUNDED-CONTINUATION
 
-Sole implementer `/root/v3_controller_finish` uses `/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v4-r2-trial` from accepted `478f46cdb43427b74e0b1c873166717f67cfe409`. Scope contains the three existing validation tools, one dedicated portable test file and this handoff. Root owns final review, integration, actual preparation and new fee decisions.
+Sole implementer `/root/v3_controller_finish` uses `/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v4-r2-trial` from accepted `478f46cdb43427b74e0b1c873166717f67cfe409`. Scope contains the three existing validation tools, one dedicated portable test file and this handoff. Root owns final review, integration, actual preparation and new fee decisions.
 
 ## Continuation metadata
 
 - Role: Implementer; original implementation `/root/v3_controller_finish`, resumed final verification and handoff `/root/v4_r2_finish` after the original writer stopped.
 - Base: accepted `478f46cdb43427b74e0b1c873166717f67cfe409`.
 - Branch: `codex/readiness-bounded-synthesis-v4-r2-trial`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v4-r2-trial`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v4-r2-trial`.
 - Report date: 2026-11-07.
 - Reuse decision: DIRECT existing repository finite controller, v4 profile, normal factory/proof reconstruction and Backup/Restore protocol; Python standard library. No new dependency or external source adaptation.
 - The resumed writer preserved both implementation files unchanged. The final full-file run exposed one missing reservation in the owned test setup; the narrowly scoped correction and original evidence are recorded below.
@@ -44,7 +44,7 @@ The complete compatibility run in `.var/v4-r2-checks/compat-final.log` passed **
 
 ## Resumed verification
 
-All commands use `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` from this worktree. No actual control, package, grant, witness, model or fee operations are performed by the resumed writer.
+All commands use `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` from this worktree. No actual control, package, grant, witness, model or fee operations are performed by the resumed writer.
 
 | Check | Result / evidence |
 |---|---|

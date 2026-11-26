@@ -75,7 +75,7 @@ PARENT_PINS = {
     'public-aircAruvnKk-en.final.json': 'a07d0f4f189ddcff49cb85b597223139eef6cedf1f52fef247c56c2080ba9929',
     'public-aircAruvnKk-en.result.json': '53df574a574577cca7a16bd66ab3ec2dd7d9e813fbdcbad5ddf6365bf25557e0',
     'public-aircAruvnKk-en.semantic.json': 'd7d0feeec006aac7a472256c5726832e898ab6f68adcd20833a99eca25232962'}
-V5_R1_CONTROL = Path('/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/.var/judgment-v5-control-20261112')
+V5_R1_CONTROL = Path('/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/.var/judgment-v5-control-20261112')
 V5_R1_PINS = {
     'anchor.json': 'ee73ac579a995827ad0f2c64e1257c853af4c1da15bd52e6fe189b589d836d1f',
     'approval-skeleton.json': '2c80e60e20f28e90c07e78c1e86c10053ca6603722df413fc55a9edb9073c574',

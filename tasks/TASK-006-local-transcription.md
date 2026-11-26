@@ -23,7 +23,7 @@
 ## 2026-07-19 阶段 A 分配与边界
 
 - Main control-plane base：`6b4d59c882ccdcbd0e5a6069a6661e0672921a80`。worktree：
-  `/Users/hua/Documents/yia-worktrees/task-006`；branch：
+  `/Users/developer/Documents/yia-worktrees/task-006`；branch：
   `codex/task-006-local-transcription`；Implementer：Codex；完成后由全新独立 Codex
   Reviewer 审查。
 - 允许 `mlx-whisper>=0.4.3,<0.5`、uv 解析出的必要传递依赖、网络包下载、

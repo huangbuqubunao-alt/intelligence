@@ -33,7 +33,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/english-clean.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/english-clean.wav"
     },
     {
       "id": "mandarin-clean",
@@ -67,7 +67,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/mandarin-clean.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/mandarin-clean.wav"
     },
     {
       "id": "mixed-clean",
@@ -111,7 +111,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/mixed-clean.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/mixed-clean.wav"
     },
     {
       "id": "very-short",
@@ -130,7 +130,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/very-short.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/very-short.wav"
     },
     {
       "id": "medium",
@@ -234,7 +234,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/medium.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/medium.wav"
     },
     {
       "id": "designed-pauses",
@@ -263,7 +263,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/designed-pauses.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/designed-pauses.wav"
     },
     {
       "id": "mild-noise",
@@ -297,7 +297,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/mild-noise.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/frozen-corpus/mild-noise.wav"
     },
     {
       "id": "independent-medium",
@@ -411,7 +411,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/independent-medium.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/independent-medium.wav"
     },
     {
       "id": "boundary-medium",
@@ -570,7 +570,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/boundary-medium.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/boundary-medium.wav"
     },
     {
       "id": "silence-medium",
@@ -644,7 +644,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/silence-medium.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/silence-medium.wav"
     },
     {
       "id": "mixed-medium",
@@ -808,7 +808,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/mixed-medium.wav"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/independent-corpus/mixed-medium.wav"
     },
     {
       "id": "english-video",
@@ -842,25 +842,25 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/english-video.mp4"
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/english-video.mp4"
     },
     {
       "id": "negative-silence-short",
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/controls/silence-short.wav",
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/controls/silence-short.wav",
       "sha256": "e944042fd4103fa307da8beb67f580a415e5503a0417b2f75c271957e22f2e73",
       "expected": "",
       "negative": true
     },
     {
       "id": "negative-silence-medium",
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/controls/silence-medium.wav",
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/controls/silence-medium.wav",
       "sha256": "0935209b1b1466039d95ade6481db52f1da6ed8ed0cfbf847c5f9a40218c8f33",
       "expected": "",
       "negative": true
     },
     {
       "id": "negative-noise-short",
-      "source": "/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/controls/noise-short.wav",
+      "source": "/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/.var/phase9r/controls/noise-short.wav",
       "sha256": "c99e530be25a5cb83837bf12ccc7fbb4c9ff3760141a6c4a527604ab9c38c996",
       "expected": "",
       "negative": true
@@ -897,7 +897,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/english-clean-weak-18db.wav",
+      "source": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/english-clean-weak-18db.wav",
       "generation": "same actual speech attenuated18dB before candidate inference"
     },
     {
@@ -932,7 +932,7 @@
         }
       ],
       "required": true,
-      "source": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/mandarin-clean-weak-18db.wav",
+      "source": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/mandarin-clean-weak-18db.wav",
       "generation": "same actual speech attenuated18dB before candidate inference"
     }
   ]

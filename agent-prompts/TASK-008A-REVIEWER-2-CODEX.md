@@ -11,16 +11,16 @@
 
 ## 固定对象与启动门禁
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main review authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-REVIEWER-2-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-REVIEWER-2-CODEX.md`
 - Required authorization parent：`4eec2e186fce6dedbb105234f624fcb93274c938`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Original task base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
 - First review evidence：`0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`
 - Reviewed Correction 1 head：`d95745fd04b115369a9fd70362cd735d1eb70917`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始时 main 必须位于动态 authorization commit；该提交必须是 Required authorization

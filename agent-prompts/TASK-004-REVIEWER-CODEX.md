@@ -8,7 +8,7 @@
 
 - Task: `TASK-004`
 - Role: `Reviewer`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Product base: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Reviewed source head: `9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
@@ -47,7 +47,7 @@ git var GIT_AUTHOR_IDENT
 git log --oneline --decorate -4
 ```
 
-必须在 `grok/task-004-discovery-metadata`，初始 HEAD 必须为 `9db800f...`，worktree 干净，身份为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。确认三个实现链提交 `392edfb...`、`10f5ffa...`、`9db800f...` 连续且可达；否则停止，不写交接。
+必须在 `grok/task-004-discovery-metadata`，初始 HEAD 必须为 `9db800f...`，worktree 干净，身份为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。确认三个实现链提交 `392edfb...`、`10f5ffa...`、`9db800f...` 连续且可达；否则停止，不写交接。
 
 ## 范围与红线审查
 

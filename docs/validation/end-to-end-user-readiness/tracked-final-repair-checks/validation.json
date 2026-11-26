@@ -85,7 +85,7 @@
     "mypy.log": "<root-venv>/bin/mypy --strict src",
     "final-phase-coverage.log": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q tests/integration/test_tracked_content_retry.py -k counter_replays"
   },
-  "root_venv": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv",
+  "root_venv": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv",
   "unchanged_private_probe_sha256": {
     ".var/tracked-final-repair/test_new_invariants.py": "9586573c61edd2dc8b01997e4d58958190a026f5a575df6a24a3579cb2d2ef08",
     ".var/tracked-final-repair/test_counter_closure.py": "d1b02029410cfa560bb2e156687e4d059dc31f6cf2a25a8916089d5bc90e3189"

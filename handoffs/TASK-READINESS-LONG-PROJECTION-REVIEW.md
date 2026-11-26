@@ -1,7 +1,7 @@
 # TASK-READINESS-LONG-MODEL-PROJECTION 独立审查
 
 - Role：Reviewer `subtitle_recovery_preflight_oct19`，非产品作者；2026-10-19。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-long-projection-review`；branch `codex/task-readiness-long-projection-review`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-long-projection-review`；branch `codex/task-readiness-long-projection-review`。
 - Base：`fe4cfba56bb981c917c218747f54f1aeffd4ed8e`；candidate：`4c455826e0c8063952bf5b5bb3b6018084a95a96`。作者 clean STOP；review 起点 clean，无本 review 遗留测试进程。
 - 依 root `agent-prompts/TASK-READINESS-LONG-PROJECTION-REVIEW.md`、最新任务与仓库规范独立审查全部三新增文件，先测试再逐行产品源码；使用 code-review-and-quality 五轴及 git-workflow-and-versioning 提交纪律。图检索没有新模块，直接读取指定 fixed candidate；不改图索引。
 - **Verdict：APPROVE，仅未注册纯 projection 工程切片。Actionable P0/P1/P2/P3：无。** 本报告不是生产接线、模型执行/资格、容量或用户完整Goal验收。
@@ -16,7 +16,7 @@
 
 ## 实际独立检查
 
-Python/工具复用 root 既有 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/`；设置 `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src`。实际打印模块路径确认来自本review WT，未借其他editable项目。
+Python/工具复用 root 既有 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/`；设置 `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src`。实际打印模块路径确认来自本review WT，未借其他editable项目。
 
 | 检查 | 结果 |
 |---|---|
@@ -26,7 +26,7 @@ Python/工具复用 root 既有 `/Users/hua/Documents/yia-worktrees/end-to-end-u
 | `python .var/projection-independent-review-20261019/adversarial.py` | PASS：以下独立合成对抗/边界 |
 | `git diff --check fe4cfba..4c45582`、精确文件scope/旧核心zero-diff检查 | PASS |
 
-独立private QA路径：`/Users/hua/Documents/yia-worktrees/readiness-long-projection-review/.var/projection-independent-review-20261019/adversarial.py`；同目录 `adversarial.log`。不是作者测试自述，也不是实际Sasha或模型样本：
+独立private QA路径：`/Users/developer/Documents/yia-worktrees/readiness-long-projection-review/.var/projection-independent-review-20261019/adversarial.py`；同目录 `adversarial.log`。不是作者测试自述，也不是实际Sasha或模型样本：
 
 - **实际资源临界值**：完整原value恰8000000 bytes、context恰5000000、messages恰6000000、semantic side恰16000000分别成功，独立多1 byte分别拒绝；测试使其他上限保持可通过，避免错误地由另一guard代为拒绝。未修改产品常量来构造通过。
 - 三种opaque快照各恰1000000 bytes原字节保留，多1 byte拒绝；depth16成功/17拒绝；escaped同名key、-Infinity、lone surrogate、UTF8 BOM严格拒绝。

@@ -10,10 +10,10 @@ Task: TASK-014 Phase B-1 — B8 keyname-audited single-video directory-only publ
 Role: Smoke Executor
 Agent: Codex
 Execution baseline: main@56d6a3e66f7875395a74cac79fcfbeccbdd756ff
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution
 Branch: codex/task-014-phase-b1-directory-only-b8-keyname-execution
 Required source HEAD: 56d6a3e66f7875395a74cac79fcfbeccbdd756ff
-Only executable: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution/.venv/bin/youtube-intel
+Only executable: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution/.venv/bin/youtube-intel
 Fixed ID: --khbXchTeE
 Reuse decision: DIRECT — integrated B4 restricted `smoke-public-subtitles --directory-only`, B5 fixed safe stdout summary, B6 ADR-017 fixed no-value diagnostics, B7 ADR-018 fixed no-value origin/fingerprint, B8 ADR-019 restricted keyname diagnostic, locked `youtube_intel.cli:main`, and release-evidence documents; no dependency or third-party code change
 ```
@@ -40,7 +40,7 @@ uv lock --check
 2. 仅在以上全部通过后，且仅调用一次以下固定命令；保留数值退出码，不重定向或持久化 stdout/stderr：
 
 ```text
-/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution/.venv/bin/youtube-intel smoke-public-subtitles --directory-only --temporary-root ABSOLUTE_NEW_PARENT/smoke-root --video-id=--khbXchTeE
+/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution/.venv/bin/youtube-intel smoke-public-subtitles --directory-only --temporary-root ABSOLUTE_NEW_PARENT/smoke-root --video-id=--khbXchTeE
 ```
 
 - 此唯一 ID 仅允许 metadata=`1`、字幕目录 enumerate=`1`、正文 read=`0`。禁止增加、替换或重排 ID，循环、并发、第二次 smoke、`retry` 或任何其他产品命令。

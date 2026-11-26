@@ -1,6 +1,6 @@
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
-rootdir: /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/baseline-source
+rootdir: /Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/baseline-source
 configfile: pyproject.toml
 plugins: anyio-4.14.2
 collected 3979 items
@@ -242,14 +242,14 @@ tests/unit/test_youtube_network.py ..................................... [ 99%]
 
 =============================== warnings summary ===============================
 tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
-  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+  /Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
     return self._open_to_write(zinfo, force_zip64=force_zip64)
 
 tests/unit/test_task016c_domain_contracts.py::test_model_construct_bypass_is_revalidated
-  /Users/hua/Documents/yia-worktrees/muse-final-audit/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  /Users/developer/Documents/yia-worktrees/muse-final-audit/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
     PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='status', input_value='REJECT', input_type=str])
     return self.__pydantic_serializer__.to_python(
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-- generated xml file: /Users/hua/Documents/yia-worktrees/muse-final-audit/docs/validation/muse-final-audit/checks/main-backend.xml -
+- generated xml file: /Users/developer/Documents/yia-worktrees/muse-final-audit/docs/validation/muse-final-audit/checks/main-backend.xml -
 =========== 3978 passed, 1 skipped, 2 warnings in 926.73s (0:15:26) ============

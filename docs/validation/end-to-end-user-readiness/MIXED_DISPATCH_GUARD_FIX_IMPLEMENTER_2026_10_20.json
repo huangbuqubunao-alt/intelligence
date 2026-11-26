@@ -6,7 +6,7 @@
   "base_candidate_rejected": true,
   "base_rejection_reference": "independent review verdict REJECT, P1 caption refresh clears unknown cloud dispatch protection; repro SHA256 f422a84e08ba33c14d634610895ab123f15e61509573c123671b1b74169617d2",
   "branch": "codex/task-readiness-mixed-dispatch-guard-fix",
-  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-mixed-dispatch-guard-fix",
+  "worktree": "/Users/developer/Documents/yia-worktrees/readiness-mixed-dispatch-guard-fix",
   "scope": "frontend/src/workspace/App.tsx only, plus this frontend test file; no backend, state, transcripts, schema, dependency, credential or qualification changes",
   "fix": "DeepAnalysisPanel preflight/cost reset effect no longer clears dispatchBlocked on inputRefresh; only a videoId change clears dispatchBlocked (split effect, two lines)",
   "source_file_sha256": {

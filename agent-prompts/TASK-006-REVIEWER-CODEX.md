@@ -6,13 +6,13 @@ You are a **fresh independent Codex Reviewer**. You did not implement TASK-006. 
 
 - Base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
 - Source branch/worktree: `codex/task-006-local-transcription` /
-  `/Users/hua/Documents/yia-worktrees/task-006`
+  `/Users/developer/Documents/yia-worktrees/task-006`
 - Reviewed implementation: `c6ff804569b376c347719296d80fbe1abf99057a`
 - Main dynamic authorization: resolve `git log -1 --format=%H -- agent-prompts/TASK-006-REVIEWER-CODEX.md`
-  from `/Users/hua/Documents/youtubek agent`; it must designate this exact source and `IN_REVIEW`.
+  from `/Users/developer/Documents/youtubek agent`; it must designate this exact source and `IN_REVIEW`.
 
 The active TASK-007 Implementer is outside your scope. Do not read, run checks in, modify, wait
-on, clean, or report on `/Users/hua/Documents/yia-worktrees/task-007`.
+on, clean, or report on `/Users/developer/Documents/yia-worktrees/task-007`.
 
 ## Review scope and write rule
 

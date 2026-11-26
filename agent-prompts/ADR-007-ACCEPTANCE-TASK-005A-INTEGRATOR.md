@@ -7,10 +7,10 @@ TASK-005A 控制面。你不实现产品代码、创建 worktree/分支、安装
 
 ## 固定基线与身份
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Branch：`main`
 - Required base：`37e59ada6c24e69ea6702a53faa6aa08d4e58bf0`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Required identity：`Mozhu <maintainer@example.invalid>`
 - Required config：`user.useConfigOnly=true`
 - Product approval：2026-07-17，`批准 ADR-007 L-01 至 L-15 推荐方案。`
 

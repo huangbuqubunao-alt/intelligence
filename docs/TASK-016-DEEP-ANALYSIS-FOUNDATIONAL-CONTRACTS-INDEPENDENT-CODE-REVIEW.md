@@ -40,12 +40,12 @@ value, bypassing the advertised sole-mint trust boundary.
 ### P0-1 — `TrustedDeepAnalysisSuccess` is publicly forgeable
 
 `TrustedDeepAnalysisSuccess` is publicly exported and its sentinel protects
-only `__init__` ([deep_analysis_contracts.py](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:867)). An ordinary caller can call
+only `__init__` ([deep_analysis_contracts.py](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:867)). An ordinary caller can call
 `object.__new__(TrustedDeepAnalysisSuccess)` and use `object.__setattr__` to set
 `_content_identity`, `_cache_identity`, and `_sealed`. The resulting object
 returns the supplied identities and cannot be distinguished by this type from
 a finalizer-minted value. The current `__setattr__` guard itself delegates to
-`object.__setattr__` ([line 889](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:889)).
+`object.__setattr__` ([line 889](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:889)).
 
 This directly violates amendment §9's sole application validator/finalizer
 mint requirement and the review gate's anti-forgery criterion. The focused test
@@ -62,7 +62,7 @@ against finalizer-owned state; add adversarial coverage for `object.__new__`,
 
 `CanonicalDeepAnalysisInputV1` claims construction only from the authoritative
 scoring read, but it accepts any publicly constructible `VerifiedScoringRead`
-whose exact runtime type matches ([lines 346–378](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:346)).
+whose exact runtime type matches ([lines 346–378](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:346)).
 `VerifiedScoringRead` is a public frozen dataclass with a public constructor;
 the focused test fixture itself directly constructs it. Further,
 `CanonicalDeepAnalysisInputV1.model_construct(...)` is inherited and skips the
@@ -86,7 +86,7 @@ tests for manually constructed `VerifiedScoringRead`, `model_construct`, copy
 
 `CredentialExecutionProfileIdentityV1` stores raw arbitrary strings in
 `project_identity`, `organization_identity`, endpoint, and policy fields
-([lines 236–249](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:236)). It rejects an *extra* field named `api_key`,
+([lines 236–249](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:236)). It rejects an *extra* field named `api_key`,
 but it accepts `project_identity="sk-live-super-secret"`; that value is retained
 by the model and shown by `repr`/`model_dump`.
 
@@ -105,13 +105,13 @@ redaction.
 
 `DeepAnalysisDispatchEnvelopeV1` checks A1/A2 and payload scope, but does not
 bind `payload_consent.named_provider_id`/`provider_kind` to the execution
-profile's actual provider ([lines 753–782](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:753)). A locally authorized
+profile's actual provider ([lines 753–782](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:753)). A locally authorized
 consent for `provider-a` and an otherwise valid execution profile for
 `provider-b` are accepted together.
 
 Likewise `DeepAnalysisFallbackPolicyV1` validates graph topology but never
 compares an edge's declared source/destination scopes or destination credential
-identity with its referenced nodes ([lines 563–588](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:563)). A policy accepted an edge that
+identity with its referenced nodes ([lines 563–588](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:563)). A policy accepted an edge that
 declared `SELECTED_EVIDENCE_ONLY` for a destination node whose semantic identity
 specified `FULL_TRANSCRIPT`.
 
@@ -129,7 +129,7 @@ identity to the referenced nodes. Add negative tests for every mismatched pair.
 
 `DeepAnalysisStructuredOutputV1` rejects schema/tools only for
 `RAW_JSON_PROMPT` and requires tools only for
-`TOOL_STRUCTURED_RETURN` ([lines 414–420](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:414)). It accepts a
+`TOOL_STRUCTURED_RETURN` ([lines 414–420](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:414)). It accepts a
 `PROVIDER_JSON_SCHEMA` request with `schema=None`, and permits incompatible
 schema/tool fields in the other modes. It also does not enforce the required
 single user-message shape for `RAW_JSON_PROMPT`.
@@ -149,8 +149,8 @@ versus omitted fields). Add a negative/positive matrix for all four modes.
 The contract requires invalid/empty/ambiguous provider selection to terminate
 as `PRE_DISPATCH/PROVIDER_UNAVAILABLE`, but the frozen mapping forces
 `PROVIDER_UNAVAILABLE` to `PROVIDER_MODEL`
-([lines 111–152](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:111)). `DeepAnalysisFailureV1` rejects
-the normative pre-dispatch combination ([lines 479–488](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:479)).
+([lines 111–152](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:111)). `DeepAnalysisFailureV1` rejects
+the normative pre-dispatch combination ([lines 479–488](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:479)).
 
 Required correction: make the code/stage taxonomy faithfully represent the
 normative leaf and precedence, or adopt an approved distinct pre-dispatch leaf

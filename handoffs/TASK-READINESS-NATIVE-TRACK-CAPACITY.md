@@ -4,7 +4,7 @@
 
 - Role: Implementer / caption_resume。
 - Base: `05f31372d0b05ecdecaa711aead19ab7a3ad71db`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-native-track-capacity`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-native-track-capacity`。
 - Branch: `codex/task-readiness-native-track-capacity`。
 - 用户精确批准 NATIVE_TRACK_CAPACITY_PROPOSAL.md，2026-10-14任务恢复/分配。
 - 建议 IN_REVIEW；提交后 STOP，Reviewer intel_bounded_review；不自审或采用。

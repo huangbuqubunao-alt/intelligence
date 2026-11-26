@@ -4,7 +4,7 @@
 
 - Role: Implementer `/root/bigmodel_audit_review`（此前语义审查任务已结束，不是自审该输出）。
 - Base: `0067feddc67e7d004514c515f7d985f45a54111e`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-summary-baseline-context`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-summary-baseline-context`。
 - Branch: `codex/task-readiness-summary-baseline-context`。
 - 仅新增 `src/youtube_intel/summary_baseline.py`、`tests/unit/test_summary_baseline.py` 和本交接；建议主控窄审后决定是否接受，不自行合并。
 - 目标：给后续显式 opt-in 新输入提供完整、可还原、可绑定身份的真实 Summary 比较基线；本提交不接线现有执行路径、不生成任何结果、不授模型资格。
@@ -44,7 +44,7 @@
 
 ## 运行证据
 
-在本 worktree，复用 Root 已有 `.venv`，未安装依赖。Python 命令显式 `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-summary-baseline-context/src`、`PYTHONDONTWRITEBYTECODE=1`。
+在本 worktree，复用 Root 已有 `.venv`，未安装依赖。Python 命令显式 `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-summary-baseline-context/src`、`PYTHONDONTWRITEBYTECODE=1`。
 
 | 命令/检查 | 真实结果 |
 |---|---|

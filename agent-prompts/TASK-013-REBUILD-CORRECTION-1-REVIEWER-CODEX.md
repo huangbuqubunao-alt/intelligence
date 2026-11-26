@@ -4,8 +4,8 @@
 
 ## 动态授权与审查对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-1-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013=`IN_REVIEW`。
-- Reviewed source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@ae724990f6f3628a054bfca000e9e28d83f3def7`；开始时必须干净，唯一父提交为 `3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-1-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013=`IN_REVIEW`。
+- Reviewed source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@ae724990f6f3628a054bfca000e9e28d83f3def7`；开始时必须干净，唯一父提交为 `3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`。
 - 相对 original base `2a59dfe3860161a5989f2c08161f03c73aa4ca86` 只允许：`tests/e2e/test_mvp_flow.py`、`tests/e2e/test_failure_recovery.py`、`tests/e2e/fixtures/**`、`docs/ACCEPTANCE_REPORT.md`、`handoffs/TASK-013.md`。
 - 历史 `task-013` worktree/branch 是已拒绝审计证据，禁止访问或修改。
 

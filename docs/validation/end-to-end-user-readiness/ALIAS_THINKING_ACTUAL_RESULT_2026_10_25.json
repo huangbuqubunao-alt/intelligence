@@ -127,77 +127,77 @@
   "main_merge_push_deploy": false,
   "proofs": [
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/reviewed-package.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/reviewed-package.json",
       "bytes": 607271,
       "sha256": "d8307117ed8e0b3fe995ac907e7bc5dc3d56ec2311ecfa11de9c4ba268161326"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/candidate-request.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/candidate-request.json",
       "bytes": 4738,
       "sha256": "f258e0660691cb99f4526a9ccee4ad0631cee75e5986037814b060e5a91eb13e"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/codec-packet.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/codec-packet.json",
       "bytes": 4068,
       "sha256": "8193fc58ce69adee283679ddb4e0bcf3a12eaffb632823cd616fe835124ef9f2"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/prepared.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/prepared.json",
       "bytes": 32962,
       "sha256": "e505907e85795b13de77b5fdffc7ca1ce614802bcd9748ba3e3f847c221546bb"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/diagnostic.py",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/diagnostic.py",
       "bytes": 24791,
       "sha256": "8087ef0aa16090971408bb6837066e0027790b156a4e7490e97a51b210981d77"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/generation-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/generation-start.json",
       "bytes": 1838,
       "sha256": "3a188ad59cbf6cc8a1e56ef6d08c9d0efd55aad47b3d7544e29ca8c127210174"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/generation-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/generation-start.json",
       "bytes": 1838,
       "sha256": "3a188ad59cbf6cc8a1e56ef6d08c9d0efd55aad47b3d7544e29ca8c127210174"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/precheck.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/precheck.json",
       "bytes": 487,
       "sha256": "06eb3230fae66cabb81485b3108cc05d889236f740a9d7b962b94378762f6f96"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/capacity.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/capacity.json",
       "bytes": 13487,
       "sha256": "949d4b376cf839563d84bf8909c9486db55465386ca3ec53645798bd4de4c121"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/preload-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/preload-raw.json",
       "bytes": 330,
       "sha256": "7e561de71701c9385e7ef7ea42bb664417d495d3e58544a0d96b4035d6fed99b"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/generation-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/generation-raw.json",
       "bytes": 36074,
       "sha256": "ebd1ed928d52feb34cca135c347ab8f6e13aa5cc9bfea0fb5e77bdcd97c5e902"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/diagnostic-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/diagnostic-result.json",
       "bytes": 1063,
       "sha256": "e0871be478b0609e984b9cedbd9182a30c92ece41e90fe03fb140e8345a46818"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/launch-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/launch-start.json",
       "bytes": 161,
       "sha256": "8b6e1163b0c95777b4ddb6d20259a071714b59bfbf09520f85dbd78094881f61"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/run-20261025/controller-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/run-20261025/controller-result.json",
       "bytes": 334,
       "sha256": "3942a553bf6129bf7f609a901d434b071e0cda6da0233823cc5dc3781c8bf50a"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/run-20261025/cleanup-slots.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/run-20261025/cleanup-slots.json",
       "bytes": 1772,
       "sha256": "f080cf2f1e8a99c0f3de0c7ad9b003d2b9180fa5bf10d8daf2c92c7502914ef0"
     }

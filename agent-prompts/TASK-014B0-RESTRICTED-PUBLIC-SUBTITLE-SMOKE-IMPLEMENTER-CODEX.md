@@ -13,7 +13,7 @@ Task: TASK-014B0 — Restricted public subtitle smoke entry
 Role: Implementer
 Agent: Codex
 Control-plane parent baseline: main@28223cc98f9da18fc877289231a92e240cc711d0
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
 Branch: codex/task-014-phase-b0-restricted-public-subtitle-smoke
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — 已锁定 yt-dlp Adapter、SQLite migration、JsonlLogger、Python 标准库；不新增/复制第三方代码

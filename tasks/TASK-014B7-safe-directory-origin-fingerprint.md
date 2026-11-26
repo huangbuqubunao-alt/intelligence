@@ -5,7 +5,7 @@
 - Reviewer: `Correction 2 独立 Codex Reviewer（APPROVE，P0--P3=0）`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、TASK-014B6 `DONE`、ADR-018 `Accepted`
 - 实施基线：`main@5b7dcca2ba9bd9e52e254a8944e584542838e24b`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint`
 - Branch：`codex/task-014b7-safe-directory-origin-fingerprint`
 - accepted source：`6a7f4ce444b3f93aa1388f45e7a5619eb802a317`（Reviewer evidence，唯一父
   `4d4366f6a6403403a0d9bed65fbbf862a362eede`；后者唯一父 `069e62e…`）

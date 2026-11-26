@@ -8,7 +8,7 @@
 Task: TASK-014B5 — safe smoke summary output
 Role: Independent Reviewer
 Control-plane base: main@671f6a84200e6d24395763d5650fb4878667df00
-Reviewed source worktree: /Users/hua/Documents/yia-worktrees/task-014b5-safe-smoke-summary
+Reviewed source worktree: /Users/developer/Documents/yia-worktrees/task-014b5-safe-smoke-summary
 Reviewed source branch: codex/task-014b5-safe-smoke-summary
 Reviewed source HEAD: ce4b47226c6ed40d1a0f2852eaaa74f23a1be7e1
 Required sole parent: b1ea7a66aaf513aa0fa8262780f9c59072cc18b4

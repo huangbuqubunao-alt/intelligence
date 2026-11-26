@@ -4,19 +4,19 @@
 
 ## 固定授权与工作位置
 
-- Main repository: `/Users/hua/Documents/youtubek agent`
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Main repository: `/Users/developer/Documents/youtubek agent`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Source branch: `grok/task-004-discovery-metadata`
 - Reviewed implementation head: `7272528a3c5603087446251ee96ae4766fedeb96`
 - Reviewed implementation parent: `d510794ffccf54948f967f010685aef1c0a02f3d`
 - Full TASK-004 product Diff anchor: `58c79afc8ab9f74d98c8181a6565be5c9246e4a4`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Git identity: `Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 - Main review authorization: 用本文件在 main 的最近添加提交动态解析
 
 只有提交本包的 Status Integrator 返回 `INTEGRATED` 后才能启动。先在任意目录执行：
 
 ```bash
-main_repo='/Users/hua/Documents/youtubek agent'
+main_repo='/Users/developer/Documents/youtubek agent'
 review_authorization="$(git -C "$main_repo" log -1 --format=%H -- agent-prompts/TASK-004-REVIEWER-5-CODEX.md)"
 test -n "$review_authorization"
 test "$(git -C "$main_repo" rev-parse HEAD)" = "$review_authorization"
@@ -27,13 +27,13 @@ test -z "$(git -C "$main_repo" status --short)"
 然后进入 source worktree 并确认：
 
 ```bash
-cd '/Users/hua/Documents/yia-worktrees/task-004'
+cd '/Users/developer/Documents/yia-worktrees/task-004'
 test "$(git branch --show-current)" = 'grok/task-004-discovery-metadata'
 test "$(git rev-parse HEAD)" = '7272528a3c5603087446251ee96ae4766fedeb96'
 test "$(git rev-parse HEAD^)" = 'd510794ffccf54948f967f010685aef1c0a02f3d'
 test -z "$(git status --short)"
 test "$(git config user.name)" = 'Mozhu'
-test "$(git config user.email)" = 'huangbuqubunao@gmail.com'
+test "$(git config user.email)" = 'maintainer@example.invalid'
 test "$(git config --bool user.useConfigOnly)" = 'true'
 ```
 

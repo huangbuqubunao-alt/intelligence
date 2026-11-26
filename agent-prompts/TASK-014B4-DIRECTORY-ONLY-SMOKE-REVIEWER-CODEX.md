@@ -9,7 +9,7 @@
 Task: TASK-014B4 — restricted directory-only public subtitle smoke
 Role: Independent Reviewer
 Review control-plane base: main@6c9bc8e37769bfc2da4ff1dc8c904e7afb38c6d0
-Reviewed source worktree: /Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke
+Reviewed source worktree: /Users/developer/Documents/yia-worktrees/task-014b4-directory-only-smoke
 Reviewed source branch: codex/task-014b4-directory-only-smoke
 Reviewed implementation HEAD: 2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14
 Required sole parent: bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d

@@ -6,7 +6,7 @@
 Task: TASK-017
 Role: Codex Implementer
 Base anchor: main@943e1a73b56aecba988d2bd847f9f3031b2f1752
-Worktree: /Users/hua/Documents/yia-worktrees/task-017-fcc-inspired-ui
+Worktree: /Users/developer/Documents/yia-worktrees/task-017-fcc-inspired-ui
 Branch: codex/task-017-fcc-inspired-ui
 Allowed scope: tasks/TASK-017-fcc-inspired-workspace-presentation.md
 Required checks: task card "Required validation"

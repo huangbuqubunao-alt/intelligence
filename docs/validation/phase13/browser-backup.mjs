@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {writeFileSync} from 'node:fs';
-import {chromium} from '/Users/hua/Documents/yia-worktrees/phase13-background-following/frontend/node_modules/playwright-core/index.mjs';
+import {chromium} from '/Users/developer/Documents/yia-worktrees/phase13-background-following/frontend/node_modules/playwright-core/index.mjs';
 const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
 const results=[];
 try {

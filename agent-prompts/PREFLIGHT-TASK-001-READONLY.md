@@ -9,7 +9,7 @@
 从任意目录启动独立 Codex CLI 会话：
 
 ```bash
-codex -C '/Users/hua/Documents/youtubek agent' \
+codex -C '/Users/developer/Documents/youtubek agent' \
   --sandbox read-only \
   --ask-for-approval untrusted
 ```

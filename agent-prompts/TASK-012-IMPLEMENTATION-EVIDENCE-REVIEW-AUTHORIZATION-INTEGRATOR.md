@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@1cfafce694b9248ec381ea75d5e342d0553e65d9`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@7c83283eac83b01c88a7625b4a216790d14514b2`，必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@7c83283eac83b01c88a7625b4a216790d14514b2`，必须干净。
 - Source implementation 唯一父为固定 base `8e322f362d2ff0972ee987b7c06c8453a9dce73d`；完整 Diff 严格为 12 个批准路径。
 - `pyproject.toml` 例外仅为 `[tool.uv.build-backend].source-include` 的 plist/docs 归档包含配置；`[project].dependencies`、build backend、工具链和 `uv.lock` 均不得变化。
 
@@ -26,7 +26,7 @@
 
 ## 必须执行
 
-1. 核验 main/source HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、12 路径 source 范围、pyproject 例外和未变依赖/锁。
+1. 核验 main/source HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、12 路径 source 范围、pyproject 例外和未变依赖/锁。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据、launchctl、plutil 或任何产品文件 I/O 命令。
 4. main 将 TASK-012 设为 `IN_REVIEW`，授权全新独立 Reviewer；不得预写 Verdict、ACCEPTED、merge 或 DONE。TASK-013/014 保持 `BLOCKED/UNASSIGNED`。

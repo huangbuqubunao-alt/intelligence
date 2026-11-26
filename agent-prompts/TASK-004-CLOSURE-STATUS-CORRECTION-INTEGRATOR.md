@@ -4,7 +4,7 @@
 
 ## 固定基线
 
-- main repository：`/Users/hua/Documents/youtubek agent`
+- main repository：`/Users/developer/Documents/youtubek agent`
 - main branch / base HEAD：`main@f718b7ef35c08fa02a0f05f365d3c3735a5d7912`
 - TASK-004 已关闭证据：`dc3f097ce125bc8390b04d0913b5d00f44eae3e8` 为产品 merge；`f718b7e...` 为其直接后继的 TASK-004 closure control-plane commit
 - retained source：`grok/task-004-discovery-metadata@d4d6d01ceba3b9524305bb41ece81b8783f3db4b`，只读核验且必须保持干净
@@ -20,7 +20,7 @@
 
 ## 必须校验
 
-1. main 为 `main@f718b7e...`，其唯一父提交为 `dc3f097...`；main/source 均干净；身份精确为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+1. main 为 `main@f718b7e...`，其唯一父提交为 `dc3f097...`；main/source 均干净；身份精确为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 2. `f718b7e...` 的提交范围精确为前一轮 closure 的 6 个 Markdown；其内容已将 TASK-004 任务卡写为 `DONE`，TASK-005 写为 `BLOCKED/UNASSIGNED`。
 3. 修正后的 `PROJECT_STATUS` 不再把 TASK-004 描述为“等待收口/待整合/ACCEPTED”；当前事实必须是 merge `dc3f097...` 已完成、TASK-004 为 `DONE`。
 4. TASK-005 的事实不变：ADR-006 已接受，TASK-003/004 依赖已满足，但仍等待正式实施授权；本轮不解锁、分配、创建 worktree 或授权真实网络。

@@ -4,7 +4,7 @@
 
 - Role：Implementer；session `local_text_repair_resume`。
 - Base：`aa18dea681c86645f7aa2efdea5b6c278dc96c89`，包含已独立审查整合的 SourceCAS。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-following-poll-draft`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-following-poll-draft`。
 - Branch：`codex/task-readiness-following-poll-draft`；修复 HEAD 以本报告随附提交记录为准。
 - 日期：2026-10-15。任务卡与 root 持续授权为依据；不改原 CAS 树/root，不自行整合或更新公共状态。
 - 目标：实际 App → Sources → SourceDetail → CreatorFollowingDetail → SourceInterestEditor 组合，在

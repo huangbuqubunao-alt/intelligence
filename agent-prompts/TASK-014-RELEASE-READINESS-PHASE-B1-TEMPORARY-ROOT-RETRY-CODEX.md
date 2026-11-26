@@ -15,11 +15,11 @@ Task: TASK-014 Phase B-1 — final non-existing temporary-root smoke retry
 Role: non-existing Temporary-root Smoke Retry Executor
 Agent: Codex
 Control-plane baseline: main@f5bcac5e9fa7dac7bdac1e859873d369adbb7880
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
 Branch: codex/task-014-phase-b1-console-entry-retry
 Source HEAD / blocker evidence: 365c8fca966a3fb7608f41b2d3ac530504193c7b
 Required sole parent: 3c3dd4ac45cb6ea66bc927a1542c4612554a56fa
-Only executable: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel
+Only executable: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel
 Reuse decision: DIRECT — 已核验项目虚拟环境 console entry、smoke-public-subtitles 与 yt-dlp Adapter；不新增或复制第三方代码
 ```
 
@@ -40,7 +40,7 @@ Reuse decision: DIRECT — 已核验项目虚拟环境 console entry、smoke-pub
 3. 只有第 2 步通过后，才可仅调用以下命令一次，并保留其数值退出码：
 
 ```text
-/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles \
+/Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles \
   --temporary-root ABSOLUTE_NEW_PARENT_DIR/smoke-root \
   --video-id=--khbXchTeE \
   --video-id=JTxsNm9IdYU

@@ -4,7 +4,7 @@
 
 ## 固定上下文
 
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Product base: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Reviewed source head: `54c0ab201388cba35e481d7a511f21575946ad14`
@@ -13,11 +13,11 @@
 - Implementer 已停止写入；开始审查时 source worktree 必须干净
 - TASK-003 已 `DONE`；不得读取、写入、检查、清理或等待 TASK-003 worktree
 
-控制面文档必须从 main `/Users/hua/Documents/youtubek agent` 读取；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取 `AGENTS.md`、协作/状态/PRD/System Design 第 3、5、5.2、12 节、ADR-002 C-05、ADR-004 D-01 至 D-08、Reuse Register、TASK-004 卡、完整 handoff（特别是 `5d66c28...` 的 REJECT 与 correction 4 记录）、前三个 Reviewer 包、四个 correction 包和本包。
+控制面文档必须从 main `/Users/developer/Documents/youtubek agent` 读取；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取 `AGENTS.md`、协作/状态/PRD/System Design 第 3、5、5.2、12 节、ADR-002 C-05、ADR-004 D-01 至 D-08、Reuse Register、TASK-004 卡、完整 handoff（特别是 `5d66c28...` 的 REJECT 与 correction 4 记录）、前三个 Reviewer 包、四个 correction 包和本包。
 
 ## 开始前门禁与范围
 
-确认分支 `grok/task-004-discovery-metadata`、HEAD 精确 `54c0ab2...`、worktree 干净、身份为 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`；确认 `54c0ab2...` 父提交为 `5d66c28...`，correction 4 精确仅改五个文件：`providers/youtube.py`、`discovery.py`、两份 discovery 测试与 handoff。完整 Diff `dcc7d85...54c0ab2...` 仍只能属于原批准 17 文件集合；否则停止，不写 handoff。
+确认分支 `grok/task-004-discovery-metadata`、HEAD 精确 `54c0ab2...`、worktree 干净、身份为 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`；确认 `54c0ab2...` 父提交为 `5d66c28...`，correction 4 精确仅改五个文件：`providers/youtube.py`、`discovery.py`、两份 discovery 测试与 handoff。完整 Diff `dcc7d85...54c0ab2...` 仍只能属于原批准 17 文件集合；否则停止，不写 handoff。
 
 复核 `yt-dlp[default,deno]` 仍在已批准范围、无额外直接依赖或既有直接依赖升级；没有真实 YouTube、Cookie/登录、remote components、ffmpeg、媒体/字幕下载、Vault、密钥、真实响应或缓存；不得改变 `domain.py`、`state.py`、CLI 或 TASK-003 接口。
 

@@ -1,7 +1,7 @@
 # V1X Phase 9 acoustic acceptance evidence
 
 Baseline: `5324ebb3c38e941168bd9de156550bbbb65573ff`, schema 32.
-Worktree: `/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification`.
+Worktree: `/Users/developer/Documents/yia-worktrees/v1x-acoustic-qualification`.
 Branch: `chatgpt/v1x-acoustic-qualification`.
 Decision: [DR-001](../decisions/V1X-PHASE9-DR-001-acoustic-qualification.md).
 Final result: **ACOUSTIC_QUALIFICATION_FAILED**; evaluation completed.

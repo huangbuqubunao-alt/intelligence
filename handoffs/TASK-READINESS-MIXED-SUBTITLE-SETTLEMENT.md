@@ -5,7 +5,7 @@
 - Task: `TASK-READINESS-MIXED-SUBTITLE-SETTLEMENT`
 - Role: Implementer（独立 Reviewer 与 root GUI 最终验收仍待）
 - Base: `codex/task-end-to-end-user-readiness@4e20793e08ce7c223e3e5dd03468e1f6424d1c8a`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-mixed-subtitle-settlement`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-mixed-subtitle-settlement`
 - Branch: `codex/task-readiness-mixed-subtitle-settlement`
 - 日期：2026-10-20（Asia/Shanghai）
 - 用户持续默认授权；root 已接受开工前方法、范围和风险说明。

@@ -10,24 +10,24 @@ REAL_NATIVE_PICKER_FILE /private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T
 {"stage": "confirm restore", "seconds": 12.225, "python_peak_delta_bytes": 2212020, "process_peak_rss_bytes": 73728000}
 {"stage": "restart restore activation", "seconds": 45.598, "python_peak_delta_bytes": 2199285, "process_peak_rss_bytes": 73728000}
 Traceback (most recent call last):
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 170, in <module>
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 170, in <module>
     source_authority.clone_descriptor = original_clone
 ^^
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 153, in main
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 153, in main
     assert target.resolve_verified_evidence_text(eid) == original_evidence
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 72, in get
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 72, in get
     response = connection.getresponse()
                ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 1430, in getresponse
+  File "/Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 1430, in getresponse
     response.begin()
-  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 331, in begin
+  File "/Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 331, in begin
     version, status, reason = self._read_status()
                               ^^^^^^^^^^^^^^^^^^^
-  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 292, in _read_status
+  File "/Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 292, in _read_status
     line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/socket.py", line 720, in readinto
+  File "/Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/socket.py", line 720, in readinto
     return self._sock.recv_into(b)
            ^^^^^^^^^^^^^^^^^^^^^^^
 KeyboardInterrupt

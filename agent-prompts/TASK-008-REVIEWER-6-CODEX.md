@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-REVIEWER-6-CODEX.md`；main 中 TASK-008 必须为 `IN_REVIEW`。
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@dcbbd38fe8bab79fd6db1679f43a8ca48fb472ea` / `473119704c7638d7afd4e68d84d00e85064ceabd`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-REVIEWER-6-CODEX.md`；main 中 TASK-008 必须为 `IN_REVIEW`。
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@dcbbd38fe8bab79fd6db1679f43a8ca48fb472ea` / `473119704c7638d7afd4e68d84d00e85064ceabd`。
 - Correction 5 唯一父为 reviewer-5 evidence `78ae101786ada5f04d2b7c734c84a216f8820803`；完整证据链继续回到 prior corrections 和 original implementation。
 - 完整允许范围：`analysis.py`、`providers/cloud_llm.py`、`prompts/summary.md`、`tests/fixtures/analysis/**`、`test_analysis_policy.py`、`test_summary_provider.py`、`handoffs/TASK-008.md`。
 - Source 卡和项目状态是固定 base 的历史 `BLOCKED/UNASSIGNED` 快照；不得作为冲突或写回 source。TASK-009 source 不得读取、修改或清理。

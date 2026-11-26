@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex`
 - Base branch/commit: `main@9c5f08ec829629591b095bd68841ca3ce0b22532`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation`
 - Branch: `codex/task-014b3-public-subtitle-diagnostics-implementation`
 - Head commit: `this single Implementer commit`
 - Started: `2026-07-28`

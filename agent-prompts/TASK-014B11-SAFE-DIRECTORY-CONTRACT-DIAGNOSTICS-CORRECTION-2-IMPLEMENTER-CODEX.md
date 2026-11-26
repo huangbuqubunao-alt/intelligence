@@ -17,7 +17,7 @@ B11 Implementer/两轮 Reviewer/Correction 1/Integrator/Leak Triage Scout 包、
 Task: TASK-014B11 — pre-merge leak gate Correction 2
 Role: Original Codex Implementer
 Control-plane parent/base: main@18af86361cc152d043723758b1b5548cfbdfe4ff
-Source worktree: /Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
+Source worktree: /Users/developer/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
 Source branch: codex/task-014b11-safe-directory-contract-diagnostics
 Correction 2 base / required initial HEAD: f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d
 Required sole parent of first Correction 2 commit: f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d

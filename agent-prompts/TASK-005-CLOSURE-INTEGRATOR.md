@@ -4,10 +4,10 @@
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@cfc302ddc41cd908777f49de292327640b6f8314`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Git identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Accepted source/review evidence：`d5268ef08b360e932b5dda9d0fb70d71b13587a4`
 - Merge commit：`cfc302ddc41cd908777f49de292327640b6f8314`

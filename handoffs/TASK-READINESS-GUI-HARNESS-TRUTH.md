@@ -3,7 +3,7 @@
 - Role: Implementer `/root/qa_launch_isolation`
 - Date: 2026-11-04
 - Base: `2c97703b40f79e22cbeb65bf54a243a26338f017`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-gui-harness-truth`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-gui-harness-truth`
 - Branch: `codex/readiness-gui-harness-truth`
 - Suggested status: IN_REVIEW; Root reviews only this tooling delta once.
 

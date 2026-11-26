@@ -1,8 +1,8 @@
 # V1.x Phase 2: Deep Analysis → Obsidian acceptance
 
 Date: 2026-10-03. Sole executor; no delegated agents.
-Repository: `/Users/hua/youtube-intel`.
-Dedicated worktree: `/Users/hua/Documents/yia-worktrees/v1x-obsidian`.
+Repository: `/Users/developer/youtube-intel`.
+Dedicated worktree: `/Users/developer/Documents/yia-worktrees/v1x-obsidian`.
 Branch: `chatgpt/v1x-obsidian-deep-analysis`.
 Start: `432f085d76824dfa51a447622aa2dba23ff8bfc8`, accepted Phase 1B.
 
@@ -143,7 +143,7 @@ isolation observations follow below.
 - Existing Phase 1B Chrome regression: **16 scenarios**, zero console
   errors/overflow. Navigation remains six destinations.
 
-Commands use the existing `/Users/hua/youtube-intel/.venv` and existing frontend
+Commands use the existing `/Users/developer/youtube-intel/.venv` and existing frontend
 dependencies; `PYTHONPATH=src` selects this independent source tree. The owned
 temporary node_modules symlink is removed after validation. Local evidence:
 `/tmp/v1x-phase2-{acceptance-focused,focused-final,full-backend-acceptance,frontend-final,build-final,browser-final,phase1b-browser-final}.log`.

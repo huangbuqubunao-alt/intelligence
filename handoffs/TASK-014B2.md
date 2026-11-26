@@ -7,7 +7,7 @@
 - Agent/session: `Codex`
 - Control-plane base: `main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4`
 - Implementation base: `main@b4d6981e56da8366f0c512a8f0544396d47cd209` (contains the required control-plane base)
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry`
 - Branch: `codex/task-014-phase-b2-console-entry`
 - Head commit: `pending implementation commit`
 - Reported: `2026-07-27`

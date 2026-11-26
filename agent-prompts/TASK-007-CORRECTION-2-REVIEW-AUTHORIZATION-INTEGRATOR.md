@@ -8,14 +8,14 @@ TASK-006.
 
 ## Preconditions
 
-- Main: `/Users/hua/Documents/youtubek agent`, `main@1aa3dc22b96a0d0493c656a4ce4f5490bd6f770b`, empty
+- Main: `/Users/developer/Documents/youtubek agent`, `main@1aa3dc22b96a0d0493c656a4ce4f5490bd6f770b`, empty
   index before preparation.
-- Source: `/Users/hua/Documents/yia-worktrees/task-007`, branch `codex/task-007-local-scoring`, clean at
+- Source: `/Users/developer/Documents/yia-worktrees/task-007`, branch `codex/task-007-local-scoring`, clean at
   `567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c`; sole parent must be
   `d8eaeabdd2454141eeb646d9254f4a0a24626605`.
 - Correction range is exactly five allowed files; full base...source range remains the approved 11 paths;
   `pyproject.toml` and `uv.lock` have no difference from the common base.
-- Confirm `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+- Confirm `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 
 ## Exact main scope
 

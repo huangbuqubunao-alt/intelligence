@@ -1,7 +1,7 @@
 # TASK-READINESS-UNSEEN-PUBLIC-ORACLE
 
 - Independent oracle scout `/root/bigmodel_audit_review`;2026-10-28; no subagents.
-- Base `6a55e1c7f711d7aa97db98c85f73a4df65f098a7`; WT `/Users/hua/Documents/yia-worktrees/readiness-unseen-public-oracle`, branch `codex/task-readiness-unseen-public-oracle`.
+- Base `6a55e1c7f711d7aa97db98c85f73a4df65f098a7`; WT `/Users/developer/Documents/yia-worktrees/readiness-unseen-public-oracle`, branch `codex/task-readiness-unseen-public-oracle`.
 - Allowed/actual writes: only `docs/validation/end-to-end-user-readiness/UNSEEN_PUBLIC_ORACLE_V1.json` and this handoff. No product/model prompt/interest/Summary/source/data/config/schema/test changes.
 - Verdict: **FIT_FOR_CONDITIONAL_SOURCE_BOUNDED_POSITIVE_ORACLE**, pending Root's independent acceptance. This is a plausible pre-output substantive inference case, not a mandated card, real model PASS, complete qualification matrix or new-generation authorization.
 - Final oracle SHA256 **`6760fd0da95e220e8599c585a11afee9ca7c0c71cd7737291ad03ce3b1ff9cc2`**.

@@ -2,8 +2,8 @@
 
 - Implementer: schema44_guard_resume; 2026-11-04 Asia/Shanghai.
 - Base: `f1cc9365ac5eb5dfec8ebf95c326bc0c528c6a26`.
-- Own worktree/branch: `/Users/hua/Documents/yia-worktrees/readiness-cloud-spending-policy`, `codex/readiness-cloud-spending-policy`.
-- Root task: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-CLOUD-SPENDING-POLICY.md`.
+- Own worktree/branch: `/Users/developer/Documents/yia-worktrees/readiness-cloud-spending-policy`, `codex/readiness-cloud-spending-policy`.
+- Root task: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-CLOUD-SPENDING-POLICY.md`.
 - Reuse DIRECT existing schema44 proof/claim/receipt and typed SynthesisBudget, Backup control/admission guard, safe directory walking and standard-library flock/atomic fsync. No schema/dependency/credential/migration changes or new provider engine.
 
 ## Design and risk boundaries
@@ -34,7 +34,7 @@ Reported 2026-11-05 Asia/Shanghai. Suggested status **IN_REVIEW**; Root's focuse
 
 ### Actual checks
 
-Interpreter: existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; `PYTHONPATH=src`, strict additionally `MYPYPATH=src:tests`. Existing frontend node_modules reused via ignored symlink, with no package changes.
+Interpreter: existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; `PYTHONPATH=src`, strict additionally `MYPYPATH=src:tests`. Existing frontend node_modules reused via ignored symlink, with no package changes.
 
 | Check | Actual evidence |
 |---|---|

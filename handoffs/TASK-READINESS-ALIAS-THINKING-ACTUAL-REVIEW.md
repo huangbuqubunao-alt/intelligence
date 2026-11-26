@@ -6,13 +6,13 @@
 
 - Reviewer: `/root/alias_thinking_independent_review`; source review `d268a4bf4440766d7531f1cddbc57675f86278b7`, concrete binding review `74b26218ce18a7af09a301d5313909307882dd11`.
 - Root snapshot at dispatch: `0f2689585effe283de705a088650e21e4329ab26`, clean. Source author remains `9d5f226b69fccfe1b8d67df8bd935ef098645b8b`.
-- Reviewer WT: `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-review`, branch `codex/task-readiness-alias-thinking-review`.
+- Reviewer WT: `/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-review`, branch `codex/task-readiness-alias-thinking-review`.
 - Allowed/actual writes: this NEW handoff and ignored `.var/alias-thinking-actual-review/**` only. No old handoff, bound artifact/source/expectation, once marker, product/config/credentials/dependency/Schema was changed. No subagents.
 - No HTTP/model/load/generation/controller/Terminal/process-signal/app-close action was performed by reviewer. Only read-only process/port checks and pure local verification/codec replay. Private thinking was not accessed, displayed, evaluated or interpreted. Raw-body decoding was opaque and projected only public content plus explicit completion/usage fields.
 
 ## Public result and unchanged acceptance standard
 
-Actual directory O: `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025`. Controller directory C is its sibling `run-20261025`; B denotes their parent.
+Actual directory O: `/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025`. Controller directory C is its sibling `run-20261025`; B denotes their parent.
 
 Public final has exactly `result=NO_NEW_INTELLIGENCE` and Evidence references:
 
@@ -68,7 +68,7 @@ The reviewer extracted only whitelisted HTTP status/method/route from daemon acc
 
 ## Reproduction, limitations and bounded next recommendation
 
-Own evidence: `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-review/.var/alias-thinking-actual-review/`. `verify_actual_public_result.py` ran successfully with explicit root `.venv/bin/python -B`, author WT `src` PYTHONPATH, and bytecode disabled. No live transport was invoked. Its source SHA is `926620aea8add40bf15747d3775f5a395ac93ac0f891300b5784323bc2fa0e76`; summary SHA `315e7f6e067aae4425522d204bc88e46dd148e17e01003767926ee548344b844`; log SHA `10e9db9f44140a3665278c472d04de4165e5c6d9777a6a80a31babccac9f7ae3`. `public-response-projection.json`, `daemon-http-metadata-only.json`, `launch-and-product-checks.json` and `actual-evidence-index.json` retain only permitted evidence. Exact model-source/binding review remains prior evidence; no unchanged531/full6003/full1026 rerun was warranted or claimed.
+Own evidence: `/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-review/.var/alias-thinking-actual-review/`. `verify_actual_public_result.py` ran successfully with explicit root `.venv/bin/python -B`, author WT `src` PYTHONPATH, and bytecode disabled. No live transport was invoked. Its source SHA is `926620aea8add40bf15747d3775f5a395ac93ac0f891300b5784323bc2fa0e76`; summary SHA `315e7f6e067aae4425522d204bc88e46dd148e17e01003767926ee548344b844`; log SHA `10e9db9f44140a3665278c472d04de4165e5c6d9777a6a80a31babccac9f7ae3`. `public-response-projection.json`, `daemon-http-metadata-only.json`, `launch-and-product-checks.json` and `actual-evidence-index.json` retain only permitted evidence. Exact model-source/binding review remains prior evidence; no unchanged531/full6003/full1026 rerun was warranted or claimed.
 
 No protocol/reference/code P0/P1/P2 defect was found in this actual artifact review. The unmet frozen positive acceptance is a real blocker for this candidate's demonstrated positive chain. One complete NO_NEW case cannot establish global model quality, a general timing benchmark, negative-case qualification, or successful GUI/save/topic/restart/restore. Recorded cleanup plus current absence corroborates normal stop; this review does not reconstruct a new live runner or contact the stopped service.
 

@@ -6,7 +6,7 @@
 
 - Main base：`main@722b485e4c4f57c6f1689dff69e908e8ec52f0f2`，必须干净且为唯一父基线。
 - Integrating merge：`3d2122c8720e9bfcb7c61088beb2955ffe6f1658`，父提交顺序必须精确为 execution base `8e8b775e7c294f44f410c6b53d0a089e86756aef` 与 accepted source `e12af35b903705d782538617469da0c8a71671e9`。
-- Retained source：`/Users/hua/Documents/yia-worktrees/task-010` / `codex/task-010-orchestration-recovery@e12af35b903705d782538617469da0c8a71671e9`，必须干净且 source 为 main 祖先。
+- Retained source：`/Users/developer/Documents/yia-worktrees/task-010` / `codex/task-010-orchestration-recovery@e12af35b903705d782538617469da0c8a71671e9`，必须干净且 source 为 main 祖先。
 - Merge first-parent Diff 必须精确为六个 TASK-010 批准路径：`jobs.py`、`pipeline.py`、`retry.py`、`test_pipeline.py`、`test_recovery.py`、`handoffs/TASK-010.md`。
 - TASK-008/TASK-009 均已 `DONE`，不得读取、修改、清理或等待其 source worktree。
 
@@ -28,7 +28,7 @@
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、merge 双父、source ancestor、first-parent 六路径范围、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree。
+1. 核验 main/source branch、HEAD、merge 双父、source ancestor、first-parent 六路径范围、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不重跑 uv、pytest、build、数据库、网络、Vault、云端、凭据或任何产品命令；只记录已有整合证据。
 4. 使 TASK-010 card/index/project status/handoff 一致为 `DONE`，记录 merge SHA；不得改变已整合的产品范围或下游状态。

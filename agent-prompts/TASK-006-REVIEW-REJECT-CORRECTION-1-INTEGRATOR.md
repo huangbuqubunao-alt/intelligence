@@ -7,7 +7,7 @@ Do not run product commands or access the active TASK-007 Reviewer worktree.
 
 - Required main base: `ecabaf70774858a90f949e635926a0ef0a83577e`
 - Source branch/worktree: `codex/task-006-local-transcription` /
-  `/Users/hua/Documents/yia-worktrees/task-006`
+  `/Users/developer/Documents/yia-worktrees/task-006`
 - Required review evidence: `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`
 - Required evidence parent/source implementation: `c6ff804569b376c347719296d80fbe1abf99057a`
 

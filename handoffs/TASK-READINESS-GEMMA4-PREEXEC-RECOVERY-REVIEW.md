@@ -2,16 +2,16 @@
 
 **APPROVE_PREEXEC_RECOVERY_SOURCE_ONLY.** No unresolved P0/P1/P2 finding. This approves the fixed private recovery source, descriptor and owner-null launch template. It does not approve a concrete new owner/package/command, model result, qualification or production adoption.
 
-- Reviewer `/root/preexec_recovery_review`, 2026-10-26. Independent WT `/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery-review`, branch `codex/task-readiness-gemma4-preexec-recovery-review`, base `190be68495eb6d0c64b196dd0376d8f7d414e23e`.
+- Reviewer `/root/preexec_recovery_review`, 2026-10-26. Independent WT `/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery-review`, branch `codex/task-readiness-gemma4-preexec-recovery-review`, base `190be68495eb6d0c64b196dd0376d8f7d414e23e`.
 - Reviewed author commit **`8e864d91bbba0a9c5800ab1792438488f374f39c`**, author base `fd422fb2d51a6d2a152bfebfc01e5b9acac783a8`; author WT `readiness-gemma4-preexec-recovery` remained clean at that exact commit. Its tracked diff contains only the assigned author handoff. New source/data are ignored private QA artifacts, independently rehashed in place.
 - Read AGENTS, collaboration/status/PRD/system design/reuse register, recovery and reviewer task/prompt, original READY/binding tasks and source/binding reviews, immutable zero-call receipt, author handoff, actual runtime modules/tests/descriptor/launch templates/README and retained checks. Applied `code-review-and-quality` across correctness, readability, architecture, security and performance.
 - Only this handoff and own ignored `.var/gemma4-preexec-recovery-review/**` were written. No author/C/G/product/configuration/credentials/dependency/Schema/formal-data/task-state/main changes, subagents, actual HTTP/daemon/model/controller/Terminal launches, signals or app closure. Process/port observations and complete SHA/bounded GGUF header reads were read-only; no tensor decoding or GPU use.
 
 ## Independent checks
 
-Y = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`; C = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`.
+Y = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`; C = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`.
 
-All Python checks used `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, bytecode disabled, explicit author WT `src` PYTHONPATH. Original tests ran separately with only C additionally appended for private imports. Both pytest runs disabled cache and used distinct reviewer-owned temporary roots.
+All Python checks used `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, bytecode disabled, explicit author WT `src` PYTHONPATH. Original tests ran separately with only C additionally appended for private imports. Both pytest runs disabled cache and used distinct reviewer-owned temporary roots.
 
 | Check | Independent result |
 |---|---|

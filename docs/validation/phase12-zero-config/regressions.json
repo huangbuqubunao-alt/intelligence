@@ -2,7 +2,7 @@
   {
     "suite": "phase12",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -20,7 +20,7 @@
   {
     "suite": "parser",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -32,7 +32,7 @@
   {
     "suite": "phase11r1",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -51,7 +51,7 @@
   {
     "suite": "manual-youtube",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -66,7 +66,7 @@
   {
     "suite": "local",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -79,7 +79,7 @@
   {
     "suite": "bilibili-manual",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -93,7 +93,7 @@
   {
     "suite": "backup",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -107,7 +107,7 @@
   {
     "suite": "integrated",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",

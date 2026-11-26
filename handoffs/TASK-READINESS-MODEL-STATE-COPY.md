@@ -4,7 +4,7 @@
 
 - Role: Implementer `/root/intel_bounded_review`；独立 Reviewer 待主控安排 `/root/caption_resume`。
 - Base: `aa1a9b30f35c548ab7ba162b5877c925e33110d7`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-model-state-copy`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-model-state-copy`。
 - Branch: `codex/task-readiness-model-state-copy`。
 - 实现 commit: `fc2d854`（完整 SHA 以本树 `git rev-parse fc2d854` 为准）。
 - 日期：2026-10-14；实现者已停止写入，建议 `IN_REVIEW`，不自审、不设 DONE。

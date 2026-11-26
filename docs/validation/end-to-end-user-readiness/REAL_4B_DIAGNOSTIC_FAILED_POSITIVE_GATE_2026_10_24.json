@@ -50,9 +50,9 @@
   },
   "wall_seconds": 127.08727799999906,
   "raw_bytes": 19975,
-  "raw_path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic/real-once-r3-actual0409-20261024/generation-raw.json",
+  "raw_path": "/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic/real-once-r3-actual0409-20261024/generation-raw.json",
   "raw_sha256": "ca45e21675f3e8a8675bf28b3a1c9f0820ab8e78dd59dd625ff2ee512cf50fb0",
-  "package_path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/diagnostic-freeze-r3-actual0409.json",
+  "package_path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/diagnostic-freeze-r3-actual0409.json",
   "package_sha256": "f9c136e8323a3eb2b694c09111586442d44c1768e6e1b728602dd2d4da1602c1",
   "native_capacity": {
     "N": 720,

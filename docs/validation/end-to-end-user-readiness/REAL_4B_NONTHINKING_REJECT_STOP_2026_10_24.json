@@ -37,19 +37,19 @@
   },
   "evidence": {
     "generation-raw.json": {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/generation-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/generation-raw.json",
       "sha256": "52f0ecab08c48ae3503d50865ab5bded395ef1496717ab7731ff50a4a48443d8"
     },
     "diagnostic-result.json": {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/diagnostic-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/diagnostic-result.json",
       "sha256": "ea9e92fefa4ad8cbc1b912f897612207ee8083fd3647c5f2cb4a9f858a86a4c9"
     },
     "generation-start.json": {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/generation-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/generation-start.json",
       "sha256": "dc9b86f5c13025ad5fe96c49495fae780adf55ad8bdd154e493752db5a25e9ac"
     },
     "capacity.json": {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/capacity.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/capacity.json",
       "sha256": "39c7aa166f4b484195d6d6cd8b1bcbcfac1cb070dbbcb46a91e405ed1dabd4cf"
     }
   },

@@ -7,14 +7,14 @@ Integrate only the accepted TASK-006 source into main.
 - Acceptance anchor: `3a6d0c38b0869622581e4f763371147c6c30d2d9`
 - Execution base: dynamically resolve
   `git log -1 --format=%H -- agent-prompts/TASK-006-INTEGRATOR.md` in
-  `/Users/hua/Documents/youtubek agent`. It must equal current main HEAD, be the
+  `/Users/developer/Documents/youtubek agent`. It must equal current main HEAD, be the
   single-parent acceptance/authorization commit, and TASK-006 must be `ACCEPTED`.
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-006`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-006`
 - Source branch: `codex/task-006-local-transcription`
 - Accepted source/review evidence: `f00209c8018a9e728d9f6509f0ae70067fa33676`
 - Reviewed Correction 3: `548338978b8656db0c650be276f847850af940a1`
 - Original source base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>` with
+- Git identity: `Mozhu <maintainer@example.invalid>` with
   `user.useConfigOnly=true`
 
 Do not access the retained TASK-007 source worktree. Stop on dirty worktree/index, wrong

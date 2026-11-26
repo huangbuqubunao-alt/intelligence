@@ -2,7 +2,7 @@
 
 No test, assertion, threshold or CI gate was removed or weakened.
 
-- `PYTHONPATH=src /Users/hua/youtube-intel/.venv/bin/python -m pytest -q tests/unit/test_youtube_network.py`:
+- `PYTHONPATH=src /Users/developer/youtube-intel/.venv/bin/python -m pytest -q tests/unit/test_youtube_network.py`:
   expanded first run: 1 failed, 44 passed. Assertion expected
   NETWORK_UNAVAILABLE, received METADATA_FAILED at the alias/authority test.
   `youtube_channel.py:_resolve_public` fetched inside a ValueError parser handler;

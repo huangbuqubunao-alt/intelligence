@@ -17,7 +17,7 @@
 
 报告属于最终提交本身，不能在其内容中嵌入自身提交的哈希；因此明确区分已固定的代码 HEAD 与提交后生成的完整交付 HEAD 回执。最终文档提交不会改变产品代码。
 
-权威工作树 `/Users/hua/Documents/yia-worktrees/v1x-local-main`；独立工作树 `/Users/hua/Documents/yia-worktrees/muse-final-audit`，分支 `codex/muse-final-audit`，从核验后的 main 创建。没有在 A/B/C 工作树改代码，没有覆盖任何历史工作树，也没有清理既有 worktree topology。证据：[Git 核验记录](git-evidence.json)。最终再次核验保护分支及工作树状态。
+权威工作树 `/Users/developer/Documents/yia-worktrees/v1x-local-main`；独立工作树 `/Users/developer/Documents/yia-worktrees/muse-final-audit`，分支 `codex/muse-final-audit`，从核验后的 main 创建。没有在 A/B/C 工作树改代码，没有覆盖任何历史工作树，也没有清理既有 worktree topology。证据：[Git 核验记录](git-evidence.json)。最终再次核验保护分支及工作树状态。
 
 macOS 26.3.1，Python 3.12.11，pytest 9.1.1，pydantic 2.13.4；真实 Google Chrome + Playwright，真实 AppKit picker + System Events。沿用已安装的 main venv / frontend node_modules，不安装或升级依赖，不改锁文件或工具链。A 的测试在 audit 内的 byte-identical Git archive 源快照执行，避免写正式工作树。B/C 也使用各自固定 SHA 的隔离源快照。
 

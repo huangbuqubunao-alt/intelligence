@@ -18,7 +18,7 @@
 
 ## 必须执行
 
-1. 核验 main identity 为 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、分支/HEAD 与 empty index。工作树允许存在主控预置的上述五个准备文件；除此以外任何未暂存、暂存或未跟踪路径都必须立即停止，不覆盖并发改动。
+1. 核验 main identity 为 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、分支/HEAD 与 empty index。工作树允许存在主控预置的上述五个准备文件；除此以外任何未暂存、暂存或未跟踪路径都必须立即停止，不覆盖并发改动。
 2. 仅提交上述五个文件；先确认准备文件的未提交范围精确匹配该列表，再做两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围核验。任何字节漂移立即停止，不覆盖并发改动。
 3. 不运行 `uv`、pytest、mypy、Ruff、build、imports、数据库、网络、Vault、云端、模型、凭据、launchctl 或任何产品文件 I/O 命令。
 4. 仅登记“TASK-013 read-only Scout 已授权、未启动”；不得预写预检结论、ADR 结论、READY、IN_PROGRESS、Reviewer 或 worktree。

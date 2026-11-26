@@ -4,8 +4,8 @@
 
 ## 固定对象与授权
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013A-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013A=`IN_REVIEW`。
-- Reviewed source：`/Users/hua/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@213c9ff42f9321d443e4e470d74a18a0296ad528`；开始时必须干净。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013A-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013A=`IN_REVIEW`。
+- Reviewed source：`/Users/developer/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@213c9ff42f9321d443e4e470d74a18a0296ad528`；开始时必须干净。
 - Source handoff `213c9ff...` 的唯一父提交为 implementation `4c3706a969fb85ff4ec344034444d8607894b36f`，其唯一父提交为 `d96862f287d523dd524addf79f86c9b0642a4d31`。
 - 相对 `d96862f...`，完整范围只能是 `src/youtube_intel/transcripts.py`、`tests/integration/test_local_transcription_service.py`、`tests/unit/test_transcription_policy.py`、`handoffs/TASK-013A.md`；当前实现只改其中三个路径。
 - 模型下载/加载、ffmpeg、媒体/YouTube、网络、Ollama/OpenAI、真实 Vault/用户笔记、凭据、付费服务和测试目录外写入均未授权，不能运行。

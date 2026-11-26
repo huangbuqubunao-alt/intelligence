@@ -6,7 +6,7 @@
 - Role: `Orchestrator / Product acceptance`
 - Agent/session: 当前主控 Codex 对话
 - Base branch/commit: `main` / 无 commit
-- Worktree: `/Users/hua/Documents/youtubek agent`
+- Worktree: `/Users/developer/Documents/youtubek agent`
 - Branch: `main`
 - Head commit: `c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - Started: 2026-07-14

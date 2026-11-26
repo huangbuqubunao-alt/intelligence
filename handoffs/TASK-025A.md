@@ -6,7 +6,7 @@
 - Role: Implementer; independent Reviewer: `/root/task025a_review`.
 - Started: 2026-09-08; reported: 2026-09-09.
 - Base/START_HEAD: `eb002b64649495d9b2567ade13b08117a877118f`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-025a-saved-intelligence`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-025a-saved-intelligence`.
 - Branch: `codex/task-025a-saved-intelligence`.
 - Authority commit: `91be8f9`; implementation: `28c87b233d0d474162806ad1f5d9d4f9d74da1f1`;
   reviewed fix: `80f2da53a99d36c99b1990c5cb3b90a1d76da1be`.

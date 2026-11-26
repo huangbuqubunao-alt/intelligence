@@ -1,5 +1,5 @@
 REAL_NATIVE_BROWSER_PICKER_READY {
-  fixture: '/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/.var/d2-02/ui-native-fixture/two-gib.mp4'
+  fixture: '/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/.var/d2-02/ui-native-fixture/two-gib.mp4'
 }
 REAL_NATIVE_BROWSER_2_GIB_ZERO_UPLOAD_D2_01_PASSED
 ghtException(
@@ -9,7 +9,7 @@ locator.waitFor: Target page, context or browser has been closed
 Call log:
 [2m  - waiting for getByRole('dialog').getByRole('button', { name: 'Confirm import', exact: true }) to be visible[22m
 
-    at /Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/frontend/dogfood-day2-native-import.e2e.mjs:20:77 {
+    at /Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/frontend/dogfood-day2-native-import.e2e.mjs:20:77 {
   log: [
     "  - waiting for getByRole('dialog').getByRole('button', { name: 'Confirm import', exact: true }) to be visible"
   ]

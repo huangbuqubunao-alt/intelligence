@@ -4,22 +4,22 @@
 
 ## 固定上下文
 
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Source branch: `grok/task-004-discovery-metadata`
 - Reviewed source head: `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`
 - Correction 5A parent: `d87253e4b6203232ccb933604f0523ef6d868ba8`
 - Source sync merge: `eb9246bf5ce650441aaa2d8b8c7f37f22fe6779d`
 - Source sync parents: `1883367d313623c42d9d3624b16307ca8d502709` 与 `58c79afc8ab9f74d98c8181a6565be5c9246e4a4`
 - Product/control comparison anchor: `main@58c79afc8ab9f74d98c8181a6565be5c9246e4a4`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Git identity: `Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
-只有 Status Integrator 返回本包已 `INTEGRATED` 后才能开始。控制面文档从 main worktree `/Users/hua/Documents/youtubek agent` 读取，并用以下命令取得授权 commit：
+只有 Status Integrator 返回本包已 `INTEGRATED` 后才能开始。控制面文档从 main worktree `/Users/developer/Documents/youtubek agent` 读取，并用以下命令取得授权 commit：
 
 ```bash
-review_authorization="$(git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-004-REVIEWER-4-CODEX.md)"
+review_authorization="$(git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-004-REVIEWER-4-CODEX.md)"
 test -n "$review_authorization"
-test "$(git -C '/Users/hua/Documents/youtubek agent' rev-parse HEAD)" = "$review_authorization"
-test "$(git -C '/Users/hua/Documents/youtubek agent' rev-parse HEAD^)" = "58c79afc8ab9f74d98c8181a6565be5c9246e4a4"
+test "$(git -C '/Users/developer/Documents/youtubek agent' rev-parse HEAD)" = "$review_authorization"
+test "$(git -C '/Users/developer/Documents/youtubek agent' rev-parse HEAD^)" = "58c79afc8ab9f74d98c8181a6565be5c9246e4a4"
 ```
 
 任一主线/source 基线、分支、父链、身份或洁净度不符，立即停止并报告 `BLOCKED`。不得 stash、reset、rebase、cherry-pick、merge、清理或选择其他 SHA。原 Implementer 必须已经停止写入；同一 worktree 不得存在第二个写入会话。

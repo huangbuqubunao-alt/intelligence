@@ -8,7 +8,7 @@
 Task: TASK-014B3 — offline validation environment provisioning
 Role: controlled preflight executor
 Control-plane baseline: main@99651ec8e32f18f5592310ab3a46fdf692c270ea
-Sole source worktree: /Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation
+Sole source worktree: /Users/developer/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation
 Sole source branch: codex/task-014b3-public-subtitle-diagnostics-implementation
 Required source HEAD: 9c5f08ec829629591b095bd68841ca3ce0b22532
 ```

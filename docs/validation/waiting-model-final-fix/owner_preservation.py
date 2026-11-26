@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-PROJECT = Path('/Users/hua/Documents/yia-worktrees/v1x-local-main')
+PROJECT = Path('/Users/developer/Documents/yia-worktrees/v1x-local-main')
 OWNER = PROJECT / '.var/owner'
 SAFE = Path(__file__).resolve().parents[3] / '.var/waiting-model-final-fix/owner-preservation'
 

@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-15 Round 2）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `8569b78`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `74c275f`）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `8569b78`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，起始基线 `74c275f`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b`）
 - **前置轮次状态**：Round 1 已 100% 完成并验收（`docs/ITERATION_STATE_2026_11_14.md`，生产库 `115/115` 视频中文摘要全覆盖、Shorts 噪音自动折叠、一页纸周报、SQLite `FTS5` 跨语种检索、后台增量自动同步守护）。
 - **当前阶段**：`ROUND_2_COMPLETED`
@@ -10,7 +10,7 @@
 
 ## 一、第一阶段：Round 2 真实运行态接管与核验基线
 
-基于 `/Users/hua/Documents/yia-worktrees/v1x-local-main/.var/owner/` 真实生产库（`state.sqlite3` + `.workspace-ai/hub.sqlite3`）与前端全部 7 个核心视图（`#Home`、`#Following`、`#Content`、`#Intelligence`、`#Topics`、`#Research`、`#Settings`）代码审计：
+基于 `/Users/developer/Documents/yia-worktrees/v1x-local-main/.var/owner/` 真实生产库（`state.sqlite3` + `.workspace-ai/hub.sqlite3`）与前端全部 7 个核心视图（`#Home`、`#Following`、`#Content`、`#Intelligence`、`#Topics`、`#Research`、`#Settings`）代码审计：
 
 | 模块 / 场景 | 代码实现 | 自动化测试 | 真实用户体验可用性（2026-11-15 03:15） | 真实证据与核心缺口 |
 | --- | --- | --- | --- | --- |

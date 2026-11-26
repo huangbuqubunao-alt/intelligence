@@ -9,10 +9,10 @@
 - Task: `TASK-003/TASK-004 assignment sync`
 - Role: `Status Integrator`
 - Required base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- TASK-003 worktree: `/Users/hua/Documents/yia-worktrees/task-003`，严格只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- TASK-003 worktree: `/Users/developer/Documents/yia-worktrees/task-003`，严格只读
 - TASK-003 branch: `codex/task-003-state-store`
-- TASK-004 worktree: `/Users/hua/Documents/yia-worktrees/task-004`，严格只读
+- TASK-004 worktree: `/Users/developer/Documents/yia-worktrees/task-004`，严格只读
 - TASK-004 branch: `grok/task-004-discovery-metadata`
 - Both required worktree HEADs: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Suggested commit: `docs: assign TASK-003 and TASK-004 implementations`
@@ -35,7 +35,7 @@
 
 1. main 精确位于 `dcc7d85...` 且干净基线上只存在 7 个准备文件。
 2. TASK-003 worktree 存在、干净、分支/HEAD 精确匹配；TASK-004 同理。
-3. 两个 worktree 都继承 `user.useConfigOnly=true` 与 `Mozhu <huangbuqubunao@gmail.com>`。
+3. 两个 worktree 都继承 `user.useConfigOnly=true` 与 `Mozhu <maintainer@example.invalid>`。
 4. TASK-003=`IN_PROGRESS`：Codex 是唯一 Implementer，Grok 仅等待实现 commit；允许范围精确为 5 个文件，不新增依赖、不改 `pyproject.toml/uv.lock/domain.py`。
 5. TASK-004=`IN_PROGRESS`：Grok 是唯一 Implementer，Codex 仅等待实现 commit；只允许已批准的 `yt-dlp[default,deno]>=2026.7.4,<2026.8` 及必要传递依赖和锁文件动作。
 6. 两个 Implementer 包都绑定同一 base，但使用不同 worktree、分支和写入范围；没有占位符，没有让一方等待另一方完成。
@@ -63,16 +63,16 @@ git diff --name-status
 分别只读核对 worktree：
 
 ```bash
-git -C "/Users/hua/Documents/yia-worktrees/task-003" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-003" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-003" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-003" config --get user.useConfigOnly
-git -C "/Users/hua/Documents/yia-worktrees/task-003" var GIT_AUTHOR_IDENT
-git -C "/Users/hua/Documents/yia-worktrees/task-004" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-004" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-004" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-004" config --get user.useConfigOnly
-git -C "/Users/hua/Documents/yia-worktrees/task-004" var GIT_AUTHOR_IDENT
+git -C "/Users/developer/Documents/yia-worktrees/task-003" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-003" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-003" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-003" config --get user.useConfigOnly
+git -C "/Users/developer/Documents/yia-worktrees/task-003" var GIT_AUTHOR_IDENT
+git -C "/Users/developer/Documents/yia-worktrees/task-004" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-004" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-004" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-004" config --get user.useConfigOnly
+git -C "/Users/developer/Documents/yia-worktrees/task-004" var GIT_AUTHOR_IDENT
 ```
 
 若身份为空、含 `.local` 或不匹配批准身份，立即停止。检查三个新任务包不存在未替换的尖括号模板占位符、模板任务编号或模板字段；不得编辑发现的问题。
@@ -113,10 +113,10 @@ git rev-parse HEAD
 git rev-parse HEAD^
 git diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176..HEAD
 git log -1 --format='author=%an <%ae>%ncommitter=%cn <%ce>'
-git -C "/Users/hua/Documents/yia-worktrees/task-003" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-003" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-004" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-004" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-003" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-003" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-004" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-004" rev-parse HEAD
 ```
 
 确认新提交是 `dcc7d85...` 的单父后继、范围精确为 7 个文件、main 干净；两个任务 worktree 仍干净且保持共同 base。不得启动任何 Implementer；等待用户在独立终端执行两份任务包。

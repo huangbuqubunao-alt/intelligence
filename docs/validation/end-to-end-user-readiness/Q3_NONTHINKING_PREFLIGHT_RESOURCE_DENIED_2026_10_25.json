@@ -31,32 +31,32 @@
   "approved_package_sha256": "4064fff8605471bbdde87081ef35675806f86d8b29091da7c16d77e0d56dded1",
   "evidence": [
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/diagnostic-freeze-mode-only-v1.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/diagnostic-freeze-mode-only-v1.json",
       "bytes": 93604,
       "sha256": "58070238bc271bd30d94dc76efbb025b6695f541586f6d0337d3ce30a981ac4c"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/diagnostic-freeze-mode-only-v2.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/diagnostic-freeze-mode-only-v2.json",
       "bytes": 93876,
       "sha256": "4064fff8605471bbdde87081ef35675806f86d8b29091da7c16d77e0d56dded1"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/freeze-mode-only-v2-correction-proof.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/freeze-mode-only-v2-correction-proof.json",
       "bytes": 1213,
       "sha256": "b1bd795b0cce32a26509700fb5b6f5ebafec84ada93752ea034def81fe18b708"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/actual-execution-process.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/actual-execution-process.json",
       "bytes": 1297,
       "sha256": "79943d44ac5ca603f9aac9c3c089a0cebf11c2cea64227f1488f93a3dbe25429"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/actual-parent-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/actual-parent-result.json",
       "bytes": 16,
       "sha256": "1b2f5a083325c33035cb246dcb6ceb08b00a036dfd9bf30e39aa76843a88af4f"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/actual-preflight-resource-denied-zero-generation.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/actual-preflight-resource-denied-zero-generation.json",
       "bytes": 1091,
       "sha256": "d0ae94eb4ff0a83a381a2790f8f55fb32b05010bb921fed6841a1e979fb60417"
     }

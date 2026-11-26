@@ -16,8 +16,8 @@ or modify product source.
    other tracked or untracked paths. Record SHA-256 values before proceeding and
    require them to remain stable until staging.
 2. Require that neither branch nor path exists before creation:
-   - `/Users/hua/Documents/yia-worktrees/task-006` / `codex/task-006-local-transcription`
-   - `/Users/hua/Documents/yia-worktrees/task-007` / `codex/task-007-local-scoring`
+   - `/Users/developer/Documents/yia-worktrees/task-006` / `codex/task-006-local-transcription`
+   - `/Users/developer/Documents/yia-worktrees/task-007` / `codex/task-007-local-scoring`
 3. Create both from the exact base. Verify each HEAD equals the base and both worktrees are clean.
    They are isolated writers and may run in parallel.
 

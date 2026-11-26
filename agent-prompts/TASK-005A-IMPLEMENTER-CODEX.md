@@ -6,16 +6,16 @@ L-02 至 L-06、L-08、L-10、L-11、L-14、L-15 所归属的共享配置、领�
 
 ## 固定执行状态
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main assignment authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-ASSIGNMENT-INTEGRATOR.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-ASSIGNMENT-INTEGRATOR.md`
 - Required assignment parent / source base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
 - Main startup-correction authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-IMPLEMENTER-START-CORRECTION-INTEGRATOR.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-IMPLEMENTER-START-CORRECTION-INTEGRATOR.md`
 - Required startup-correction parent：`99f0512ef9aa6f06c5cfc7daf46a4171a44c44e5`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始前，main 的动态 assignment authorization 必须是 Required assignment parent 的单一
 直接后继，动态 startup-correction authorization 必须是 assignment authorization 的单一

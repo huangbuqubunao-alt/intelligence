@@ -1,6 +1,6 @@
 # 全栈测试矩阵 (Test Matrix)
 
-- 工作树: `/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`
+- 工作树: `/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`
 - 分支: `antigravity/task-user-readiness-20261112`
 - 基线 Commit: `07a86fe624e82821f594231c78847cd603b00304`
 
