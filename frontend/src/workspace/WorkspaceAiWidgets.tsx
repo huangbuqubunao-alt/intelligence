@@ -3572,19 +3572,25 @@ export function WorkspaceAiResearchPanel({
     });
   };
 
-  const ask = async (qText: string) => {
+  const ask = async (qText: string, options?: { clearScope?: boolean }) => {
     const clean = qText.trim();
     if (!clean || busy) return;
+    const expandAll = Boolean(options?.clearScope);
+    if (expandAll) {
+      resetAllScopes();
+    }
     setBusy(true);
     setError(null);
     try {
       const payload: Record<string, unknown> = { question: clean };
-      if (selectedVideoIds.length > 0) {
-        payload.video_ids = selectedVideoIds;
-      } else {
-        if (starredOnly) payload.starred_only = true;
-        if (selectedChannel) payload.channel_key = selectedChannel;
-        if (selectedTopic) payload.topic_cluster = selectedTopic;
+      if (!expandAll) {
+        if (selectedVideoIds.length > 0) {
+          payload.video_ids = selectedVideoIds;
+        } else {
+          if (starredOnly) payload.starred_only = true;
+          if (selectedChannel) payload.channel_key = selectedChannel;
+          if (selectedTopic) payload.topic_cluster = selectedTopic;
+        }
       }
       const res = await post<{ session?: unknown }>("/workspace-ai/research/ask", payload);
       const session = readAiResearchSession(res.session);
@@ -4366,6 +4372,23 @@ export function WorkspaceAiResearchPanel({
                 : `Verified ${activeSession.verified_citation_count ?? activeSession.citations.filter((c) => c.verified !== false).length} citations · ${activeSession.covered_source_count ?? activeSession.covered_sources?.length ?? 0} sources`}
             </span>
           </div>
+          {!activeSession.refused ? (
+            <p className="ai-qa-trust-note">
+              {activeSession.fact_verification_state === "SUPPORTED"
+                ? zh
+                  ? "以下回答仅依据你已选中的原文与时间轴生成，点击任意引用即可直达原片核对。"
+                  : "Answer grounded strictly in your selected excerpts and timestamps; click any citation to verify."
+                : activeSession.fact_verification_state === "PARTIAL_PRUNED_HEURISTIC" ||
+                    activeSession.fact_verification_state === "PARTIAL_PRUNED" ||
+                    activeSession.fact_verification_state === "HEURISTIC_ONLY"
+                  ? zh
+                    ? "已自动过滤无原文依据的推测；标注「启发式相关」的表述建议点击下方引用核对原话。"
+                    : "Unverified speculation was removed; click any timestamp below to check heuristic statements against the source."
+                  : zh
+                    ? "建议点击下方原始引用核对细节，所有来源均保留可追溯锚点。"
+                    : "Verify details with the timestamped excerpts below; all sources stay traceable."}
+            </p>
+          ) : null}
           {(activeSession.covered_sources?.length ?? 0) > 0 ? (
             <div
               className="ai-covered-sources-strip"
@@ -4401,6 +4424,24 @@ export function WorkspaceAiResearchPanel({
           {activeSession.refused ? (
             <div className="semantic-state state-warning" role="status">
               <p>{activeSession.answer_zh}</p>
+              {hasActiveScope ||
+              (activeSession.scope_label_zh && !/全部/.test(activeSession.scope_label_zh)) ? (
+                <div className="ai-refusal-recovery">
+                  <p className="hint">
+                    {zh
+                      ? `当前仅在限定范围（${activeSession.scope_label_zh || "已选来源"}）内检索；该范围内暂无直接原文支撑，因此未强行编造回答。`
+                      : `Searched only within your active filter (${activeSession.scope_label_zh || "selected scope"}); no direct supporting excerpt was found there, so no answer was fabricated.`}
+                  </p>
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    disabled={busy}
+                    onClick={() => void ask(activeSession.question, { clearScope: true })}
+                  >
+                    {zh ? "扩大到全部来源重新提问" : "Retry across all sources"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="summary-copy">{activeSession.answer_zh}</p>

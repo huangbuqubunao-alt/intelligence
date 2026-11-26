@@ -2279,13 +2279,22 @@ h1, h2 {
     min-height: 38px;
   }
   .sidebar-nav {
-    gap: 4px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    overflow-x: visible;
   }
   .nav-item {
+    width: 100%;
+    min-width: 0;
     min-height: 38px;
+    justify-content: center;
     gap: 4px;
-    padding: 7px 8px;
+    padding: 6px 6px;
     font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .workspace-utility-dock {
     top: 14px;
@@ -2315,18 +2324,20 @@ h1, h2 {
     font-size: 10.5px;
   }
   .sidebar-nav {
-    justify-content: flex-start;
-    gap: 2px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
   }
   .nav-item {
     min-height: 36px;
     gap: 3px;
-    padding: 6px 6px;
-    font-size: 11px;
+    padding: 6px 4px;
+    font-size: 11.5px;
   }
   .nav-item .nav-svg-icon {
     width: 13px;
     height: 13px;
+    flex-shrink: 0;
   }
 }
 
@@ -5931,5 +5942,62 @@ input[type="radio"] {
   font-weight: 500;
   opacity: 0.82;
   margin-left: 2px;
+}
+
+.settings-stack > section[id],
+.settings-stack > details[id],
+.settings-stack .panel[id^="settings-"],
+#settings-language,
+#settings-interests,
+#settings-ai-overview,
+#settings-models,
+#settings-whisper-download,
+#settings-youtube-auth,
+#settings-backup,
+#settings-legacy-diagnostics {
+  scroll-margin-top: 112px;
+}
+
+.creator-discovered-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.creator-discovered-list a {
+  color: var(--accent-ink);
+  text-decoration: none;
+  font-size: 13.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.creator-discovered-list a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ai-qa-trust-note {
+  margin: 6px 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.ai-refusal-recovery {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-refusal-recovery .hint {
+  margin: 0;
+  flex: 1 1 260px;
 }
 

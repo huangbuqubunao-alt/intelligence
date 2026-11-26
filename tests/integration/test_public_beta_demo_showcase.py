@@ -251,3 +251,35 @@ def test_demo_showcase_refuses_unanswerable_off_topic_question_without_fabricate
         assert session["citations"] == []
         assert len(cast(list[object], session["related_excerpts"])) >= 1
         assert session["provider"] == "demo-replay"
+
+
+def test_demo_showcase_answers_bilingual_local_first_marginal_cost_query_without_repetition(
+    tmp_path: Path,
+) -> None:
+    runtime = prepare_demo_showcase(REPO_ROOT, demo_root=tmp_path / "demo-iter1", reset=True)
+
+    # Seeded Q&A sessions must not repeat identical takeaway sentences.
+    res_code, res_body = runtime.fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert res_code == 200
+    for seeded in cast(list[dict[str, object]], res_body["sessions"]):
+        takeaways = [str(x) for x in cast(list[object], seeded.get("key_takeaways_zh") or [])]
+        normalized = [t.split("[", 1)[0].strip() for t in takeaways]
+        assert len(normalized) == len(set(normalized))
+
+    # In-library bilingual query that previously triggered a false refusal.
+    status, body = runtime.fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "本地优先 AI 工具如何兼顾零边际成本和可信引用？"}).encode("utf-8"),
+    )
+    assert status == 200
+    session = cast(dict[str, object], body["session"])
+    assert session["refused"] is False
+    assert session["provider"] == "demo-replay"
+    citations = cast(list[dict[str, object]], session["citations"])
+    assert len(citations) >= 2
+    distinct_videos = {str(c.get("video_id") or "") for c in citations}
+    assert len(distinct_videos) >= 2
+    takeaways = [str(x) for x in cast(list[object], session["key_takeaways_zh"])]
+    normalized_t = [t.split("[", 1)[0].strip() for t in takeaways]
+    assert len(normalized_t) == len(set(normalized_t))

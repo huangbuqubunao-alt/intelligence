@@ -1904,6 +1904,9 @@ function Workspace() {
   const navigate = (next: Page) => {
     changeHash(next);
     runViewTransition(() => {
+      if (next !== "Research") {
+        setResearchOriginPage(null);
+      }
       if (next === "Research" && page !== "Research") {
         setResearchOriginPage(page);
         capturedOriginSnapshotRef.current = {
@@ -10613,19 +10616,26 @@ function Settings({ refresh }: { refresh: number }) {
       </Panel>
       <Panel title="Models and cost (read-only)">
         <div className="capability-grid">
-          {localFoundation && (
-            <article className="capability-card">
-              <div className="capability-heading">
-                <h3>{t("Scoring and Summary")}</h3>
-                <Status value={localFoundation.adapter_available ? "AVAILABLE" : "UNAVAILABLE"} />
-              </div>
-              <p>{localFoundation.adapter_available
-                ? language === "zh-CN"
-                  ? `使用本地模型 ${localFoundation.model} 运行；原始证据保留在这台 Mac 上。`
-                  : `Runs locally with ${localFoundation.model}. Original Evidence remains on this Mac.`
-                : t("The local model is unavailable; existing Content and Evidence remain readable.")}</p>
-            </article>
-          )}
+          {localFoundation && (() => {
+            const diagWsAi = liveWorkspaceAi ?? readWorkspaceAiSettings(settings.data.workspace_ai);
+            return (
+              <article className="capability-card">
+                <div className="capability-heading">
+                  <h3>{t("Scoring and Summary")}</h3>
+                  <Status value={localFoundation.adapter_available ? "AVAILABLE" : "UNAVAILABLE"} />
+                </div>
+                <p>{localFoundation.adapter_available
+                  ? language === "zh-CN"
+                    ? `使用本地模型 ${localFoundation.model} 运行；原始证据保留在这台 Mac 上。`
+                    : `Runs locally with ${localFoundation.model}. Original Evidence remains on this Mac.`
+                  : diagWsAi?.ollama_reachable
+                    ? language === "zh-CN"
+                      ? `日常工作台总结与问答已通过本机 Ollama（${diagWsAi.ollama_model || "Local"}）正常运行；此处仅表示旧版严格本地资格校验流水线尚未单独配置，已有内容与证据仍可阅读。`
+                      : `Daily workspace summaries & Q&A are running via local Ollama (${diagWsAi.ollama_model || "Local"}); this legacy qualification pipeline is not separately configured.`
+                    : t("The local model is unavailable; existing Content and Evidence remain readable.")}</p>
+              </article>
+            );
+          })()}
           <article className="capability-card">
             <div className="capability-heading">
               <h3>{t("Intelligence")}</h3>
