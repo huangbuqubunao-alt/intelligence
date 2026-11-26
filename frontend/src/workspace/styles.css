@@ -4547,6 +4547,58 @@ input[type="radio"] {
   font-size: 12px;
 }
 
+.following-health-digest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+}
+
+.following-health-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.following-health-pill.is-best {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.following-health-review-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.following-health-review-btn:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-hover);
+}
+
+.following-health-review-btn.is-active,
+.following-health-review-btn[aria-pressed="true"] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
 /* High-density Intelligence L1 ledger list, pagination, and Plan A L2 detail view */
 .intel-list-surface {
   display: flex;

@@ -9054,22 +9054,68 @@ function Sources(
         { longForm: 0, mustWatch: 0, shorts: 0 },
       )
     : null;
+  const signalDigest = (() => {
+    if (!hasAiSignals || topLevelSources.length === 0) return null;
+    let totalVideos = 0;
+    let totalLong = 0;
+    let totalShorts = 0;
+    let bestSource: Source | null = null;
+    let bestAvg = -1;
+    let bestMustWatch = -1;
+    const noisySources: Source[] = [];
+    for (const src of topLevelSources) {
+      const sig = aiSignals[src.source_id];
+      if (!sig) continue;
+      totalVideos += sig.total_videos;
+      totalLong += sig.long_form_count;
+      totalShorts += sig.shorts_count;
+      if (sig.must_watch_count >= 1 && sig.avg_long_score !== null) {
+        if (
+          sig.avg_long_score > bestAvg ||
+          (sig.avg_long_score === bestAvg && sig.must_watch_count > bestMustWatch)
+        ) {
+          bestAvg = sig.avg_long_score;
+          bestMustWatch = sig.must_watch_count;
+          bestSource = src;
+        }
+      }
+      if (
+        sig.total_videos >= 1 &&
+        (sig.shorts_count > 0 || (sig.signal_rate_pct !== null && sig.signal_rate_pct < 60))
+      ) {
+        noisySources.push(src);
+      }
+    }
+    const overallSignalPct =
+      totalVideos > 0 ? Math.round((totalLong / totalVideos) * 100) : null;
+    return { totalVideos, totalLong, totalShorts, overallSignalPct, bestSource, noisySources };
+  })();
   const filteredFollowing = topLevelSources.filter(
-    source =>
-      filter === "all" ||
-      (filter === "updates" && (source.tracking?.update_count ?? 0) > 0) ||
-      (filter === "insights" && (source.insight_count ?? 0) > 0) ||
-      (filter === "high_signal" && (aiSignals[source.source_id]?.must_watch_count ?? 0) >= 1) ||
-      (filter === "attention" &&
-        Boolean(
-          (source.source_type === "CHANNEL" && !source.tracking) ||
-            (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) ||
-            source.last_error ||
-            (source.tracking?.pending_count ?? 0) > 0 ||
-            (source.tracking?.processing_count ?? 0) > 0 ||
-            (source.tracking?.unavailable_count ?? 0) > 0,
-        )) ||
-      (filter === "paused" && !source.enabled),
+    source => {
+      const sig = aiSignals[source.source_id];
+      return (
+        filter === "all" ||
+        (filter === "updates" && (source.tracking?.update_count ?? 0) > 0) ||
+        (filter === "insights" && (source.insight_count ?? 0) > 0) ||
+        (filter === "high_signal" && (sig?.must_watch_count ?? 0) >= 1) ||
+        (filter === "low_signal" &&
+          Boolean(
+            sig &&
+              sig.total_videos >= 1 &&
+              (sig.shorts_count > 0 || (sig.signal_rate_pct !== null && sig.signal_rate_pct < 60)),
+          )) ||
+        (filter === "attention" &&
+          Boolean(
+            (source.source_type === "CHANNEL" && !source.tracking) ||
+              (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) ||
+              source.last_error ||
+              (source.tracking?.pending_count ?? 0) > 0 ||
+              (source.tracking?.processing_count ?? 0) > 0 ||
+              (source.tracking?.unavailable_count ?? 0) > 0,
+          )) ||
+        (filter === "paused" && !source.enabled)
+      );
+    },
   );
   const orderedFollowing =
     sortMode === "default"
@@ -9110,6 +9156,11 @@ function Sources(
                   {language === "zh-CN" ? "高干货产出（必看 ≥ 1）" : "High signal (must-watch ≥ 1)"}
                 </option>
               ) : null}
+              {hasAiSignals ? (
+                <option value="low_signal">
+                  {language === "zh-CN" ? "含 Shorts / 低信噪比待评估" : "Low signal / Shorts noise"}
+                </option>
+              ) : null}
               <option value="attention">{t("Needs attention")}</option>
               <option value="paused">{t("Paused")}</option>
             </select></label>
@@ -9146,6 +9197,48 @@ function Sources(
                     </button>
                   ))}
                 </div>
+              </div>
+            ) : null}
+            {hasAiSignals && signalDigest && signalDigest.totalVideos > 0 ? (
+              <div
+                className="following-health-digest tabular-nums"
+                role="region"
+                aria-label={language === "zh-CN" ? "频道信噪比健康简报" : "Channel signal-to-noise digest"}
+              >
+                {signalDigest.overallSignalPct !== null ? (
+                  <span className="following-health-pill">
+                    {language === "zh-CN"
+                      ? `整体干货信噪比 ${signalDigest.overallSignalPct}%`
+                      : `Library signal rate ${signalDigest.overallSignalPct}%`}
+                  </span>
+                ) : null}
+                {signalDigest.bestSource ? (() => {
+                  const bestSig = aiSignals[signalDigest.bestSource.source_id];
+                  if (!bestSig || bestSig.avg_long_score === null) return null;
+                  const bestLabel =
+                    signalDigest.bestSource.provider === "LOCAL"
+                      ? t("Local library")
+                      : sourceLabel(signalDigest.bestSource);
+                  return (
+                    <span className="following-health-pill is-best">
+                      {language === "zh-CN"
+                        ? `最高信噪比：${bestLabel} · 均分 ${bestSig.avg_long_score.toFixed(1)}`
+                        : `Top signal: ${bestLabel} · Avg ${bestSig.avg_long_score.toFixed(1)}`}
+                    </span>
+                  );
+                })() : null}
+                {signalDigest.noisySources.length > 0 ? (
+                  <button
+                    type="button"
+                    aria-pressed={filter === "low_signal"}
+                    className={`following-health-review-btn${filter === "low_signal" ? " is-active" : ""}`}
+                    onClick={() => setFilter(filter === "low_signal" ? "all" : "low_signal")}
+                  >
+                    {language === "zh-CN"
+                      ? `待评估信源 (${signalDigest.noisySources.length}) · 含 Shorts / 低干货率`
+                      : `Review noisy sources (${signalDigest.noisySources.length})`}
+                  </button>
+                ) : null}
               </div>
             ) : null}
             {orderedFollowing.map((source) => {

@@ -199,3 +199,40 @@
 ### 5. 剩余风险与下一轮计划
 - **下一阶段（Iteration 5 & 商业化终局收口）**：补充 `#Following` 频道信噪比摘要强化（如具备高 ROI）、撰写《增长与商业化落地方案》（`09_GROWTH_AND_MONETIZATION.md` + 产品定位演示方案）、《终局自主交付报告》（`10_FINAL_DELIVERY_REPORT.md`）、全量门禁回归验证、推送远端、创建独立 Draft PR 并确认远端 GitHub Actions CI **14/14 全部通过**。
 - **需要项目所有者决定的事项**：无阻塞决策。
+
+---
+
+## Iteration 5（`EVO-07`）：订阅频道信噪比健康简报与低信噪比信源一键评估
+
+- **提交分支**：`antigravity/autonomous-product-evolution-20261126`
+- **对应需求**：`EVO-07`（7.70 分，频道信噪比摘要与低质/高噪信源一键复核筛选）
+- **服务人群**：核心人群（AI 行业研究者 / 技术架构师）的 Week-2+ 订阅池治污与信噪比维护
+
+### 1. 本轮获取的新证据与产品决策
+- **长期留存洞察（来源 `01_PRODUCT_BASELINE_AUDIT.md` 与 `M-11`）**：订阅列表虽然按行展示了每个频道的 `干货 X/Y` 与折叠 Shorts 数，但在订阅增多后缺少**全库整体信噪比水位**、**最高干货标杆信源**以及**直接挑出“Shorts 占比偏高 / 低干货率信源”一键评估取关**的筛选闭环。
+- **决策依据 (`DEC-002`, `DEC-006`)**：复用现有经过验证的后端 `ai_signal_by_source` 真实统计，零额外模型调用、零后台费用，在 `#Following` 顶部增加「频道信噪比健康简报」，并将筛选下拉与快捷切换按钮双向同步。
+
+### 2. 实际改动内容
+1. **频道信噪比健康简报与双向低信噪筛选 (`../../../frontend/src/workspace/App.tsx`, `../../../frontend/src/workspace/styles.css`)**：
+   - 汇总 `topLevelSources` 的 `signalDigest`：计算总体干货信噪比百分比、按均分/必看数识别最高信噪比信源，并筛选出含 Shorts 噪音或 `signal_rate_pct < 60%` 的待评估信源。
+   - 新增下拉项 `"含 Shorts / 低信噪比待评估"` 与顶部交互切换药丸 **`待评估信源 (N) · 含 Shorts / 低干货率`**（`aria-pressed` 双向绑定，再点一次恢复全部），补齐深浅双主题与 390px 移动端流式换行样式。
+2. **新增回归单测 (`../../../frontend/src/workspace/EvolutionIter5.test.tsx`)**：
+   - 验证全体干货信噪比 `75%`、最高信噪比频道标示与点击 `待评估信源 (1)` 后正确过滤与复位。
+
+### 3. 优化前后真实实机体验对比
+
+| 场景 | 优化前 | 优化后（本轮实机截图） | 实际体验提升 |
+|---|---|---|---|
+| **#Following 频道健康简报（Dark & Light）** | 仅见平铺行级指标 | ![Iter 5 深色简报](./screenshots/iter-5/01_following_signal_digest_dark.png) / ![Iter 5 浅色简报](./screenshots/iter-5/03_following_signal_digest_light.png) | 一眼看到全库 `整体干货信噪比 80%` 与标杆源 `Atlas Agent Lab (Demo) · 均分 9.1` |
+| **一键筛选含 Shorts / 低信噪信源** | 需人工逐行扫描筛选 | ![Iter 5 一键过滤高噪频道](./screenshots/iter-5/02_following_low_signal_filtered.png) | 点击 `待评估信源 (1)` 即时同步下拉筛选并锁定 `Local-First Foundry (Demo) (50% · 折叠 1 Shorts)` |
+| **390px 移动端适配** | — | ![Iter 5 390px 移动端](./screenshots/iter-5/04_following_signal_digest_mobile_390.png) | 简报胶囊自然分 3 行排列，页面宽度 `379px <= 390px`，零横向溢出 |
+
+### 4. 已完成自动化检查与实机验证证据
+- **前端全套门禁**：
+  - `npx tsc --noEmit --incremental false` → 通过（0 error）；`npm run build` → `vite v5.4.19` 1.02s 构建成功（`assets/index-BaU6AWoY.js`）。
+  - `npm test -- --run --poolOptions.forks.maxForks=4 --poolOptions.forks.minForks=2` → **63/63 test files, 1289/1289 tests passed**。
+- **真实 Chromium 实机验证**：在 `127.0.0.1:8799/#Following` 确认加载 `assets/index-BaU6AWoY.js`（HTTP 200），完成 Dark / 筛选切换复位 / Warm Paper Light / 390px 实机验证：**0 console errors、0 page errors、0 HTTP >=400**。
+
+### 5. 剩余风险与下一阶段
+- 进入商业化分析（`09_GROWTH_AND_MONETIZATION.md` + `launch-positioning-preview.html`）、全仓库 CI 同等门禁回归、终局报告（`10_FINAL_DELIVERY_REPORT.md`）、推送远端并创建独立 Draft PR 等待 **14/14 远端 CI** 全部通过。
+- **需要项目所有者决定的事项**：无阻塞决策。
