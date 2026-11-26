@@ -59,3 +59,21 @@
   - 验证加载 `assets/index-BEv7z-hV.js`（`200 OK`）；**0 console errors、0 page errors、0 HTTP >=400**。
   - `390x844` Warm Paper Light 首屏筛选栏高度从 `304.5px` 降至 **`87.5px`（-71.3%）**，首条内容顶边从 `578.59px` 上提至 **`361.59px`（-217px，首屏完整可见近 3 条内容）**，`mobileOverflow: false`；展开/选择高分优先/收起正确保留 `筛选 (1)` 角标；桌面端 `1440x900` 保持 `87.5px / 228.40px`。
   - 实机截图归档：[Content Desktop Dark](./screenshots/iter-8/step_4_shot_1_iter8_content_desktop_dark.png)、[Content Mobile Collapsed Light](./screenshots/iter-8/step_4_shot_2_iter8_content_mobile_collapsed_light.png)、[Content Mobile Expanded Dark](./screenshots/iter-8/step_10_shot_1_iter8_content_mobile_expanded_dark.png)。
+
+---
+
+## Iteration 9 (`EVO-W2-04`) — 阅读器出版级来源卡片、一键带出溯源引用与移动端关键帧适配
+
+- **解决的用户问题**：无内嵌封面的视频详情页在阅读器顶部显示空洞占位区且缺乏直接核对原话入口；同时抽屉内的证据卡片不支持一键复制带出处的 Markdown 引用句；此外移动端关键帧预览导航缺少换行保护。
+- **核心改动**：
+  1. [ReaderMediaStage.tsx](../../../frontend/src/workspace/ReaderMediaStage.tsx)：新增 `evidenceCount`、`transcriptAvailable`、`onOpenEvidenceDrawer` 属性；无缩略图时渲染 `.reader-media-poster.is-editorial-card` 出版级来源卡片，展示「已保存可核验原文 · N 条原话证据」状态及「核对原话证据」CTA（保留本地 `.md` 文档无视频多余控件）。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx)：接入 `ReaderMediaStage` 上述属性并传入 `videoTitle` 到 `ContentEvidencePanel`；在 `.evidence-card-footer` 新增「复制引用」（`> "<text>"\n— 《Title》 [locator]`）按钮及瞬态「已复制」反馈。
+  3. [styles.css](../../../frontend/src/workspace/styles.css)：新增 `.reader-media-poster.is-editorial-card`、`.reader-media-editorial-copy`、`.reader-media-editorial-status`、`.reader-media-poster-actions`、`.evidence-copy-quote-btn` 样式及移动端 `.visual-keyframe-lightbox-nav` 换行规则。
+- **自动化验证**：
+  - 新增 [EvolutionIter9.test.tsx](../../../frontend/src/workspace/EvolutionIter9.test.tsx)（2 passed）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`1.07s` (`assets/index-BLVovRka.js`)；Vitest：**67/67 files, 1298/1298 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoAgt1` & 本地 `.md`）**：
+  - 验证加载 `assets/index-BLVovRka.js`（`200 OK`）；**0 console errors、0 page errors、0 HTTP >=400**。
+  - 深色 Obsidian Dark 与浅色 Warm Paper Light 均清晰渲染「已保存可核验原文 · 9 条原话证据」与「核对原话证据」CTA；点击打开抽屉并点击「复制引用」成功切换为「已复制」；按 `Esc` 关闭抽屉且焦点准确回到触发按钮。
+  - `390x844` 移动端 `mobileOverflow: false`；本地 `.md` 文档 `demo-architecture-notes.md` 无任何多余视频/字幕/关键帧控件。
+  - 实机截图归档：[Editorial Card Dark](./screenshots/iter-9/step_19_shot_1_iter9_editorial_card_dark.png)、[Editorial Card Light](./screenshots/iter-9/step_6_shot_2_iter9_editorial_card_light.png)、[Drawer Copy Quote](./screenshots/iter-9/step_8_shot_1_iter9_drawer_copy_quote.png)、[Mobile Reader 390px](./screenshots/iter-9/step_10_shot_1_iter9_mobile_reader.png)、[Local Markdown Clean](./screenshots/iter-9/step_14_shot_1_iter9_local_md_clean.png)。

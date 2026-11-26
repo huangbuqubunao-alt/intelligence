@@ -6891,6 +6891,9 @@ function ContentDetailPanel(
               onMediaError={(code) => setLocalMediaErrorCode(code)}
               onRetryMedia={() => setLocalMediaErrorCode(null)}
               onOpenTranscriptDrawer={() => openRefDrawer("transcript")}
+              evidenceCount={loadedEvidence.length}
+              transcriptAvailable={transcript.status === "AVAILABLE"}
+              onOpenEvidenceDrawer={() => openRefDrawer("evidence")}
             />
           ) : null}
         </div>
@@ -7563,6 +7566,7 @@ function ContentDetailPanel(
         evidencePane={
           <ContentEvidencePanel
             videoId={data.video.video_id}
+            videoTitle={data.video.title ?? data.video.video_id}
             sourceUrl={data.video.source_url}
             refresh={evidenceRefresh}
             highlightedEvidenceId={highlightedEvidenceId}
@@ -8092,6 +8096,7 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
 function ContentEvidencePanel(
   {
     videoId,
+    videoTitle,
     sourceUrl,
     refresh,
     highlightedEvidenceId,
@@ -8100,6 +8105,7 @@ function ContentEvidencePanel(
     onEvidenceLoaded,
   }: {
     videoId: string;
+    videoTitle?: string | null;
     sourceUrl: string | null;
     refresh: number;
     highlightedEvidenceId?: string | null;
@@ -8137,6 +8143,7 @@ function ContentEvidencePanel(
     string,
     { excerpt: string; language: "zh-CN" | "en" }
   >>({});
+  const [copiedEvidenceId, setCopiedEvidenceId] = useState<string | null>(null);
   useEffect(() => {
     if (!highlightedEvidenceId) {
       setTargetLookup(null);
@@ -8393,6 +8400,42 @@ function ContentEvidencePanel(
                       </a>
                     )
                     : <p className="hint">{t("Source URL unavailable.")}</p>}
+                  <button
+                    type="button"
+                    className="button button-secondary button-small evidence-copy-quote-btn"
+                    aria-label={
+                      language === "zh-CN"
+                        ? `复制引用：${item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}`
+                        : `Copy quote: ${item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}`
+                    }
+                    onClick={(event) => {
+                      pulseCelebration(event.currentTarget);
+                      const locator =
+                        item.locator_type === "TEXT_RANGE"
+                          ? textLineRange(item.start_line, item.end_line, t)
+                          : timestampRange(item.start_ms, item.end_ms);
+                      const verbatimText = (
+                        evidenceVerbatim
+                          ? item.original_excerpt
+                          : cleanCaptionText(item.original_excerpt).text
+                      ).trim();
+                      const formattedQuote = `> "${verbatimText}"\n— 《${videoTitle || videoId}》 [${locator}]`;
+                      void navigator.clipboard?.writeText(formattedQuote);
+                      setCopiedEvidenceId(item.evidence_id);
+                      setTimeout(() => {
+                        setCopiedEvidenceId((cur) => (cur === item.evidence_id ? null : cur));
+                      }, 1800);
+                    }}
+                  >
+                    <PhosphorIcon name="quotes" size={13} />
+                    {copiedEvidenceId === item.evidence_id
+                      ? language === "zh-CN"
+                        ? "已复制"
+                        : "Copied"
+                      : language === "zh-CN"
+                        ? "复制引用"
+                        : "Copy quote"}
+                  </button>
                   <details className="provenance">
                     <summary>{t("Citation details")}</summary>
                     <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
