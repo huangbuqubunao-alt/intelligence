@@ -1721,6 +1721,7 @@ class YouTubeAuthFallbackService:
                 return _CachingYdl(handle)
 
             def opener(request: urllib.request.Request, timeout: float) -> object:
+                _validate_subtitle_redirect_url(request.full_url)
                 handlers: list[urllib.request.BaseHandler] = [
                     _SafeCookieRedirectHandler(),
                 ]

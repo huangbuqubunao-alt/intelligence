@@ -1942,4 +1942,37 @@ describe("Manual UX Remediation (#1-#4)", () => {
       }
     }
   });
+
+  it("highlights Settings YouTube jump pill cleanly on scroll and resets stale sidebar focus on external hashchange", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Settings";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/settings/preferences")) {
+          return okJson({ active: [], history: [] });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+    const ytJump = await screen.findByRole("button", { name: /YouTube 授权|Jump · YouTube/ });
+    const ytPanel = document.getElementById("settings-youtube-auth") as HTMLElement;
+    expect(ytPanel).toBeTruthy();
+
+    Object.defineProperty(window, "scrollY", { value: 600, configurable: true });
+    ytPanel.getBoundingClientRect = () =>
+      ({ top: 150, bottom: 500, left: 0, right: 800, width: 800, height: 350, x: 0, y: 150, toJSON: () => ({}) }) as DOMRect;
+    fireEvent.scroll(window);
+    await waitFor(() => expect(ytJump.className).toContain("is-active"));
+
+    // Simulate focus sitting on sidebar nav before an external hash navigation
+    const homeNav = screen.getByRole("button", { name: "首页" });
+    homeNav.focus();
+    expect(document.activeElement).toBe(homeNav);
+    location.hash = "#Following";
+    fireEvent(window, new HashChangeEvent("hashchange", { newURL: location.href }));
+    await waitFor(() => expect(document.activeElement?.tagName).toBe("MAIN"));
+  });
 });

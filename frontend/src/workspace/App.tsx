@@ -1815,6 +1815,7 @@ function Workspace() {
   // because location.hash always includes it (e.g. "#Settings"); storing the
   // bare page name would never match and every programmatic navigation would
   // be misclassified as user navigation (clearing the import notice).
+  const mainRef = useRef<HTMLElement | null>(null);
   const programmaticHash = useRef<string | null>(null);
   useEffect(() => {
     const onHashChange = (event: HashChangeEvent) => {
@@ -1826,11 +1827,19 @@ function Workspace() {
         return;
       }
       programmaticHash.current = null;
+      const hadSidebarFocus =
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement.closest(".sidebar-nav") !== null;
+      const moveFocusToMain = () => {
+        if (!hadSidebarFocus) return;
+        requestAnimationFrame(() => mainRef.current?.focus({ preventScroll: true }));
+      };
       const target = initialContentTarget();
       if (target) {
         setImported(false);
         setResearchEvidence(initialEvidenceTarget());
         setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null);
+        moveFocusToMain();
         return;
       }
       const nextDelta = initialDeltaTarget();
@@ -1844,6 +1853,7 @@ function Workspace() {
         else if (next === "Following") setSourceListResetSeq((value) => value + 1);
       }
       setPage(next);
+      moveFocusToMain();
     };
     const onPopState = () => {
       if (programmaticHash.current === location.hash) return;
@@ -2019,7 +2029,7 @@ function Workspace() {
         </nav>
         <div className="sidebar-foot"><span className="service-dot" aria-hidden="true" />{t("Evidence stays reachable")}</div>
       </aside>
-      <main className="workspace-main">
+      <main ref={mainRef} tabIndex={-1} className="workspace-main">
         <header className="page-header">
           <div>
             <h1>{t(page)}</h1>
@@ -5839,14 +5849,18 @@ function useActiveSection(sectionIds: readonly string[], resetKey?: string): [st
         if (!el) continue;
         const rect = el.getBoundingClientRect();
         if (rect.height === 0 && rect.top === 0) continue;
-        if (rect.top <= 132) {
+        if (rect.top <= 180) {
           current = id;
         }
       }
       setActiveId(current);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, [sectionIds]);
   const jumpTo = useCallback((sectionId: string) => {
     setActiveId(sectionId);

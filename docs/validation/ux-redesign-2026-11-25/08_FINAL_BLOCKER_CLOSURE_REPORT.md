@@ -37,16 +37,16 @@
 
 **本轮 `33ab21de..05d31dce` 变更文件总清单（共 10 个文件，无多余范围扩张）**：
 
-1. [`src/youtube_intel/runtime_composition.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/runtime_composition.py)
-2. [`src/youtube_intel/youtube_auth_fallback.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/youtube_auth_fallback.py)
-3. [`src/youtube_intel/fast_read_api.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/fast_read_api.py)
-4. [`src/youtube_intel/workspace_launcher.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/workspace_launcher.py)
-5. [`src/youtube_intel/demo_showcase.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/demo_showcase.py)
-6. [`src/youtube_intel/workspace_intelligence_hub.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/workspace_intelligence_hub.py)
-7. [`frontend/src/workspace/ReaderRecoveryPanel.tsx`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/frontend/src/workspace/ReaderRecoveryPanel.tsx)
-8. [`frontend/src/workspace/WorkspaceAiWidgets.tsx`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/frontend/src/workspace/WorkspaceAiWidgets.tsx)
-9. [`frontend/src/workspace/ManualUxRemediation.test.tsx`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/frontend/src/workspace/ManualUxRemediation.test.tsx)
-10. [`tests/integration/test_final_blocker_closure.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/integration/test_final_blocker_closure.py)
+1. [`src/youtube_intel/runtime_composition.py`](../../../src/youtube_intel/runtime_composition.py)
+2. [`src/youtube_intel/youtube_auth_fallback.py`](../../../src/youtube_intel/youtube_auth_fallback.py)
+3. [`src/youtube_intel/fast_read_api.py`](../../../src/youtube_intel/fast_read_api.py)
+4. [`src/youtube_intel/workspace_launcher.py`](../../../src/youtube_intel/workspace_launcher.py)
+5. [`src/youtube_intel/demo_showcase.py`](../../../src/youtube_intel/demo_showcase.py)
+6. [`src/youtube_intel/workspace_intelligence_hub.py`](../../../src/youtube_intel/workspace_intelligence_hub.py)
+7. [`frontend/src/workspace/ReaderRecoveryPanel.tsx`](../../../frontend/src/workspace/ReaderRecoveryPanel.tsx)
+8. [`frontend/src/workspace/WorkspaceAiWidgets.tsx`](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)
+9. [`frontend/src/workspace/ManualUxRemediation.test.tsx`](../../../frontend/src/workspace/ManualUxRemediation.test.tsx)
+10. [`tests/integration/test_final_blocker_closure.py`](../../../tests/integration/test_final_blocker_closure.py)
 
 ---
 
@@ -73,7 +73,7 @@ flowchart LR
   - `src/youtube_intel/runtime_composition.py`：`RuntimeSourceRunIngestion` 删除 `fallback.get_status().get("enabled") is True` 门控，改为在匿名采集触发认证拦截时直接交由共享 `YouTubeAuthFallbackService.attempt_authenticated_ingest(self._runtime, source_id, video_id)` 执行原子资格校验（匿名优先 → 视频作用域 Grant / 全局开启态 → 单日限额 / 冷却 / 熔断 → 原子抢占与单次消费）。
   - **全生产入口对齐与启动恢复**：`runtime_composition.py`、`fast_read_api.py`、`workspace_launcher.py`、`demo_showcase.py` 统一共享同一个支持 `ScopedCookieStore` 的 `YouTubeAuthFallbackService` 实例，并在服务装配启动时执行 `reconcile_orphan_credentials(include_in_use=True)` 清理上次进程异常退出遗留的 `IN_USE` / `PENDING_DELETE` 孤儿凭据。
 - **11 步真实回环 HTTP → Worker E2E 验证**：
-  - 由 [`tests/integration/test_final_blocker_closure.py::test_p1_f01_single_video_auth_real_http_to_worker_end_to_end`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/integration/test_final_blocker_closure.py#L150) 通过真实 `serve_loopback` TCP HTTP 服务 + `DurableSourceRunWorker` 顺序实证全部 11 步：
+  - 由 [`tests/integration/test_final_blocker_closure.py::test_p1_f01_single_video_auth_real_http_to_worker_end_to_end`](../../../tests/integration/test_final_blocker_closure.py#L150) 通过真实 `serve_loopback` TCP HTTP 服务 + `DurableSourceRunWorker` 顺序实证全部 11 步：
     1. 导入合成视频 A；2. 匿名失败触发 `auth_blocked`；3. `PUT /youtube-auth` 写入视频 A 一次性 Grant（全局 `enabled=False`）；4. `POST /sources/{id}/check` 触发真实任务；5. Worker 真实进入授权备用流程；6. 假授权 Adapter 返回合成字幕；7. 视频 A 恢复成功；8. Grant 被标记 `CONSUMED` 并清理凭据；9. 视频 B 无法继承授权；10. 同一视频再次采集无法复用已消费 Grant；11. 明确验证已过期（`EXPIRED`）、已撤销（`REVOKED`）、非目标视频无权使用与熔断开启期间（即使新建单视频 Grant）均零外部授权请求。
 
 ### 3.2 `P1-F02`｜Grant 级凭据隔离、全生命周期、三种精确撤销与 UI 文案
@@ -89,7 +89,7 @@ flowchart LR
     - `all`（强校验 `confirm_all=true`，缺省返回 `422`）：清空全局备用、全部单视频 Grant 与全部凭据槽，并保留有效冷却/熔断状态。
   - `GET /api/v1/workspace-ai/youtube-auth?video_id=...` 返回按当前视频过滤的 `video_grant` 详情与 `active_single_video_grants` 计数。
   - 前端 `ReaderRecoveryPanel.tsx` 与 `WorkspaceAiWidgets.tsx` 彻底移除误导性文案 `重新保存设置可立即复位`，准确提示冷却剩余时间，拆分单视频撤销、`断开全局备用授权` 与显式二次确认的 `撤销全部授权（含临时单视频）`。
-- **验证证据**：[`test_p1_f02_per_grant_credential_isolation_lifecycle_and_recovery`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/integration/test_final_blocker_closure.py#L560) 与 `frontend/src/workspace/ManualUxRemediation.test.tsx`。
+- **验证证据**：[`test_p1_f02_per_grant_credential_isolation_lifecycle_and_recovery`](../../../tests/integration/test_final_blocker_closure.py#L560) 与 `frontend/src/workspace/ManualUxRemediation.test.tsx`。
 
 ### 3.3 `P1-F03`｜统一正面事实支持、全出口 `note_zh` 净化与三态信任语义
 
@@ -101,12 +101,12 @@ flowchart LR
 - **全出口 `note_zh` 强制清洗与三态信任模型**：
   - `_sanitize_citation_note` 贯穿全部出口：**实时问答 (`ask_research_question`)**、**暖缓存/清缓存冷历史 (`_row_to_research_session_dto`)**、**引用行与 `point_zh` 回退渲染 (`_format_citation_md_line`)**、**备份导出与恢复 (`export_backup_snapshot` / `restore_backup_snapshot`)** 与 **Obsidian Vault `.md` / `.zip` (`build_obsidian_vault_zip`)**。一旦 `note_zh` 夹带冲突数字或未支撑声明，立即剥离并落入 `PARTIAL_PRUNED`。
   - 统一暴露三态信任字段：`source_integrity_status`（`VERIFIED` / `REFUSED` / `NEEDS_REVERIFICATION`）、`fact_verification_state`（`SUPPORTED` / `PARTIAL_PRUNED` / 具体拒答原因或 `NEEDS_REVERIFICATION`）、`action_items_advisory: true`（在前端与 Markdown 明确标注「AI 推断建议，非原文事实」）；备份导出对每条问答显式打标 `archive_status: "EXPORTED_SNAPSHOT_UNVERIFIED_UNTIL_RESTORE"`。
-- **验证证据**：[`test_p1_f03_unified_fact_support_counterexamples_note_zh_and_3state_trust`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/integration/test_final_blocker_closure.py#L912) 覆盖全部 `F1–F5b` 对抗样本、无辜双语/同义正样本、篡改库表冷重读、备份往返与 ZIP 导出，外加 `G01–G12` 与 11 组集成回归 `160 passed`。
+- **验证证据**：[`test_p1_f03_unified_fact_support_counterexamples_note_zh_and_3state_trust`](../../../tests/integration/test_final_blocker_closure.py#L912) 覆盖全部 `F1–F5b` 对抗样本、无辜双语/同义正样本、篡改库表冷重读、备份往返与 ZIP 导出，外加 `G01–G12` 与 11 组集成回归 `160 passed`。
 
 ### 3.4 `P2`｜`CookieJar` 白名单裁剪 Fail-Closed
 
 - `_filter_cookiejar_domains`（`src/youtube_intel/youtube_auth_fallback.py`）对非法域、非字符串/空白域及任意移除异常均收集/抛出 `CookieFilterError`，并在裁剪循环结束后强制执行二次全量遍历核验；`_auth_execution_context` 捕获 `CookieFilterError` 后立即中止提取、返回受控错误码 `YOUTUBE_AUTH_COOKIE_FILTER_FAILED`，**不写入秘钥日志、不触发 `extract_info` 或外部授权请求**。
-- **验证证据**：[`test_p2_cookiejar_filter_fail_closed_zero_external_requests`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/integration/test_final_blocker_closure.py#L825)。
+- **验证证据**：[`test_p2_cookiejar_filter_fail_closed_zero_external_requests`](../../../tests/integration/test_final_blocker_closure.py#L825)。
 
 ---
 
@@ -140,7 +140,7 @@ flowchart LR
 ### 4.2 诚实披露：CI Unit Shard 0/4 中的 `1 Skipped` 与 Manifest 统计
 
 - **Unit Shard 0/4（Job `139448973944`）输出**：`947 passed, 1 skipped, 35 deselected in 267.97s`。
-- **唯一跳过项定位**：[`tests/unit/test_o200k_provisioning.py:131-134`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/unit/test_o200k_provisioning.py#L131-L134) —— 函数 `test_external_provisioned_canonical_asset_preserves_golden_token_ids()` 检查环境变量 `YOUTUBE_INTEL_O200K_TEST_ASSET`，因本地与 GitHub Actions CI 默认未预置真实外部 `o200k_base.tiktoken` 资产文件而按既有设计执行 `pytest.skip("requires an explicitly provisioned canonical o200k asset")`。本轮新增的所有 P1/P2/E2E 验收用例均 **0 跳过**。
+- **唯一跳过项定位**：[`tests/unit/test_o200k_provisioning.py:131-134`](../../../tests/unit/test_o200k_provisioning.py#L131-L134) —— 函数 `test_external_provisioned_canonical_asset_preserves_golden_token_ids()` 检查环境变量 `YOUTUBE_INTEL_O200K_TEST_ASSET`，因本地与 GitHub Actions CI 默认未预置真实外部 `o200k_base.tiktoken` 资产文件而按既有设计执行 `pytest.skip("requires an explicitly provisioned canonical o200k asset")`。本轮新增的所有 P1/P2/E2E 验收用例均 **0 跳过**。
 - **CI Test Manifest 完整覆盖校验（`scripts/ci_test_manifest.py verify`）**：
   - `total_collected=7396`（`unit_files=133`, `integration_files=132`）
   - `unit_runnable=3990`, `integration_runnable=3195`, `total_runnable=7185`

@@ -43,7 +43,7 @@
 | **UX-P2-2** | **P2** | `8799` Demo 服务 `/api/v1/workspace-ai/youtube-auth` 404 | 在 `8799` 打开设置页触发 1 次网络 404（因旧进程启动较早或路由差异，需在最新版本上复测）。 | 控制台报错并影响设置页异常感知。 |
 
 ### 2.3 基线截图归档索引（Before）
-所有基线截图已归档于 `/Users/hua/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/ux_redesign_screenshots/before/`：
+所有基线截图已归档于本轮对话产出目录 `ux_redesign_screenshots/before/`：
 - `step_2_shot_1_baseline_home_demo.png` · `step_4_shot_1_baseline_import_modal.png` · `step_9_shot_1_baseline_import_modal_local.png`
 - `step_11_shot_1_baseline_following.png` · `step_13_shot_1_baseline_content_list.png` · `step_15_shot_1_baseline_content_detail.png`
 - `step_17_shot_1_baseline_intelligence.png` · `step_21_shot_1_baseline_topic_detail.png` · `step_23_shot_1_baseline_research.png`

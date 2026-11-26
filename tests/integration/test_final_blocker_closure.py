@@ -9,6 +9,8 @@ import json
 import sqlite3
 import threading
 import time
+import urllib.error
+import urllib.request
 import zipfile
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -38,6 +40,8 @@ from youtube_intel.workspace_intelligence_hub import (
     WorkspaceIntelligenceHub,
     _check_clause_against_cited_evidence,
     _evaluate_clause_against_cited_evidence,
+    _extract_typed_facts,
+    _prune_ungrounded_ref_clauses,
     _sanitize_citation_note,
 )
 from youtube_intel.youtube_auth_fallback import (
@@ -47,6 +51,7 @@ from youtube_intel.youtube_auth_fallback import (
     CookieFilterError,
     ScopedMemoryCookieStore,
     YouTubeAuthFallbackService,
+    _AuthConfigRow,
     _filter_cookiejar_domains,
 )
 
@@ -1597,3 +1602,133 @@ def test_round5_strict_heuristic_grading_note_propagation_composite_state_and_ze
     assert 'fact_verification_state: "PARTIAL_PRUNED_HEURISTIC"' in qa_md
     assert "部分内容已裁剪" in qa_md
     assert "启发式相关性提示" in qa_md
+
+
+def test_post_merge_hardening_p2_citation_url_redos_and_auth_opener(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify post-merge P2 hardening: citation URL sanitization, ReDoS collapse & auth opener URL guard."""
+    # 1. ReDoS guard: 5,000 consecutive spaces complete cleanly in well under 0.5s
+    long_space_claim = "根据当前原文显示" + (" " * 5000) + "2025年公司收入同比增长 5% [E1]。"
+    t0 = time.perf_counter()
+    _extract_typed_facts(long_space_claim, is_claim=True)
+    ok_ws, _, grade_ws = _evaluate_clause_against_cited_evidence(
+        long_space_claim, ["2025年公司收入同比增长 5%。"]
+    )
+    pruned_ws = _prune_ungrounded_ref_clauses(
+        long_space_claim, {"E1"}, cited_excerpts={"E1": "2025年公司收入同比增长 5%。"}
+    )
+    elapsed_sec = time.perf_counter() - t0
+    assert elapsed_sec < 0.5, f"Whitespace normalization regressed: {elapsed_sec:.3f}s"
+    assert ok_ws and grade_ws == "EXACT_SUPPORTED"
+    assert "5%" in pruned_ws
+
+    # 2. Untrusted backup JSON cannot smuggle javascript: or Markdown breakout URLs into DTO/MD/ZIP
+    def _p2_completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            return (
+                {
+                    "answerable": True,
+                    "answer_zh": "2025年公司收入同比增长 5% [E1]。",
+                    "key_takeaways_zh": [],
+                    "action_items_zh": [],
+                    "citations": [{"ref": "E1", "note_zh": "2025年公司收入同比增长 5%"}],
+                },
+                provider,
+                model,
+            )
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(
+        tmp_path, monkeypatch, name="p2_hardening", completer=_StubCompleter(_p2_completer)
+    )
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    prov = LocalContentProvider(env["repo"], env["data_root"], now=lambda: BASE_NOW)
+    doc = prov.import_bytes("clean_doc.md", "2025年公司收入同比增长 5%。".encode("utf-8"))
+    sess = hub.ask_research_question(
+        {"question": "2025年营收同比如何？", "video_ids": [doc.content_id]}
+    )["session"]
+    snap = hub.export_backup_snapshot()
+    snap_sessions = cast(list[dict[str, Any]], snap["research_qa_sessions"])
+    target_row = next(s for s in snap_sessions if s["session_id"] == sess["session_id"])
+    cites = json.loads(str(target_row["citations_json"]))
+    assert cites
+    cites[0]["citation_url"] = "javascript:alert(1)"
+    cites[0]["source_url"] = "https://youtu.be/abc)[evil](https://evil.test"
+    target_row["citations_json"] = json.dumps(cites, ensure_ascii=False)
+
+    # Also keep a second valid https URL row to ensure legitimate links survive
+    cites_valid = json.loads(json.dumps(cites, ensure_ascii=False))
+    cites_valid[0]["citation_url"] = "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5s"
+    cites_valid[0]["source_url"] = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    row_valid = dict(target_row)
+    row_valid["session_id"] = "qa-valid-https-url"
+    row_valid["citations_json"] = json.dumps(cites_valid, ensure_ascii=False)
+    snap_sessions.append(row_valid)
+
+    hub.restore_backup_snapshot(snap)
+    with hub._evidence_verify_cache_lock:
+        hub._evidence_verify_cache.clear()
+    restored = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+
+    bad_dto = restored[sess["session_id"]]
+    assert "citation_url" not in bad_dto["citations"][0]
+    assert "source_url" not in bad_dto["citations"][0]
+    assert "javascript:" not in str(bad_dto["obsidian_markdown"])
+    assert "evil.test" not in str(bad_dto["obsidian_markdown"])
+
+    good_dto = restored["qa-valid-https-url"]
+    assert (
+        good_dto["citations"][0]["citation_url"]
+        == "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5s"
+    )
+
+    _, zip_bytes, _, _ = hub.build_obsidian_vault_zip(scope="all")
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        all_md = "\n".join(
+            zf.read(n).decode("utf-8") for n in zf.namelist() if n.endswith(".md")
+        )
+    assert "javascript:" not in all_md
+    assert "evil.test" not in all_md
+    assert "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5s" in all_md
+
+    # 3. YouTubeAuthFallbackService opener rejects non-HTTPS / local / non-YouTube initial URLs
+    svc = YouTubeAuthFallbackService(
+        project_root=(tmp_path / "auth_root").resolve(),
+        cookie_store=ScopedMemoryCookieStore(),
+    )
+    cfg = _AuthConfigRow(
+        enabled=True,
+        auth_mode="cookie_file",
+        browser_name="",
+        daily_limit=10,
+        cooldown_seconds=15,
+        circuit_open_until="",
+        updated_at="2026-11-26T01:00:00Z",
+        grant_id="g1",
+        credential_ref="grant:g1",
+    )
+    svc._slot_store.save_slot("grant:g1", SYNTHETIC_COOKIE_A)
+    with svc._auth_execution_context(cfg) as (_fac, opener):
+        for unsafe_url in (
+            "file:///etc/hosts",
+            "http://127.0.0.1:8792/api/v1/system",
+            "https://evil.example.invalid/vtt",
+        ):
+            with pytest.raises(urllib.error.URLError, match="unsafe redirect target"):
+                opener(urllib.request.Request(unsafe_url), 2.0)

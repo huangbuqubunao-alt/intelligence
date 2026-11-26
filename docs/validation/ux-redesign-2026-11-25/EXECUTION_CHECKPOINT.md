@@ -1,6 +1,6 @@
 # Execution Checkpoint — Product-Grade UI/UX Refactoring (`/goal`)
 
-- **Workspace**: `/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`
+- **Workspace**: `/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`
 - **Branch**: `antigravity/task-user-readiness-20261112`
 - **Starting Baseline HEAD**: `0969422b`
 - **Live Port 8792 Workspace**: `/private/tmp/yia-manual-ws` (keep healthy & restarted with latest build after final edit)

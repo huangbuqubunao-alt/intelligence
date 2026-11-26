@@ -599,6 +599,9 @@ small, .hint, .muted {
   margin: 0 auto;
   padding: 34px clamp(20px, 4vw, 56px) 64px;
 }
+.workspace-main:focus {
+  outline: none;
+}
 .page-header {
   display: flex;
   align-items: flex-start;
