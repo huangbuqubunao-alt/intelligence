@@ -5447,6 +5447,61 @@ export function WorkspaceAiSettingsPanel({
         <strong>{currentSummary}</strong>
       </p>
 
+      <div
+        className="ai-cost-guide-card"
+        role="region"
+        aria-label={zh ? "模式选择与月度成本参考" : "Engine Mode & Cost Guide"}
+      >
+        <div className="ai-cost-guide-head">
+          <strong>{zh ? "模式选择与月度成本参考" : "Engine Mode & Cost Guide"}</strong>
+          <span className="hint">
+            {zh ? "不会在后台自动开启任何付费调用" : "Zero automatic paid API calls"}
+          </span>
+        </div>
+        <div className="ai-cost-guide-grid">
+          <div
+            className={`ai-cost-tier${config?.active_mode !== "cloud_byok" ? " is-active" : ""}`}
+          >
+            <div className="ai-cost-tier-head">
+              <strong>{zh ? "本机免费 Ollama" : "Local Free Ollama"}</strong>
+              {config?.active_mode !== "cloud_byok" ? (
+                <span className="ai-cost-tier-badge">
+                  {zh ? "当前生效" : "Active"}
+                </span>
+              ) : null}
+            </div>
+            <div className="ai-cost-tier-price">
+              {zh ? "¥0 边际费用 · 数据不出本机" : "$0 marginal cost · 100% local"}
+            </div>
+            <p className="ai-cost-tier-note">
+              {zh
+                ? "适合高频总结与隐私阅读；推荐 16GB+ 内存运行 9B 模型，默认即启用且永不产生账单。"
+                : "Ideal for private everyday triage and distilling; 16GB+ RAM recommended for 9B models."}
+            </p>
+          </div>
+          <div
+            className={`ai-cost-tier${config?.active_mode === "cloud_byok" ? " is-active" : ""}`}
+          >
+            <div className="ai-cost-tier-head">
+              <strong>{zh ? "云端 BYOK（自备 Key）" : "Cloud BYOK (Your Key)"}</strong>
+              {config?.active_mode === "cloud_byok" ? (
+                <span className="ai-cost-tier-badge">
+                  {zh ? "当前生效" : "Active"}
+                </span>
+              ) : null}
+            </div>
+            <div className="ai-cost-tier-price">
+              {zh ? "按次计费 · 重度约 ¥15–40/月" : "Pay-per-use · Est. ~$2–$6/mo"}
+            </div>
+            <p className="ai-cost-tier-note">
+              {zh
+                ? "免装本地大模型；每次云端分析前先确认费用并受下方每日消费上限保护。"
+                : "No local model install needed; protected by per-action consent and the daily spend cap below."}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <input
         ref={restoreInputRef}
         type="file"

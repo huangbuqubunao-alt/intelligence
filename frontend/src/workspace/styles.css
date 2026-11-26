@@ -6705,3 +6705,90 @@ input[type="radio"] {
   background: var(--surface-subtle);
 }
 
+/* Iteration 11: Settings cost transparency guide */
+.ai-cost-guide-card {
+  margin: 12px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.ai-cost-guide-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+
+.ai-cost-guide-head strong {
+  font-size: 13px;
+  color: var(--text-strong);
+}
+
+.ai-cost-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-cost-tier {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.ai-cost-tier.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.ai-cost-tier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-cost-tier-head strong {
+  font-size: 13px;
+  color: var(--text-strong);
+}
+
+.ai-cost-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--surface);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ai-cost-tier-price {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.ai-cost-tier-note {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .ai-cost-guide-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

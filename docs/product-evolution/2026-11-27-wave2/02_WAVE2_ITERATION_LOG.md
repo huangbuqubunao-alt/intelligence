@@ -96,3 +96,20 @@
   - 按 `?` 与点击 `.utility-shortcuts-btn`（含 `1440x900` 深/浅色与 `860x800` 分屏顶栏）均可无滚动条展开快捷键指南，`Esc` 关闭并将焦点恢复至触发按钮。
   - `⌘K` 搜索并执行「高优未读内容分诊」成功跳转 `#Content` 并自动激活「未读干货」筛选胶囊。
   - 实机截图归档：[Intelligence Role Strip Dark](./screenshots/iter-10/step_4_shot_1_iter10_intel_strip_dark.png)、[Shortcuts Modal Dark](./screenshots/iter-10/step_36_shot_1_iter10_shortcuts_modal_dark.png)、[Shortcuts Modal Light](./screenshots/iter-10/step_36_shot_2_iter10_shortcuts_modal_light.png)、[Topbar Shortcuts 860px](./screenshots/iter-10/step_41_shot_1_iter10_topbar_shortcuts_860px.png)、[Cmd+K Unread Triage](./screenshots/iter-10/step_44_shot_1_iter10_cmdk_unread_triage_1440px.png)、[Intelligence Mobile 390px](./screenshots/iter-10/step_44_shot_2_iter10_intel_mobile_390px.png)。
+
+---
+
+## Iteration 11 (`EVO-W2-06`) — 设置页成本透明度对照卡、文档原文文案精修与全视图打磨
+
+- **解决的用户问题**：设置页虽有预算控制，但首次决定「本机 Ollama」还是「云端 BYOK」前缺乏并排的成本与隐私预期参考；同时本地未提炼 `.md` 文档详情页仍误写「原始字幕已准备完毕」。
+- **核心改动**：
+  1. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx) (`WorkspaceAiSettingsPanel`)：在面板主视图直出只读 `.ai-cost-guide-card`（「模式选择与月度成本参考」/「Engine Mode & Cost Guide」），清晰对比「本机免费 Ollama（¥0 边际费用 · 数据不出本机）」与「云端 BYOK（按次计费 · 重度约 ¥15–40/月 / ~$2–$6/mo）」，自动高亮 `当前生效` 模式并明确承诺不会后台自动开启付费调用。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx) (`ContentDetailPanel`)：针对 `isTextDocument` 的未提炼文档，将状态徽标与引导语精修为「原文已就绪 · 待提炼洞察」/「文档原文已准备完毕…」，与视频字幕明确区分。
+  3. [styles.css](../../../frontend/src/workspace/styles.css)：为 `.ai-cost-guide-card` / `.ai-cost-guide-grid` / `.ai-cost-tier.is-active` 添加深浅主题高对比度排版与 `<=640px` 单列响应式规则。
+- **自动化验证**：
+  - 新增 [EvolutionIter11.test.tsx](../../../frontend/src/workspace/EvolutionIter11.test.tsx)（3 passed：ZH/EN 成本对照零静默请求 + `.md` 文案区分）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`849ms` (`assets/index-Df_xVhKv.js` / `assets/index-Du--GcW5.css`)；Vitest：**69/69 files, 1304/1304 passed**。
+- **全页面 Chromium 实机巡检（`127.0.0.1:8799` & `127.0.0.1:8798`）**：
+  - 验证加载 `assets/index-Df_xVhKv.js`、`assets/index-Du--GcW5.css` 与 `assets/workspace-ai-hub-Cnk4r98P.js`（均 `200 OK`）；跨全站 7 大核心视图（`#Home`、`#Following`、`#Content`、`#Content/vidDemoAgt1`、`#Intelligence`、`#Topics`、`#Research`、`#Settings`）与 `8798` 空库均保持 **0 console errors、0 pageerrors、0 HTTP >=400**。
+  - 深浅色、中英文与 `390x844` 移动端全路由 **`mobileOverflow: false`**，成本对照卡 390px 自动转为单列且零裁剪。
+  - 实机截图归档：[Settings Cost Light ZH](./screenshots/iter-11/step_2_shot_1_iter11_settings_cost_light_zh.png)、[Settings Cost Dark ZH](./screenshots/iter-11/step_4_shot_1_iter11_settings_cost_dark_zh.png)、[Settings Cost Dark EN](./screenshots/iter-11/step_8_shot_1_iter11_settings_cost_dark_en.png)、[Home Light EN](./screenshots/iter-11/step_10_shot_1_iter11_home_light_en.png)、[Topics Dark ZH](./screenshots/iter-11/step_14_shot_1_iter11_topics_dark_zh.png)、[Settings Mobile 390px](./screenshots/iter-11/step_18_shot_1_iter11_settings_mobile_390px.png)、[Empty Workspace 8798 Home](./screenshots/iter-11/step_22_shot_1_iter11_empty_8798_home.png)。

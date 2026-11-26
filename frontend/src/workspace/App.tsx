@@ -7298,12 +7298,22 @@ function ContentDetailPanel(
                 ) : transcript.status === "AVAILABLE" ? (
                   <>
                     <span className="status status-neutral">
-                      {language === "zh-CN" ? "字幕已就绪 · 待提炼洞察" : "Transcript ready · Awaiting insight"}
+                      {language === "zh-CN"
+                        ? isTextDocument
+                          ? "原文已就绪 · 待提炼洞察"
+                          : "字幕已就绪 · 待提炼洞察"
+                        : isTextDocument
+                          ? "Document text ready · Awaiting insight"
+                          : "Transcript ready · Awaiting insight"}
                     </span>
                     <p>
                       {language === "zh-CN"
-                        ? "原始字幕已准备完毕。点击下方按钮即可自动提炼中文总结、评分与核心洞察。"
-                        : "Transcript is ready. Click below to distill Chinese summary, score, and insights."}
+                        ? isTextDocument
+                          ? "文档原文已准备完毕。点击下方按钮即可自动提炼中文总结、评分与核心洞察。"
+                          : "原始字幕已准备完毕。点击下方按钮即可自动提炼中文总结、评分与核心洞察。"
+                        : isTextDocument
+                          ? "Source text is ready. Click below to distill Chinese summary, score, and insights."
+                          : "Transcript is ready. Click below to distill Chinese summary, score, and insights."}
                     </p>
                     <div className="button-row">
                       <button
