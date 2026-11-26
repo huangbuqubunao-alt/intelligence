@@ -227,6 +227,15 @@ export type TopicChannelBreakdownItem = {
   unread_count: number;
 };
 
+export type TopicSourcePerspective = {
+  channel_name: string;
+  video_id: string;
+  title: string;
+  headline_zh: string;
+  angle_zh: string;
+  score: number;
+};
+
 export type TopicAiEvolution = {
   video_count: number;
   must_watch_count: number;
@@ -238,6 +247,7 @@ export type TopicAiEvolution = {
   synthesis_zh: string;
   independence_summary_zh: string;
   top_opportunities_zh: string[];
+  source_perspectives?: TopicSourcePerspective[];
   source_channels: string[];
   channel_breakdown: TopicChannelBreakdownItem[];
   related_topics: TopicRelatedSummary[];
@@ -949,6 +959,19 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
         }))
         .filter((ch) => ch.channel_key.length > 0 && ch.video_count > 0)
     : [];
+  const source_perspectives: TopicSourcePerspective[] = Array.isArray(raw.source_perspectives)
+    ? raw.source_perspectives
+        .filter(isRec)
+        .map((p) => ({
+          channel_name: typeof p.channel_name === "string" ? p.channel_name : "",
+          video_id: typeof p.video_id === "string" ? p.video_id : "",
+          title: typeof p.title === "string" ? p.title : "",
+          headline_zh: typeof p.headline_zh === "string" ? p.headline_zh : "",
+          angle_zh: typeof p.angle_zh === "string" ? p.angle_zh : "",
+          score: typeof p.score === "number" ? p.score : 0,
+        }))
+        .filter((p) => p.channel_name.length > 0 && (p.angle_zh.length > 0 || p.headline_zh.length > 0))
+    : [];
   return {
     video_count: raw.video_count,
     must_watch_count: typeof raw.must_watch_count === "number" ? raw.must_watch_count : 0,
@@ -964,6 +987,7 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
     independence_summary_zh:
       typeof raw.independence_summary_zh === "string" ? raw.independence_summary_zh : "",
     top_opportunities_zh: strArr(raw.top_opportunities_zh),
+    source_perspectives,
     source_channels: strArr(raw.source_channels),
     channel_breakdown,
     related_topics,

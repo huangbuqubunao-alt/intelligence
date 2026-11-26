@@ -306,3 +306,28 @@ def test_demo_showcase_answers_bilingual_local_first_marginal_cost_query_without
     takeaways = [str(x) for x in cast(list[object], session["key_takeaways_zh"])]
     normalized_t = [t.split("[", 1)[0].strip() for t in takeaways]
     assert len(normalized_t) == len(set(normalized_t))
+
+
+def test_demo_showcase_topic_detail_provides_cross_source_synthesis_and_perspectives(
+    tmp_path: Path,
+) -> None:
+    runtime = prepare_demo_showcase(REPO_ROOT, demo_root=tmp_path / "demo-iter4", reset=True)
+    list_code, list_body = runtime.fast_app.handle("GET", "/api/v1/topics")
+    assert list_code == 200
+    topics = cast(list[dict[str, object]], list_body["topics"])
+    target = next(
+        t
+        for t in topics
+        if int(cast(dict[str, object], t.get("ai_evolution") or {}).get("video_count") or 0) >= 2
+    )
+    det_code, det_body = runtime.fast_app.handle(
+        "GET", f"/api/v1/topics/{target['topic_id']}"
+    )
+    assert det_code == 200
+    topic = cast(dict[str, object], det_body["topic"])
+    evo = cast(dict[str, object], topic["ai_evolution"])
+    synthesis = str(evo.get("synthesis_zh") or "")
+    assert "独立来源" in synthesis or "持续演进" in synthesis
+    perspectives = cast(list[dict[str, object]], evo.get("source_perspectives") or [])
+    assert len(perspectives) >= 2
+    assert len({str(p.get("channel_name") or "") for p in perspectives}) >= 2

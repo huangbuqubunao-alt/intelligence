@@ -152,3 +152,50 @@
 ### 5. 剩余风险与下一轮计划
 - **下一轮重点（Iteration 4 · `EVO-05`）**：升级 `#Topics` 专题详情从分号拼接升级为“跨来源观点对照 + 真综合梳理”并清理重复前缀/双时间线，同时为新用户提供空库首屏 3 步速览与可随时重开的「重新查看新手引导」入口。
 - **需要项目所有者决定的事项**：无阻塞决策。
+
+---
+
+## Iteration 4（`EVO-05`）：跨来源专题观点对照与真综合、空库首屏速览与可恢复新手引导
+
+- **提交分支**：`antigravity/autonomous-product-evolution-20261126`
+- **对应需求**：`EVO-05`（8.30 分，专题“真综合与观点对照”升级 + 冷启动新手激活修复）
+- **服务人群**：核心人群（AI 行业研究者 / 分析师）与首次上手新用户（Day-1 激活）
+
+### 1. 本轮获取的新证据与产品决策
+- **实机基线暴露的 Week-2 复利与 Day-1 激活短板**：
+  1. `#Topics` 专题详情中 `synthesis_zh` 仅以 `；` 硬拼接多篇视频标题，未按独立来源提炼视角分工；同时每个切入点前机械重复 `高优切口：` 前缀，底部“时间线”与上方脉络重复（见基线截屏 `13_demo_topic_detail.png`）。
+  2. 新用户在全新空工作区（`8798`）一旦误点「暂时跳过」引导后，不仅缺少一眼看懂“导入→提炼→跨视频提问”的 3 步首屏价值预览，而且页面与 `#Settings` 均未提供**重新查看新手引导**的可恢复入口（见 `01_fresh_empty_home_dark.png`）。
+- **决策依据 (`DEC-002`, `DEC-004`)**：绝不凭空编造专题综述，而是从每个独立频道/来源的高分条目抽取真实要点，结构化输出 `source_perspectives` 与真综合综述，保留原文直达链接并清理冗余前缀；同时在空库首页与 `#Settings` 补全低摩擦 Day-1 快速开始卡与引导重开闭环。
+
+### 2. 实际改动内容
+1. **后端专题跨来源观点对照与真综合 (`../../../src/youtube_intel/workspace_intelligence_hub.py`)**：
+   - 在 `_summarize_topic_evolution` 中按不同来源（`channel_name` 去重优先）生成 `source_perspectives` 列表，提取各来源真实核心论点与首句精炼视角 `angle_zh`。
+   - 将多篇条目的 `synthesis_zh` 升级为涵盖“独立来源规模 + 均分/必看 + 主导观点与补充来源切角”的真实结构化综述，彻底替代简单标题分号拼接，兼容保留既有契约字段。
+2. **前端专题视图重排 (`../../../frontend/src/workspace/App.tsx`, `../../../frontend/src/workspace/WorkspaceAiWidgets.tsx`, `../../../frontend/src/workspace/styles.css`)**：
+   - 新增 **「跨来源观点对照」** 2 列对照卡片网（移动端自适应 1 列），展示各来源评分、真实切角描述与原文直达按钮。
+   - 合并为单一 `重点切入方向` 小标题并移除列表每项重复的 `高优切口：` 前缀；在保留 `时间线`（`Timeline`）面板与核心节点的前提下补充简洁定位导语。
+3. **Day-1 3 步速览与全局可恢复新手引导 (`../../../frontend/src/workspace/Onboarding.tsx`, `../../../frontend/src/workspace/App.tsx`)**：
+   - 新增 `resetOnboarding`，并在空库首页增加 **STEP 1–3 快速开始路线卡**与 **`重新查看新手引导`** 次级按钮，同时在 `#Settings → Language` 并置 **`重新查看新手引导`**，无论处于空库还是已有数据的工作区均可一键重看并完成引导。
+4. **新增前后端回归测试 (`../../../tests/integration/test_public_beta_demo_showcase.py`, `../../../frontend/src/workspace/EvolutionIter4.test.tsx`)**：
+   - 验证多来源专题 API 返回独立来源真综合与 >=2 组 `source_perspectives`；前端 3 项测试覆盖专题对照与去前缀、空库首页重开引导、以及设置页重开引导流程。
+
+### 3. 优化前后真实实机体验对比
+
+| 场景 | 优化前（基线截图） | 优化后（本轮实机截图） | 实际体验提升 |
+|---|---|---|---|
+| **专题跨来源对比（Dark）** | ![基线专题拼接](./screenshots/baseline/13_demo_topic_detail.png) | ![Iter 4 跨来源观点对照 Dark](./screenshots/iter-4/01_topic_synthesis_dark.png) | 分号拼接升级为含来源分工的综述 + 2 列「跨来源观点对照」卡片可一键溯源；单一「重点切入方向」标题告别满屏重复前缀 |
+| **专题对照（Warm Paper Light & 390px）** | 基线仅单调堆叠 | ![Iter 4 浅色](./screenshots/iter-4/02_topic_synthesis_light.png) / ![Iter 4 390px 移动单栏](./screenshots/iter-4/03_topic_synthesis_mobile_390.png) | 暖纸浅色对比柔和；`390px` 下自动转为清晰单栏（`379px <= 390px`，零横向溢出） |
+| **空库首屏 3 步速览 & 重开新手引导** | 跳过引导后无恢复入口（`01_fresh_empty_home_dark.png`） | ![Iter 4 空库3步速览](./screenshots/iter-4/04_empty_home_quickstart.png) → ![Iter 4 一键重开引导](./screenshots/iter-4/05_onboarding_replayed.png) | 空库直观展示「1.导入 → 2.证据链 → 3.提问导出」；首页与 `#Settings` 均可一键恢复 3 步新手引导 |
+
+### 4. 已完成自动化检查与实机验证证据
+- **后端全套门禁**：
+  - `.venv/bin/ruff check`、`mypy`（1 source file 0 issues）、`ci_test_manifest.py verify`（`total_collected=7401`）全通过。
+  - `PYTHONPATH=. .venv/bin/pytest tests/integration/test_public_beta_demo_showcase.py tests/integration/test_final_blocker_closure.py -q` → **15 passed in 98.12s**。
+- **前端全套门禁**：
+  - `npm run typecheck` → 通过；`npm run build` → `vite v5.4.19` 1.21s 构建成功（`assets/index-kOG_pxKI.js`）。
+  - `npm test -- --run --poolOptions.forks.maxForks=4 --poolOptions.forks.minForks=2` → **62/62 test files, 1288/1288 tests passed**。
+- **真实 Chromium 实机验证**：同时在 `127.0.0.1:8799`（Demo）与 `127.0.0.1:8798`（空库）强制重载确认新版资源 HTTP `200`，完成 5 个跨主题/跨视口/跨起点流转验证：**0 console errors、0 page errors、0 HTTP >=400**。
+
+### 5. 剩余风险与下一轮计划
+- **下一阶段（Iteration 5 & 商业化终局收口）**：补充 `#Following` 频道信噪比摘要强化（如具备高 ROI）、撰写《增长与商业化落地方案》（`09_GROWTH_AND_MONETIZATION.md` + 产品定位演示方案）、《终局自主交付报告》（`10_FINAL_DELIVERY_REPORT.md`）、全量门禁回归验证、推送远端、创建独立 Draft PR 并确认远端 GitHub Actions CI **14/14 全部通过**。
+- **需要项目所有者决定的事项**：无阻塞决策。

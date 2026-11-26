@@ -29,6 +29,7 @@ import {
   completeOnboarding,
   getOnboardingReturnStep,
   onboardingCompleted,
+  resetOnboarding,
   setOnboardingReturnStep,
 } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
@@ -1862,6 +1863,7 @@ function Workspace() {
   }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(initialDeltaTarget);
   const [handoffSeq, setHandoffSeq] = useState(0);
+  const [onboardingReplayNonce, setOnboardingReplayNonce] = useState(0);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
   const [researchOriginPage, setResearchOriginPage] = useState<Exclude<Page, "Research"> | null>(null);
   const latestContentFilterRef = useRef<ContentFilterSnapshot | null>(null);
@@ -1937,6 +1939,12 @@ function Workspace() {
       }
       setPage(next);
     });
+  };
+  const replayOnboarding = () => {
+    resetOnboarding(false);
+    resetOnboarding(true);
+    setOnboardingReplayNonce((value) => value + 1);
+    navigate("Home");
   };
   const openContent = (videoId: string, evidenceId?: string) => {
     changeHash(`Content/${encodeURIComponent(videoId)}${evidenceId ? `/Evidence/${encodeURIComponent(evidenceId)}` : ""}`);
@@ -2066,6 +2074,8 @@ function Workspace() {
               openContent={openContent}
               onOpenTopic={id => openDelta({ kind: "topic", id })}
               onAddContent={() => setAddProvider("YOUTUBE")}
+              onboardingReplayNonce={onboardingReplayNonce}
+              onReplayOnboarding={replayOnboarding}
             />
             <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
           </div>
@@ -2208,7 +2218,7 @@ function Workspace() {
             onAddContent={() => setAddProvider("YOUTUBE")}
           />
         )}
-        {page === "Settings" && <Settings refresh={refresh} />}
+        {page === "Settings" && <Settings refresh={refresh} onReplayOnboarding={replayOnboarding} />}
       </main>
       <div className="workspace-utility-dock" role="region" aria-label={t("Quick actions")}>
         <button
@@ -2378,12 +2388,22 @@ function sortTopicsByMode(
 }
 
 function Dashboard(
-  { refresh, navigate, openContent, onOpenTopic, onAddContent }: {
+  {
+    refresh,
+    navigate,
+    openContent,
+    onOpenTopic,
+    onAddContent,
+    onboardingReplayNonce = 0,
+    onReplayOnboarding,
+  }: {
     refresh: number;
     navigate: (page: Page) => void;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic: (topicId: string) => void;
     onAddContent?: () => void;
+    onboardingReplayNonce?: number;
+    onReplayOnboarding?: () => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -2411,11 +2431,19 @@ function Dashboard(
   const [triageBusyId, setTriageBusyId] = useState<string | null>(null);
   const isDemoMode = Boolean(data?.demo_mode);
   const [onboardingOverride, setOnboardingOverride] = useState<{ mode: boolean; done: boolean } | null>(null);
+  const [replayingOnboarding, setReplayingOnboarding] = useState(false);
+  useEffect(() => {
+    if (onboardingReplayNonce > 0) {
+      setOnboardingOverride({ mode: isDemoMode, done: false });
+      setReplayingOnboarding(true);
+    }
+  }, [onboardingReplayNonce, isDemoMode]);
   const onboardingDone =
     onboardingOverride?.mode === isDemoMode ? onboardingOverride.done : onboardingCompleted(isDemoMode);
   const finishOnboarding = () => {
     completeOnboarding(isDemoMode);
     setOnboardingOverride({ mode: isDemoMode, done: true });
+    setReplayingOnboarding(false);
   };
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Home…</Empty>;
@@ -2429,7 +2457,7 @@ function Dashboard(
     hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0 || weeklyBrief !== null;
   const isFreshLibrary = data.operations?.source_count === 0 &&
     !intelligence.length && !topics.length && !hasWeeklyHistory && !attention.length;
-  if (isFreshLibrary && !onboardingDone) {
+  if (replayingOnboarding || (isFreshLibrary && !onboardingDone)) {
     return (
       <FirstRunOnboarding
         initialStep={getOnboardingReturnStep() ?? 0}
@@ -2447,6 +2475,15 @@ function Dashboard(
   }
   if (!intelligence.length && !topics.length && !attention.length && !weeklyBrief) {
     const hasSources = (data.operations?.source_count ?? 0) > 0;
+    const handleReplayClick = () => {
+      if (onReplayOnboarding) {
+        onReplayOnboarding();
+      } else {
+        resetOnboarding(isDemoMode);
+        setOnboardingOverride({ mode: isDemoMode, done: false });
+        setReplayingOnboarding(true);
+      }
+    };
     return (
       <div className="dashboard-stack">
         <Panel title="No important new intelligence yet." icon="sparkle">
@@ -2456,11 +2493,30 @@ function Dashboard(
               : "Paste a YouTube or Bilibili video link, follow a YouTube channel, or import a local file.")}
           </p>
           {!hasSources ? (
-            <p className="hint">
-              {zh
-                ? "支持：YouTube 视频/频道 · Bilibili 公开视频 · 本地 .md / .txt / 音视频"
-                : "Supports: YouTube videos/channels · Bilibili public videos · local .md / .txt / media"}
-            </p>
+            <>
+              <div className="empty-quickstart-grid" role="list" aria-label={zh ? "首次使用 3 步快速开始" : "3-step quick start"}>
+                <div className="empty-quickstart-step" role="listitem">
+                  <span className="empty-quickstart-num">STEP 1</span>
+                  <strong>{zh ? "1. 导入首条内容" : "1. Import first source"}</strong>
+                  <p>{zh ? "粘贴 YouTube / B 站公开链接，或导入本地 .md / .txt / 音视频。" : "Paste a YouTube / Bilibili link or import a local .md / .txt / media file."}</p>
+                </div>
+                <div className="empty-quickstart-step" role="listitem">
+                  <span className="empty-quickstart-num">STEP 2</span>
+                  <strong>{zh ? "2. 本机提炼证据链" : "2. Distill grounded brief"}</strong>
+                  <p>{zh ? "保留原话时间戳与来源哈希，AI 只基于已有材料归纳，绝不编造。" : "Preserve verified timestamps & hashes without fabricating missing facts."}</p>
+                </div>
+                <div className="empty-quickstart-step" role="listitem">
+                  <span className="empty-quickstart-num">STEP 3</span>
+                  <strong>{zh ? "3. 跨视频提问与导出" : "3. Research & export"}</strong>
+                  <p>{zh ? "跨资料带引用追问，一键复制或导出 Obsidian 双链笔记。" : "Ask across sources with citations and export Obsidian wikilink notes."}</p>
+                </div>
+              </div>
+              <p className="hint">
+                {zh
+                  ? "支持：YouTube 视频/频道 · Bilibili 公开视频 · 本地 .md / .txt / 音视频"
+                  : "Supports: YouTube videos/channels · Bilibili public videos · local .md / .txt / media"}
+              </p>
+            </>
           ) : null}
           <div className="button-row">
             {hasSources ? (
@@ -2485,12 +2541,21 @@ function Dashboard(
                 </button>
               </>
             ) : (
-              <button
-                className="button button-primary"
-                onClick={() => onAddContent ? onAddContent() : navigate("Following")}
-              >
-                {zh ? "导入第一个内容" : t("Add Source")}
-              </button>
+              <>
+                <button
+                  className="button button-primary"
+                  onClick={() => onAddContent ? onAddContent() : navigate("Following")}
+                >
+                  {zh ? "导入第一个内容" : t("Add Source")}
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={handleReplayClick}
+                >
+                  {zh ? "重新查看新手引导" : "Replay onboarding"}
+                </button>
+              </>
             )}
           </div>
         </Panel>
@@ -8531,7 +8596,9 @@ function Topics({
         <h3>{t("Current understanding")}</h3>
         {hasEvoEntries && evo ? (
           <>
-            <p className="summary-copy">{evo.synthesis_zh || evo.latest_headline_zh}</p>
+            <p className="summary-copy topic-synthesis-summary">
+              {evo.synthesis_zh || evo.latest_headline_zh}
+            </p>
             <p className="hint">
               {evo.independence_summary_zh ||
                 (evo.source_channels.length >= 2
@@ -8542,17 +8609,62 @@ function Topics({
                     ? `当前基于 ${evo.video_count} 篇已提炼内容持续追踪。`
                     : `Grounded in ${evo.video_count} distilled items.`)}
             </p>
+            {evo.source_perspectives && evo.source_perspectives.length >= 2 ? (
+              <div className="topic-perspectives-section">
+                <h4 className="topic-section-subhead">
+                  {zh ? "跨来源观点对照" : "Cross-source comparison"}
+                </h4>
+                <div className="topic-perspectives-grid">
+                  {evo.source_perspectives.map((p) => (
+                    <article
+                      className="topic-perspective-card"
+                      key={`persp:${p.video_id}:${p.channel_name}`}
+                    >
+                      <div className="topic-perspective-head tabular-nums">
+                        <span className="topic-perspective-source">{p.channel_name}</span>
+                        <span
+                          className={`ai-score-pill is-compact ${
+                            p.score >= 8
+                              ? "ai-score-high"
+                              : p.score >= 5
+                                ? "ai-score-mid"
+                                : "ai-score-noise"
+                          }`}
+                        >
+                          <strong>{p.score.toFixed(1)}</strong>
+                        </span>
+                      </div>
+                      <p className="topic-perspective-angle">{p.angle_zh || p.headline_zh}</p>
+                      {p.video_id && p.title ? (
+                        <button
+                          type="button"
+                          className="topic-perspective-link"
+                          onClick={() => onOpenContent?.(p.video_id)}
+                        >
+                          {p.title}
+                        </button>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {evo.top_opportunities_zh.length > 0 ? (
-              <ul
-                className="topic-opp-callout"
-                aria-label={zh ? "重点切入方向" : "Key opportunity angles"}
-              >
-                {evo.top_opportunities_zh.map((opp, idx) => (
-                  <li key={`top-opp:${idx}`} className="topic-opp-callout-item">
-                    {zh ? `高优切口：${opp}` : opp}
-                  </li>
-                ))}
-              </ul>
+              <div className="topic-opps-section">
+                <h4 className="topic-section-subhead">
+                  {zh ? "重点切入方向" : "Key opportunity angles"}
+                </h4>
+                <ul
+                  className="topic-opp-callout"
+                  aria-label={zh ? "重点切入方向" : "Key opportunity angles"}
+                >
+                  {evo.top_opportunities_zh.map((opp, idx) => (
+                    <li key={`top-opp:${idx}`} className="topic-opp-callout-item">
+                      {opp}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
             {evo.channel_breakdown.length > 0 && onBrowseTopicContent ? (
               <div
@@ -8726,7 +8838,13 @@ function Topics({
       </Panel>
       <Panel title="Timeline" icon="clock">
         {hasEvoEntries && evo ? (
-          <div className="timeline">
+          <>
+            <p className="hint topic-timeline-hint">
+              {zh
+                ? "按时间顺序速览核心节点（点击标题直接进入原文与证据）"
+                : "Chronological topic milestones — click any title to open evidence."}
+            </p>
+            <div className="timeline">
             {evo.entries.slice(0, 10).map((entry) => (
               <div className="timeline-item" key={entry.video_id}>
                 <span className="timeline-dot" aria-hidden="true" />
@@ -8753,7 +8871,8 @@ function Topics({
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         ) : topic.timeline.length
           ? (
             <div className="timeline">
@@ -10441,7 +10560,13 @@ function GlobalInterests({
   </Panel>;
 }
 
-function Settings({ refresh }: { refresh: number }) {
+function Settings({
+  refresh,
+  onReplayOnboarding,
+}: {
+  refresh: number;
+  onReplayOnboarding?: () => void;
+}) {
   const [modelMessage, setModelMessage] = useState("");
   const { language, setLanguage, t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
@@ -10577,7 +10702,18 @@ function Settings({ refresh }: { refresh: number }) {
       <Panel id="settings-language" icon="translate" title="Language">
         {!editingLanguage ? <>
           <p>{t("Interface language")}: {language === "zh-CN" ? "中文" : "English"} · {t("Generated output")}: {settings.data.general.output_language === "zh-CN" ? "中文" : "English"}</p>
-          <button className="button button-secondary" onClick={() => { setInterfaceDraft(language); setOutputDraft(settings.data!.general.output_language); setEditingLanguage(true); }}>{t("Edit language")}</button>
+          <div className="button-row">
+            <button className="button button-secondary" onClick={() => { setInterfaceDraft(language); setOutputDraft(settings.data!.general.output_language); setEditingLanguage(true); }}>{t("Edit language")}</button>
+            {onReplayOnboarding ? (
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={onReplayOnboarding}
+              >
+                {zhBanner ? "重新查看新手引导" : "Replay onboarding"}
+              </button>
+            ) : null}
+          </div>
         </> : <>
           <label className="field">{t("Interface language")}<select aria-label={t("Interface language")} value={interfaceDraft} disabled={savingLanguage} onChange={event => setInterfaceDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
           <label className="field">{t("Preferred output language")}<select aria-label={t("Preferred output language")} value={outputDraft} disabled={savingLanguage} onChange={event => setOutputDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>

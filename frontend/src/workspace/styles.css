@@ -6160,3 +6160,124 @@ input[type="radio"] {
   white-space: nowrap;
 }
 
+.topic-synthesis-summary {
+  line-height: 1.68;
+}
+
+.topic-section-subhead {
+  margin: 14px 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.topic-perspectives-section {
+  margin-top: 8px;
+}
+
+.topic-perspectives-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.topic-perspective-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  min-width: 0;
+}
+
+.topic-perspective-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.topic-perspective-source {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-perspective-angle {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.topic-perspective-link {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-ink);
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.topic-perspective-link:hover {
+  text-decoration: underline;
+}
+
+.topic-timeline-hint {
+  margin: 0 0 10px;
+}
+
+.empty-quickstart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+
+.empty-quickstart-step {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.empty-quickstart-num {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.empty-quickstart-step strong {
+  font-size: 13px;
+  color: var(--text-strong);
+}
+
+.empty-quickstart-step p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .topic-perspectives-grid,
+  .empty-quickstart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
