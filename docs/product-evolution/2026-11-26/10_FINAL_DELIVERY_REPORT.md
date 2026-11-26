@@ -3,7 +3,7 @@
 - **交付日期**：2026-11-26（Asia/Shanghai）
 - **开发分支**：`antigravity/autonomous-product-evolution-20261126`
 - **基线起点（`origin/main`）**：`f7b97134a9fafd3e8e447851a4237bdc66f7e60e`（PR #50 已人工合并，主分支与 PR #50/#51 均保持完全未触动）
-- **已验证代码基线 SHA（`VERIFIED_CODE_SHA`）**：`696ab03a521daf466d5d80c0943fc8fcd3891c70`
+- **已验证代码基线 SHA（`VERIFIED_CODE_SHA`）**：`31bb00312632dce7b939aca8f7310d7ba1c60cbb`
 - **任务完成状态**：**全部 4 个阶段 / 5 轮代码迭代 / 全量本地 CI 对等测试 / 27 张迭代实机截图对照 / 增长商业化与展示方案 已全部落地验证。**
 
 ---
@@ -30,8 +30,10 @@
 3. `a5a190e1` — `feat(evolution): iter 2 — Home Priority Reading Queue, compact validation posture & live 7-day demo delta`
 4. `fc604e42` — `feat(evolution): iter 3 — fix Local .md reader, Bilibili author attribution, mobile reader ergonomics & en copy`
 5. `add8f0bb` — `feat(evolution): iter 4 — cross-source topic synthesis, clean topic ergonomics & recoverable Day-1 onboarding`
-6. `696ab03a` — `feat(evolution): iter 5 — Following channel signal-to-noise digest & low-signal review filter`（`VERIFIED_CODE_SHA`）
-7. 本次收口提交 — 纯文档收口提交（包含 `09_GROWTH_AND_MONETIZATION.md`、`launch-positioning-preview.html`、`10_FINAL_DELIVERY_REPORT.md`、`06_PRIORITIZED_BACKLOG.md`、`CHECKPOINT.md`，与代码 SHA 严格零业务代码差异）
+6. `696ab03a` — `feat(evolution): iter 5 — Following channel signal-to-noise digest & low-signal review filter`
+7. `5e7b88b2` — `docs(evolution): complete growth/monetization strategy, positioning preview & final delivery report`
+8. `31bb0031` — `fix(evolution): guard optional source_type attribute in read-model projection`（`VERIFIED_CODE_SHA`）
+9. 本次收口提交 — 纯文档基线同步提交（仅更新 `10_FINAL_DELIVERY_REPORT.md` 与 `CHECKPOINT.md`，与代码 SHA 严格零业务代码差异）
 
 ### 2.2 全套研究与进化档案清单（均位于 `docs/product-evolution/2026-11-26/`）
 - [01_PRODUCT_BASELINE_AUDIT.md](./01_PRODUCT_BASELINE_AUDIT.md) — 双实例（空库 + 演示库）真实 Chromium 产品基线审计（附 22 张基线截图）
@@ -51,12 +53,13 @@
 ## 三、自动化门禁与实机 Chromium 全量验收证据
 
 ### 3.1 与 `.github/workflows/ci.yml` 完全对等的本地全套验证结果
-- **锁文件与静态分析（`VERIFIED_CODE_SHA` `696ab03a`）**：
-  - `uv lock --check` → `Resolved 107 packages in 2.67s`
-  - `.venv/bin/ruff check src tests scripts` → **All checks passed**
-  - `.venv/bin/mypy src` → **Success: no issues found in 138 source files**
-  - `.venv/bin/python scripts/ci_test_manifest.py verify` → **`total_collected=7401`（`unit_runnable=3990`, `integration_runnable=3200`）全部覆盖校验通过**
-- **后端 14 文件 Public Beta CI 集成与 E2E 套件（逐项实跑无跳过）**：
+- **锁文件与静态分析（最新代码 SHA `31bb0031`）**：
+  - `uv lock --check` → `Resolved 107 packages in 2.67s`（此前基线 `696ab03a` 验证，依赖锁未改动）
+  - `.venv/bin/ruff check src tests scripts` → **All checks passed**（`31bb0031` 实测）
+  - `.venv/bin/mypy src` → **Success: no issues found in 138 source files**（`31bb0031` 实测）
+  - `.venv/bin/python scripts/ci_test_manifest.py verify` → **`total_collected=7401`（`unit_runnable=3990`, `integration_runnable=3200`）全部覆盖校验通过**（`31bb0031` 实测）
+  - `tests/unit/test_local_api.py` + `tests/integration/test_fast_read_api.py` + `tests/integration/test_public_beta_demo_showcase.py` → **`44 passed in 175.73s`**（`31bb0031` 修复后实测）
+- **后端 14 文件 Public Beta CI 集成与 E2E 套件（`696ab03a` 完整基线实跑，仅随后在 `31bb0031` 做了 `source_type` 空值防护）**：
   - `test_contracts.py`、`test_console_entry.py`、`test_public_beta_demo_showcase.py`、`test_workspace_cloud_safety.py`、`test_workspace_start_launcher.py`、`test_grounding_refusal_eval.py`、`test_cross_source_markdown_and_scale.py`、`test_portable_citations_and_ops.py`、`test_workspace_intelligence_hub.py`、`test_fast_read_api.py`、`test_long_media_and_obsidian_vault.py`、`test_visual_keyframe_analysis.py`、`test_codex_review_remediation.py`、`test_po_demo.py`
   - 实测结果：**`184 passed in 612.98s`**
 - **前端全量门禁（包含 `EvolutionIter1`–`EvolutionIter5` 全部新增回归测试）**：
