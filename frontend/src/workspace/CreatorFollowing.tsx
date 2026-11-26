@@ -250,6 +250,17 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh, ref
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
+    if (interestOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [interestOpen, onClose]);
+  useEffect(() => {
     let disposed = false;
     setReading(true);
     void api<Detail>(`/sources/${id}`).then(value => {
@@ -297,7 +308,9 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh, ref
   const coolingDown = cooldownUntil !== null && cooldownUntil.getTime() - Date.now() > 0;
   const automaticCheckAt = source?.tracking.next_check_at ? new Date(source.tracking.next_check_at) : null;
   const needsAttention = ["STATE_INVALID", "RISK_CONTROLLED", "ACCESS_DENIED"].includes(source?.tracking.health ?? "");
-  return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t(title)}>
+  return <div className="overlay" onClick={event => {
+    if (event.target === event.currentTarget && !interestOpen) onClose();
+  }}><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t(title)}>
     <div className="modal-head"><h2>{source?.display_name ?? t(title)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     {refreshNotice}
     {reading && source && <p role="status" className="hint">{t("Refreshing source details…")}</p>}
@@ -318,15 +331,15 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh, ref
       </div>
       {interestOpen && <SourceInterestEditor key={id} id={id} onClose={() => setInterestOpen(false)} />}
       <dl className="creator-tracking">
-        <dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health, source.provider))}</dd>
-        <dt>{t("Starting point established")}</dt><dd>{baselineEstablished ? t("Yes") : t("No, no successful check has completed yet")}</dd>
-        <dt>{t("Last checked")}</dt><dd>{source.last_checked_at ? new Date(source.last_checked_at).toLocaleString() : t("Not checked yet")}</dd>
-        <dt>{t("Last successful check")}</dt><dd>{source.last_success_at ? new Date(source.last_success_at).toLocaleString() : t("Not checked yet")}</dd>
-        <dt>{t("Next eligible check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : coolingDown ? cooldownUntil.toLocaleString() : t("Not scheduled")}</dd>
-        <dt>{t("Next automatic check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : needsAttention ? t("Needs Attention") : automaticCheckAt && automaticCheckAt.getTime() > Date.now() ? automaticCheckAt.toLocaleString() : t("Due for a check")}</dd>
-        <dt>{t("Discovered Content since following")}</dt><dd>{source.tracking.update_count}</dd>
-        <dt>{t("Waiting for Content acquisition")}</dt><dd>{source.tracking.pending_count}</dd>
-        <dt>{t("Videos that could not be imported")}</dt><dd>{source.tracking.unavailable_count ?? 0}</dd>
+        <div><dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health, source.provider))}</dd></div>
+        <div><dt>{t("Starting point established")}</dt><dd>{baselineEstablished ? t("Yes") : t("No, no successful check has completed yet")}</dd></div>
+        <div><dt>{t("Last checked")}</dt><dd>{source.last_checked_at ? new Date(source.last_checked_at).toLocaleString() : t("Not checked yet")}</dd></div>
+        <div><dt>{t("Last successful check")}</dt><dd>{source.last_success_at ? new Date(source.last_success_at).toLocaleString() : t("Not checked yet")}</dd></div>
+        <div><dt>{t("Next eligible check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : coolingDown ? cooldownUntil.toLocaleString() : t("Not scheduled")}</dd></div>
+        <div><dt>{t("Next automatic check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : needsAttention ? t("Needs Attention") : automaticCheckAt && automaticCheckAt.getTime() > Date.now() ? automaticCheckAt.toLocaleString() : t("Due for a check")}</dd></div>
+        <div><dt>{t("Discovered Content since following")}</dt><dd>{source.tracking.update_count}</dd></div>
+        <div><dt>{t("Waiting for Content acquisition")}</dt><dd>{source.tracking.pending_count}</dd></div>
+        <div><dt>{t("Videos that could not be imported")}</dt><dd>{source.tracking.unavailable_count ?? 0}</dd></div>
       </dl>
       {!off && <p className="hint">{t(source.provider === "YOUTUBE" ? "Existing videos are not imported. Successful checks have a 15-minute cooldown." : "Existing videos are not imported. Updates are checked while the app is running, with a 15-minute cooldown.")}</p>}
       {!off && <p className="hint">{t("Updates are checked automatically while the app is running.")}</p>}
@@ -355,7 +368,7 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh, ref
         }}>{t(source.enabled ? "Pause monitoring" : "Resume monitoring")}</button>
       </div>
       <h3>{t("Discovered Content")}</h3>
-      {data && data.recent_videos.length ? <ul>{data.recent_videos.map(video => <li key={video.video_id}><a href={`#Content/${video.video_id}`} onClick={onClose}>{video.title ?? video.video_id}</a></li>)}</ul> : <p>{t("No new public videos have been discovered yet.")}</p>}
+      {data && data.recent_videos.length ? <ul className="creator-discovered-list">{data.recent_videos.map(video => <li key={video.video_id}><a href={`#Content/${video.video_id}`} onClick={onClose}>{video.title ?? video.video_id}</a></li>)}</ul> : <p>{t("No new public videos have been discovered yet.")}</p>}
     </>}
     {!source && !readError && <p role="status">{t("Loading Source…")}</p>}
     {readError && <div className="error" role="alert">
