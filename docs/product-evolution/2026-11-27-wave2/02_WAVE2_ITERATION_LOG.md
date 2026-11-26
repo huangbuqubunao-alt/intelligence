@@ -77,3 +77,22 @@
   - 深色 Obsidian Dark 与浅色 Warm Paper Light 均清晰渲染「已保存可核验原文 · 9 条原话证据」与「核对原话证据」CTA；点击打开抽屉并点击「复制引用」成功切换为「已复制」；按 `Esc` 关闭抽屉且焦点准确回到触发按钮。
   - `390x844` 移动端 `mobileOverflow: false`；本地 `.md` 文档 `demo-architecture-notes.md` 无任何多余视频/字幕/关键帧控件。
   - 实机截图归档：[Editorial Card Dark](./screenshots/iter-9/step_19_shot_1_iter9_editorial_card_dark.png)、[Editorial Card Light](./screenshots/iter-9/step_6_shot_2_iter9_editorial_card_light.png)、[Drawer Copy Quote](./screenshots/iter-9/step_8_shot_1_iter9_drawer_copy_quote.png)、[Mobile Reader 390px](./screenshots/iter-9/step_10_shot_1_iter9_mobile_reader.png)、[Local Markdown Clean](./screenshots/iter-9/step_14_shot_1_iter9_local_md_clean.png)。
+
+---
+
+## Iteration 10 (`EVO-W2-05`) — `#Intelligence` 心智澄清条、`?` 键盘快捷键指南与 `⌘K` 高优分诊直达
+
+- **解决的用户问题**：新用户在 `#Content` 与 `#Intelligence` 之间容易混淆两者定位；已有单键快捷键缺少可视化探索入口（且全站已有重度分诊动作缺少一键 `⌘K` 直达）。
+- **核心改动**：
+  1. 新增 [KeyboardShortcutsModal.tsx](../../../frontend/src/workspace/KeyboardShortcutsModal.tsx)：双语无障碍快捷键指南弹窗，分组展示全局（`⌘K`、`?`、`Esc`）、`#Content` 列表（`/`、`J/K`、`Enter`、`S`、`E`）及阅读器（`S`、`E`、`U`、`Esc`），支持 `Escape`/遮罩关闭、焦点精准恢复及一键拉起 `⌘K`。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx) & [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)：在 `IntelligencePage` 顶部增加 `.intel-role-strip`（「可复用判断库 · 共 N 条已核验洞察 · M 条已收藏 — 原始视频与文档分诊请前往「内容」」+「前往内容分诊 →」）；新增 `setPendingContentBucket`/`consumePendingContentBucket` 交接通道，在 `⌘K` 增加「高优未读内容分诊」、「重新查看新手引导」、「查看键盘快捷键指南 (?)」3 项高效动作；在 `.workspace-utility-dock` 末尾（`<main>` 之后以严守 Tab #1..6 与 #7 键盘顺序，且主导航保持 6 枚）新增 `?` 触发按钮并受 `isKeyboardShortcutBlocked` 严格保护。
+  3. [styles.css](../../../frontend/src/workspace/styles.css)：适配 `.intel-role-strip`、`.shortcuts-modal-*` 及 `.utility-dock-foot-row`（桌面左侧栏与 `581–900px` 顶栏均可见且 `1440x900` 下弹窗零垂直滚动条，`<=580px` 手机端自动隐藏）。
+- **自动化验证**：
+  - 新增 [EvolutionIter10.test.tsx](../../../frontend/src/workspace/EvolutionIter10.test.tsx)（3 passed）；完整守住 `SidebarKeyboard.test.tsx` 与 `App.empty-content-entry.test.tsx` 既有 Tab 契约。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`787ms` (`assets/index-DDcLMIwj.js` / `assets/index-CRfbmqT6.css`)；Vitest：**68/68 files, 1301/1301 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799`）**：
+  - 验证加载 `assets/index-DDcLMIwj.js` & `assets/index-CRfbmqT6.css`（均为 `200 OK`）；**0 console errors、0 HTTP >=400**。
+  - `#Intelligence` 深浅色与 `390x844` 均清晰渲染 `.intel-role-strip`（`mobileOverflow: false`），点击「前往内容分诊 →」直达 `#Content`。
+  - 按 `?` 与点击 `.utility-shortcuts-btn`（含 `1440x900` 深/浅色与 `860x800` 分屏顶栏）均可无滚动条展开快捷键指南，`Esc` 关闭并将焦点恢复至触发按钮。
+  - `⌘K` 搜索并执行「高优未读内容分诊」成功跳转 `#Content` 并自动激活「未读干货」筛选胶囊。
+  - 实机截图归档：[Intelligence Role Strip Dark](./screenshots/iter-10/step_4_shot_1_iter10_intel_strip_dark.png)、[Shortcuts Modal Dark](./screenshots/iter-10/step_36_shot_1_iter10_shortcuts_modal_dark.png)、[Shortcuts Modal Light](./screenshots/iter-10/step_36_shot_2_iter10_shortcuts_modal_light.png)、[Topbar Shortcuts 860px](./screenshots/iter-10/step_41_shot_1_iter10_topbar_shortcuts_860px.png)、[Cmd+K Unread Triage](./screenshots/iter-10/step_44_shot_1_iter10_cmdk_unread_triage_1440px.png)、[Intelligence Mobile 390px](./screenshots/iter-10/step_44_shot_2_iter10_intel_mobile_390px.png)。

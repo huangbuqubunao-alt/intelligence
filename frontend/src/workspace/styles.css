@@ -2243,10 +2243,57 @@ h1, h2 {
   }
 }
 
+.utility-dock-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.utility-dock-foot-row .utility-theme-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.utility-shortcuts-btn {
+  display: flex;
+  flex: 0 0 36px;
+  width: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition),
+    transform var(--transition);
+}
+
+.utility-shortcuts-btn:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-hover);
+  color: var(--text-strong);
+  transform: translateY(-1px);
+}
+
 @media (max-width: 900px) {
   .brand {
-    padding-right: 236px;
+    padding-right: 280px;
     min-height: 36px;
+  }
+  .utility-dock-foot-row {
+    display: contents;
+  }
+  .utility-shortcuts-btn {
+    width: 34px;
+    flex: 0 0 34px;
+    min-height: 34px;
   }
   .workspace-utility-dock {
     position: absolute;
@@ -2304,6 +2351,9 @@ h1, h2 {
   .utility-cmdk-label,
   .utility-cmdk-btn .cmdk-kbd,
   .utility-theme-label {
+    display: none;
+  }
+  .utility-shortcuts-btn {
     display: none;
   }
   .utility-qa-btn,
@@ -6503,5 +6553,155 @@ input[type="radio"] {
   margin: 6px 0 8px;
   font-size: 12px;
   color: var(--accent-ink);
+}
+
+/* Iteration 10: Intelligence role clarity & Keyboard Shortcuts modal */
+.intel-role-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.intel-role-strip-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--accent-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.intel-role-strip-link:hover {
+  text-decoration: underline;
+}
+
+.shortcuts-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.shortcuts-modal {
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100vh - 36px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  animation: cmdk-enter 160ms var(--ease-out-4) both;
+}
+
+.shortcuts-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shortcuts-modal-title-wrap h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-strong);
+}
+
+.shortcuts-modal-subtitle {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.shortcuts-modal-body {
+  overflow-y: auto;
+  padding: 12px 18px;
+  display: grid;
+  gap: 11px;
+}
+
+.shortcuts-group h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 12.5px;
+}
+
+.shortcuts-row-label {
+  color: var(--text);
+}
+
+.shortcuts-row-keys {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.shortcuts-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 2px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.shortcuts-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-subtle);
 }
 

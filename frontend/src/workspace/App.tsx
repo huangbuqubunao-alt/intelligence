@@ -5,6 +5,7 @@ import { InterestRulesEditor, interestRuleValues, ruleDrafts, validInterestRule,
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
 import { importStarterSampleNote } from "./starterSample";
+import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ReaderMediaStage, formatHumanDuration } from "./ReaderMediaStage";
@@ -48,6 +49,7 @@ import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 import {
   AiScoreBadge,
+  consumePendingContentBucket,
   consumePendingContentChannel,
   consumePendingContentTopic,
   consumePendingIntelligenceTopicId,
@@ -61,6 +63,7 @@ import {
   readWeeklyAiBrief,
   readWorkspaceAiCapabilities,
   readWorkspaceAiSettings,
+  setPendingContentBucket,
   setPendingContentChannel,
   setPendingContentTopic,
   setPendingIntelligenceTopicId,
@@ -1813,6 +1816,7 @@ function Workspace() {
   // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [imported, setImported] = useState(false);
   const [contentTarget, setContentTarget] = useState<string | null>(initialContentTarget);
   // Tracks the hash produced by in-app navigation so the hashchange listener
@@ -1978,12 +1982,26 @@ function Workspace() {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        setShortcutsOpen(false);
         setCmdkOpen(current => !current);
+        return;
+      }
+      if (
+        event.key === "?" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !cmdkOpen &&
+        addProvider === null &&
+        !isKeyboardShortcutBlocked(event)
+      ) {
+        event.preventDefault();
+        setShortcutsOpen(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [cmdkOpen, addProvider]);
   const staticCommands: CommandPaletteAction[] = [
     { id: "nav:Home", group: "navigation", label: t("Home"), subtitle: t(subtitles.Home), icon: "house", aliases: ["home", "首页"], onSelect: () => navigate("Home") },
     { id: "nav:Following", group: "navigation", label: t("Following"), subtitle: t(subtitles.Following), icon: "rss", aliases: ["following", "sources", "关注"], onSelect: () => navigate("Following") },
@@ -1992,10 +2010,41 @@ function Workspace() {
     { id: "nav:Topics", group: "navigation", label: t("Topics"), subtitle: t(subtitles.Topics), icon: "stack", aliases: ["topics", "主题"], onSelect: () => navigate("Topics") },
     { id: "nav:Research", group: "navigation", label: t("Research"), subtitle: t(subtitles.Research), icon: "quotes", aliases: ["research", "研究", "qa", "问答", "跨视频"], onSelect: () => navigate("Research") },
     { id: "nav:Settings", group: "navigation", label: t("Settings"), subtitle: t(subtitles.Settings), icon: "sliders-horizontal", aliases: ["settings", "设置", "model", "budget"], onSelect: () => navigate("Settings") },
+    {
+      id: "act:unread-content",
+      group: "actions",
+      label: language === "zh-CN" ? "高优未读内容分诊" : "Triage unread content",
+      icon: "funnel",
+      aliases: ["unread", "triage", "inbox", "未读", "分诊", "待读"],
+      onSelect: () => {
+        setPendingContentBucket("UNREAD");
+        setPendingContentChannel("ALL");
+        setPendingContentTopic("ALL");
+        setHandoffSeq(value => value + 1);
+        navigate("Content");
+      },
+    },
     { id: "act:ai-qa", group: "actions", label: language === "zh-CN" ? "AI 跨视频深度问答" : "Ask cross-video AI Q&A", icon: "sparkle", aliases: ["qa", "ask", "ai", "问答", "跨视频", "提问"], onSelect: () => navigate("Research") },
     { id: "act:export-obsidian-zip", group: "actions", label: language === "zh-CN" ? "导出 Obsidian 双链知识库包 (.zip)" : "Export Obsidian Vault bundle (.zip)", icon: "archive", aliases: ["obsidian", "vault", "zip", "wikilinks", "双链", "导出", "知识库"], onSelect: () => { void exportObsidianVaultBundle("must_watch"); } },
     { id: "act:add-video", group: "actions", label: t("Add video or follow channel"), icon: "plus", aliases: ["add", "import", "youtube", "bilibili", "导入", "添加"], onSelect: () => setAddProvider("YOUTUBE") },
     { id: "act:add-local", group: "actions", label: t("Import local file"), icon: "file-text", aliases: ["local", "file", "本地文件", "转写"], onSelect: () => setAddProvider("LOCAL") },
+    {
+      id: "act:replay-onboarding",
+      group: "actions",
+      label: language === "zh-CN" ? "重新查看新手引导" : "Replay quick-start tour",
+      icon: "lightning",
+      aliases: ["onboarding", "tour", "guide", "引导", "新手"],
+      onSelect: () => replayOnboarding(),
+    },
+    {
+      id: "act:shortcuts",
+      group: "actions",
+      label: language === "zh-CN" ? "查看键盘快捷键指南 (?)" : "Keyboard shortcuts (?)",
+      shortcut: "?",
+      icon: "command",
+      aliases: ["shortcuts", "keyboard", "hotkeys", "help", "快捷键", "帮助"],
+      onSelect: () => setShortcutsOpen(true),
+    },
     { id: "act:theme", group: "actions", label: t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme"), icon: theme === "dark" ? "sun" : "moon", aliases: ["theme", "dark", "light", "主题", "浅色", "深色"], onSelect: toggleTheme },
     { id: "act:lang", group: "actions", label: t(language === "zh-CN" ? "Switch interface to English" : "Switch interface to Chinese"), icon: "translate", aliases: ["language", "english", "chinese", "中文", "语言"], onSelect: () => setLanguage(language === "zh-CN" ? "en" : "zh-CN") },
   ];
@@ -2179,6 +2228,7 @@ function Workspace() {
                 openContent={openContent}
                 onOpenTopic={id => openDelta({ kind: "topic", id })}
                 openResearch={() => navigate("Research")}
+                onOpenContentTriage={() => navigate("Content")}
                 onAddContent={() => setAddProvider("YOUTUBE")}
                 onAskFilteredResearch={(videoIds) => {
                   setPendingResearchVideoIds(videoIds);
@@ -2277,19 +2327,30 @@ function Workspace() {
           <span className="utility-cmdk-label">{t("Search or jump")}</span>
           <kbd className="cmdk-kbd" aria-hidden="true">⌘K</kbd>
         </button>
-        <button
-          type="button"
-          className="utility-theme-btn"
-          aria-label={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
-          title={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
-          onClick={event => {
-            pulseCelebration(event.currentTarget);
-            toggleTheme();
-          }}
-        >
-          <PhosphorIcon name={theme === "dark" ? "sun" : "moon"} size={15} className="theme-toggle-glyph" key={theme} />
-          <span className="utility-theme-label">{t(theme === "dark" ? "Paper Light" : "Obsidian Dark")}</span>
-        </button>
+        <div className="utility-dock-foot-row">
+          <button
+            type="button"
+            className="utility-theme-btn"
+            aria-label={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
+            title={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
+            onClick={event => {
+              pulseCelebration(event.currentTarget);
+              toggleTheme();
+            }}
+          >
+            <PhosphorIcon name={theme === "dark" ? "sun" : "moon"} size={15} className="theme-toggle-glyph" key={theme} />
+            <span className="utility-theme-label">{t(theme === "dark" ? "Paper Light" : "Obsidian Dark")}</span>
+          </button>
+          <button
+            type="button"
+            className="utility-shortcuts-btn"
+            aria-label={language === "zh-CN" ? "键盘快捷键指南 (?)" : "Keyboard shortcuts (?)"}
+            title={language === "zh-CN" ? "键盘快捷键指南 (?)" : "Keyboard shortcuts (?)"}
+            onClick={() => setShortcutsOpen(true)}
+          >
+            <kbd className="cmdk-kbd" aria-hidden="true">?</kbd>
+          </button>
+        </div>
       </div>
       {cmdkOpen ? (
         <Suspense fallback={null}>
@@ -2330,6 +2391,14 @@ function Workspace() {
           />
         </Suspense>
       ) : null}
+      <KeyboardShortcutsModal
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+        onOpenCommandPalette={() => {
+          setShortcutsOpen(false);
+          setCmdkOpen(true);
+        }}
+      />
       {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={(id, sourceKind) => {
         setAddProvider(null); setRefresh(value => value + 1); setImported(!sourceKind || sourceKind === "LOCAL"); openContent(id);
       }} />}
@@ -3321,6 +3390,7 @@ function IntelligencePage(
     openContent,
     onOpenTopic,
     openResearch,
+    onOpenContentTriage,
     onAddContent,
     onAskFilteredResearch,
   }: {
@@ -3333,6 +3403,7 @@ function IntelligencePage(
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
+    onOpenContentTriage?: () => void;
     onAddContent?: () => void;
     onAskFilteredResearch?: (videoIds: string[]) => void;
   },
@@ -3734,6 +3805,22 @@ function IntelligencePage(
   return (
     <>
       {researchEntry}
+      <div className="intel-role-strip" role="note">
+        <span>
+          {zh
+            ? `可复用判断库 · 共 ${currentAvailable.length} 条已核验洞察 · ${savedEntries.length} 条已收藏 — 原始视频与文档分诊请前往「内容」`
+            : `Reusable insight bank · ${currentAvailable.length} verified · ${savedEntries.length} saved — triage raw videos & docs in Content`}
+        </span>
+        {onOpenContentTriage ? (
+          <button
+            type="button"
+            className="intel-role-strip-link"
+            onClick={onOpenContentTriage}
+          >
+            {zh ? "前往内容分诊 →" : "Open Content triage →"}
+          </button>
+        ) : null}
+      </div>
       <div className="segmented">
         {(["Current", "Saved"] as const).map((item) => (
           <button
@@ -4184,7 +4271,12 @@ function ContentPage(
   );
   const [bucketFilter, setBucketFilter] = useState<
     "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
-  >(() => restoredContentRef.current?.bucketFilter ?? "ALL");
+  >(
+    () =>
+      consumePendingContentBucket() ||
+      restoredContentRef.current?.bucketFilter ||
+      "ALL",
+  );
   const [topicFilter, setTopicFilter] = useState<string>(
     () => consumePendingContentTopic() || restoredContentRef.current?.topicFilter || "ALL",
   );
@@ -4207,6 +4299,8 @@ function ContentPage(
     if (nextChannel) setChannelFilter(nextChannel);
     const nextTopic = consumePendingContentTopic();
     if (nextTopic) setTopicFilter(nextTopic);
+    const nextBucket = consumePendingContentBucket();
+    if (nextBucket) setBucketFilter(nextBucket);
   }, [handoffSeq]);
   const [kbActiveId, setKbActiveId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);

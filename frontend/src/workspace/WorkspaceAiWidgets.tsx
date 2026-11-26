@@ -261,6 +261,7 @@ let pendingResearchChannel = "";
 let pendingResearchSessionId = "";
 let pendingContentChannel = "";
 let pendingContentTopic = "";
+let pendingContentBucket = "";
 let pendingTopicClusterName = "";
 let pendingIntelligenceTopicId = "";
 let pendingResearchVideoIds: string[] = [];
@@ -323,6 +324,32 @@ export function setPendingContentTopic(topicName: string): void {
 export function consumePendingContentTopic(): string {
   const next = pendingContentTopic;
   pendingContentTopic = "";
+  return next;
+}
+
+export function setPendingContentBucket(
+  bucket: "" | "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS",
+): void {
+  pendingContentBucket = bucket;
+}
+
+export function consumePendingContentBucket():
+  | ""
+  | "ALL"
+  | "UNREAD"
+  | "MUST_WATCH"
+  | "STARRED"
+  | "TUTORIAL"
+  | "SHORTS" {
+  const next = pendingContentBucket as
+    | ""
+    | "ALL"
+    | "UNREAD"
+    | "MUST_WATCH"
+    | "STARRED"
+    | "TUTORIAL"
+    | "SHORTS";
+  pendingContentBucket = "";
   return next;
 }
 
