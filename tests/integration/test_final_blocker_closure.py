@@ -37,6 +37,7 @@ from youtube_intel.runtime_composition import build_local_source_run_runtime
 from youtube_intel.workspace_intelligence_hub import (
     WorkspaceIntelligenceHub,
     _check_clause_against_cited_evidence,
+    _evaluate_clause_against_cited_evidence,
     _sanitize_citation_note,
 )
 from youtube_intel.youtube_auth_fallback import (
@@ -1073,13 +1074,14 @@ def test_p1_f03_unified_fact_support_counterexamples_note_zh_and_3state_trust(
     assert "实时多人协作" not in str(s_smuggle["obsidian_markdown"])
     assert "AI 推断建议，非原文直接事实" in str(s_smuggle["obsidian_markdown"])
 
-    # Genuine bilingual retrieval claim remains GROUNDED + SUPPORTED
+    # Genuine bilingual paraphrase is grounded with explicit HEURISTIC_ONLY trust grade (not overclaimed as SUPPORTED)
     s_good = hub.ask_research_question(
         {"question": "GOOD_BILINGUAL 文档支持什么功能？", "video_ids": [d_en_ret.content_id]}
     )["session"]
     assert s_good["answer_status"] == "GROUNDED"
     assert s_good["source_integrity_status"] == "VERIFIED"
-    assert s_good["fact_verification_state"] == "SUPPORTED"
+    assert s_good["fact_verification_state"] == "HEURISTIC_ONLY"
+    assert s_good["contains_heuristic_claims"] is True
 
     # Tampered legacy DB row note_zh smuggling must ALSO be purged in warm/cold history, backup export/restore & ZIP!
     with sqlite3.connect(hub.db_path) as conn:
@@ -1369,3 +1371,192 @@ def test_p1_f03_round4_adversarial_overreach_heuristic_grade_and_markdown_rebuil
             if n.startswith("04-跨视频深度问答/") and n.endswith(".md")
         )
     assert "TAMPERED_LEGACY_POINT_ZH_999%" not in qa_md
+
+
+def test_round5_strict_heuristic_grading_note_propagation_composite_state_and_zero_cite_export(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Close Round 5 frozen gates 3/6 & 4/6 across live, cold history, backup export/restore & ZIP."""
+    # 1. Clause-level strict EXACT_SUPPORTED vs HEURISTIC_ONLY counterexamples (never promote heuristic to EXACT_SUPPORTED)
+    ok_pat_heur, code_pat_heur, grade_pat_heur = _evaluate_clause_against_cited_evidence(
+        "公司已经获得专利 [E1]。",
+        ["公司正在申请专利。"],
+    )
+    assert ok_pat_heur and code_pat_heur is None and grade_pat_heur == "HEURISTIC_ONLY"
+
+    ok_pat_num, code_pat_num, grade_pat_num = _evaluate_clause_against_cited_evidence(
+        "公司已经获得 5 项专利 [E1]。",
+        ["公司正在申请 5 项专利。"],
+    )
+    assert ok_pat_num and code_pat_num is None and grade_pat_num == "HEURISTIC_ONLY"
+
+    ok_dom_heur, code_dom_heur, grade_dom_heur = _evaluate_clause_against_cited_evidence(
+        "系统实现全栈本地化智能检索方案 [E1]。",
+        ["系统支持本地检索。"],
+    )
+    assert ok_dom_heur and code_dom_heur is None and grade_dom_heur == "HEURISTIC_ONLY"
+
+    ok_exact_zh, code_exact_zh, grade_exact_zh = _evaluate_clause_against_cited_evidence(
+        "公司正在申请专利 [E1]。",
+        ["公司正在申请专利。"],
+    )
+    assert ok_exact_zh and code_exact_zh is None and grade_exact_zh == "EXACT_SUPPORTED"
+
+    ok_exact_num, code_exact_num, grade_exact_num = _evaluate_clause_against_cited_evidence(
+        "2025年公司营收增长 5% [E1]。",
+        ["2025年公司收入同比增长 5%。"],
+    )
+    assert ok_exact_num and code_exact_num is None and grade_exact_num == "EXACT_SUPPORTED"
+
+    payload_by_tag: dict[str, dict[str, Any]] = {
+        "R5_EXACT_SUPPORTED": {
+            "answerable": True,
+            "answer_zh": "公司正在申请专利 [E1]。",
+            "key_takeaways_zh": ["公司正在申请专利 [E1]"],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "公司正在申请专利"}],
+        },
+        "R5_NOTE_HEURISTIC": {
+            "answerable": True,
+            "answer_zh": "公司正在申请专利 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "公司已经获得专利"}],
+        },
+        "R5_MIXED_PRUNED_HEUR": {
+            "answerable": True,
+            "answer_zh": "公司已经获得专利 [E1]，利润增长 99% [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "公司已经获得专利"}],
+        },
+        "R5_REFUSED_ZERO": {
+            "answerable": False,
+            "refusal_reason_zh": "资料库中没有净利润增长率记录。",
+            "answer_zh": "资料库中没有净利润增长率记录。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [],
+        },
+    }
+
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            for tag, body in payload_by_tag.items():
+                if tag in user_prompt:
+                    return dict(body), provider, model
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, name="round5_gates", completer=_StubCompleter(_completer))
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    prov = LocalContentProvider(env["repo"], env["data_root"], now=lambda: BASE_NOW)
+    d_pat = prov.import_bytes("patent_app.md", "公司正在申请专利。".encode("utf-8"))
+
+    # 2. Exact verbatim match -> SUPPORTED
+    s_exact = hub.ask_research_question({"question": "R5_EXACT_SUPPORTED 进展？", "video_ids": [d_pat.content_id]})["session"]
+    assert s_exact["fact_verification_state"] == "SUPPORTED"
+    assert s_exact["contains_heuristic_claims"] is False
+
+    # 3. Verbatim answer_zh + HEURISTIC_ONLY citation note_zh -> propagates HEURISTIC_ONLY everywhere!
+    s_note_heur = hub.ask_research_question({"question": "R5_NOTE_HEURISTIC 进展？", "video_ids": [d_pat.content_id]})["session"]
+    assert s_note_heur["answer_status"] == "GROUNDED"
+    assert s_note_heur["fact_verification_state"] == "HEURISTIC_ONLY"
+    assert s_note_heur["contains_heuristic_claims"] is True
+    assert s_note_heur["citations"][0]["note_verification_grade"] == "HEURISTIC_ONLY"
+    assert "启发式相关性提示" in str(s_note_heur["obsidian_markdown"])
+
+    # 4. Mixed pruning + heuristic -> PARTIAL_PRUNED_HEURISTIC preserves BOTH warnings everywhere!
+    s_mixed = hub.ask_research_question({"question": "R5_MIXED_PRUNED_HEUR 进展？", "video_ids": [d_pat.content_id]})["session"]
+    assert s_mixed["answer_status"] == "GROUNDED"
+    assert s_mixed["fact_verification_state"] == "PARTIAL_PRUNED_HEURISTIC"
+    assert s_mixed["contains_heuristic_claims"] is True
+    assert s_mixed["scope"]["partial_pruned"] is True
+    assert "99%" not in str(s_mixed["answer_zh"])
+    assert "部分内容已裁剪" in str(s_mixed["obsidian_markdown"])
+    assert "启发式相关性提示" in str(s_mixed["obsidian_markdown"])
+
+    # 5. Refused row & zero-citation unverified row with poisoned obsidian_markdown in SQLite
+    s_refused = hub.ask_research_question({"question": "R5_REFUSED_ZERO 净利润？", "video_ids": [d_pat.content_id]})["session"]
+    assert s_refused["refused"] is True
+    assert s_refused["citations"] == []
+
+    with sqlite3.connect(hub.db_path) as conn:
+        conn.execute(
+            "UPDATE research_qa_sessions SET obsidian_markdown = ? WHERE session_id = ?",
+            ("# Poisoned Refused\nPOISONED_REFUSED_MD_888%\n", s_refused["session_id"]),
+        )
+        conn.execute(
+            """
+            INSERT INTO research_qa_sessions (
+                session_id, question, answer_zh, key_takeaways_json, action_items_json,
+                citations_json, video_count, provider, model, obsidian_markdown, created_at, scope_json
+            ) VALUES (?, ?, ?, '[]', '[]', '[]', 1, 'local_ollama', 'qwen3.5:9b', ?, ?, '{}')
+            """,
+            (
+                "qa-zero-cite-poison",
+                "Zero cite stale row",
+                "需要核对的旧回答。",
+                "# Poisoned Zero Cite\nPOISONED_ZERO_CITE_MD_999%\n",
+                "2026-11-26T00:00:00Z",
+            ),
+        )
+        conn.commit()
+
+    with hub._evidence_verify_cache_lock:
+        hub._evidence_verify_cache.clear()
+    hist_map = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    assert hist_map[s_note_heur["session_id"]]["fact_verification_state"] == "HEURISTIC_ONLY"
+    assert hist_map[s_note_heur["session_id"]]["contains_heuristic_claims"] is True
+    assert hist_map[s_mixed["session_id"]]["fact_verification_state"] == "PARTIAL_PRUNED_HEURISTIC"
+    assert "部分内容已裁剪" in str(hist_map[s_mixed["session_id"]]["obsidian_markdown"])
+    assert "启发式相关性提示" in str(hist_map[s_mixed["session_id"]]["obsidian_markdown"])
+    assert "POISONED_REFUSED_MD_888%" not in str(hist_map[s_refused["session_id"]]["obsidian_markdown"])
+    assert "POISONED_ZERO_CITE_MD_999%" not in str(hist_map["qa-zero-cite-poison"]["obsidian_markdown"])
+    assert hist_map["qa-zero-cite-poison"]["answer_status"] == "NEEDS_REVERIFICATION"
+
+    # Unconditional backup export purge on ALL rows (including refused and empty-citation rows)
+    snap = hub.export_backup_snapshot()
+    snap_json = json.dumps(snap, ensure_ascii=False)
+    assert "POISONED_REFUSED_MD_888%" not in snap_json
+    assert "POISONED_ZERO_CITE_MD_999%" not in snap_json
+    snap_sessions = {s["session_id"]: s for s in snap["research_qa_sessions"]}  # type: ignore[index]
+    for sid_chk in (s_refused["session_id"], "qa-zero-cite-poison", s_mixed["session_id"], s_note_heur["session_id"]):
+        sc = json.loads(str(snap_sessions[sid_chk]["scope_json"]))
+        assert sc["archive_status"] == "EXPORTED_SNAPSHOT_UNVERIFIED_UNTIL_RESTORE"
+
+    hub.restore_backup_snapshot(snap)
+    with hub._evidence_verify_cache_lock:
+        hub._evidence_verify_cache.clear()
+    restored_map = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    assert restored_map[s_note_heur["session_id"]]["fact_verification_state"] == "HEURISTIC_ONLY"
+    assert restored_map[s_mixed["session_id"]]["fact_verification_state"] == "PARTIAL_PRUNED_HEURISTIC"
+    assert "POISONED_REFUSED_MD_888%" not in str(restored_map[s_refused["session_id"]]["obsidian_markdown"])
+    assert "POISONED_ZERO_CITE_MD_999%" not in str(restored_map["qa-zero-cite-poison"]["obsidian_markdown"])
+
+    _, zip_bytes, _, _ = hub.build_obsidian_vault_zip(scope="all")
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        qa_md = "\n".join(
+            zf.read(n).decode("utf-8")
+            for n in zf.namelist()
+            if n.startswith("04-跨视频深度问答/") and n.endswith(".md")
+        )
+    assert "POISONED_REFUSED_MD_888%" not in qa_md
+    assert "POISONED_ZERO_CITE_MD_999%" not in qa_md
+    assert 'fact_verification_state: "PARTIAL_PRUNED_HEURISTIC"' in qa_md
+    assert "部分内容已裁剪" in qa_md
+    assert "启发式相关性提示" in qa_md

@@ -1840,6 +1840,28 @@ describe("Manual UX Remediation (#1-#4)", () => {
         allowSupported: false,
       },
       {
+        label: "PARTIAL_PRUNED_HEURISTIC",
+        session: mkSession("s-mix", "裁剪且含启发式问题？", {
+          source_integrity_status: "VERIFIED",
+          fact_verification_state: "PARTIAL_PRUNED_HEURISTIC",
+          contains_heuristic_claims: true,
+        }),
+        expectIntegrity: "出处已核验",
+        expectFact: "启发式相关 · 请核对原文",
+        allowSupported: false,
+      },
+      {
+        label: "PARTIAL_PRUNED_WITH_HEURISTIC_FLAG",
+        session: mkSession("s-mix-flag", "兼容标记问题？", {
+          source_integrity_status: "VERIFIED",
+          fact_verification_state: "PARTIAL_PRUNED",
+          contains_heuristic_claims: true,
+        }),
+        expectIntegrity: "出处已核验",
+        expectFact: "启发式相关 · 请核对原文",
+        allowSupported: false,
+      },
+      {
         label: "UNSUPPORTED_CLAIM_UNVERIFIED",
         session: mkSession("s-unv", "待核验问题？", {
           source_integrity_status: "VERIFIED",
@@ -1908,6 +1930,10 @@ describe("Manual UX Remediation (#1-#4)", () => {
       render(<App />);
       expect(await screen.findByText(item.expectIntegrity)).toBeTruthy();
       expect(await screen.findByText(item.expectFact)).toBeTruthy();
+      if (item.label === "PARTIAL_PRUNED_HEURISTIC" || item.label === "PARTIAL_PRUNED_WITH_HEURISTIC_FLAG") {
+        expect(screen.getByText("部分未支持内容已裁剪")).toBeTruthy();
+        expect(screen.getByText("启发式相关 · 请核对原文")).toBeTruthy();
+      }
       if (!item.allowSupported) {
         expect(screen.queryByText("结论已受证据支持")).toBeNull();
       }

@@ -142,6 +142,7 @@ export type AiResearchSession = {
   answer_status?: "GROUNDED" | "REFUSED_INSUFFICIENT_EVIDENCE" | "NEEDS_REVERIFICATION" | string;
   source_integrity_status?: "VERIFIED" | "NEEDS_REVERIFICATION" | "REFUSED" | string;
   fact_verification_state?: string;
+  contains_heuristic_claims?: boolean;
   action_items_advisory?: boolean;
   verification_status?: string;
   verified_citation_count?: number;
@@ -799,6 +800,9 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
       : {}),
     ...(typeof raw.fact_verification_state === "string"
       ? { fact_verification_state: raw.fact_verification_state }
+      : {}),
+    ...(typeof raw.contains_heuristic_claims === "boolean"
+      ? { contains_heuristic_claims: raw.contains_heuristic_claims }
       : {}),
     ...(typeof raw.action_items_advisory === "boolean"
       ? { action_items_advisory: raw.action_items_advisory }
@@ -4314,6 +4318,17 @@ export function WorkspaceAiResearchPanel({
                   <span className="ai-basis-pill">
                     {zh ? "结论已受证据支持" : "Claims supported"}
                   </span>
+                ) : activeSession.fact_verification_state === "PARTIAL_PRUNED_HEURISTIC" ||
+                  (activeSession.fact_verification_state === "PARTIAL_PRUNED" &&
+                    activeSession.contains_heuristic_claims === true) ? (
+                  <>
+                    <span className="ai-basis-pill">
+                      {zh ? "部分未支持内容已裁剪" : "Unsupported parts pruned"}
+                    </span>
+                    <span className="status status-warning">
+                      {zh ? "启发式相关 · 请核对原文" : "Heuristic match · Verify source"}
+                    </span>
+                  </>
                 ) : activeSession.fact_verification_state === "PARTIAL_PRUNED" ? (
                   <span className="ai-basis-pill">
                     {zh ? "部分未支持内容已裁剪" : "Unsupported parts pruned"}

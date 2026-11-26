@@ -1752,6 +1752,66 @@ def _atomic_sentence_supports_claim(
     return True
 
 
+_EXACT_LEADIN_ZH_RE = re.compile(
+    r"^(?:根据(?:当前)?(?:原文|文档|材料|资料|记录|证据)(?:显示|指出|提到|说明|确认)?|"
+    r"原文(?:明确)?(?:提到|指出|说明|显示|确认)|"
+    r"文档(?:明确)?(?:提到|指出|说明|显示|确认))[：:，,\s]*"
+)
+_EXACT_CANON_PAIRS: tuple[tuple[str, str], ...] = (
+    ("营收", "收入"),
+    ("销售额", "收入"),
+    ("客单价", "售价"),
+    ("价格", "售价"),
+    ("上涨", "增长"),
+    ("上升", "增长"),
+    ("提升", "增长"),
+    ("下滑", "下降"),
+    ("下跌", "下降"),
+    ("减少", "下降"),
+    ("仍不", "尚未"),
+    ("还不", "尚未"),
+    ("不支持", "尚未支持"),
+)
+_EXACT_GLUE_CHARS_RE = re.compile(r"(?:同比|环比|共|约|为|是|的|了)")
+
+
+def _normalize_for_exact_match(text: str, *, strip_leadin: bool = False) -> str:
+    norm = unicodedata.normalize("NFKC", str(text or "")).strip()
+    norm = _E_REF_BRACKET_GROUP_RE.sub(" ", norm)
+    norm = _E_REF_TOKEN_RE.sub(" ", norm)
+    if strip_leadin:
+        norm = _EXACT_LEADIN_ZH_RE.sub("", norm.strip())
+    norm = _CN_COUNTED_RE.sub(
+        lambda m: _fmt_decimal(v) if (v := _chinese_numeral_to_decimal(m.group(1))) is not None else m.group(0),
+        norm,
+    ).lower()
+    for src, dst in _EXACT_CANON_PAIRS:
+        norm = norm.replace(src, dst)
+    return re.sub(r"[^\u4e00-\u9fff0-9a-z%$€¥£#.-]+", "", norm)
+
+
+def _exact_sentence_contains_claim(clause: str, ev_sent: str) -> bool:
+    c_norm = _normalize_for_exact_match(clause, strip_leadin=True)
+    e_norm = _normalize_for_exact_match(ev_sent, strip_leadin=False)
+    if not c_norm or not e_norm:
+        return False
+    if c_norm in e_norm:
+        return True
+    c_compact = _EXACT_GLUE_CHARS_RE.sub("", c_norm)
+    e_compact = _EXACT_GLUE_CHARS_RE.sub("", e_norm)
+    return len(c_compact) >= 3 and c_compact in e_compact
+
+
+def _compose_fact_verification_state(*, has_pruned: bool, has_heuristic: bool) -> str:
+    if has_pruned and has_heuristic:
+        return "PARTIAL_PRUNED_HEURISTIC"
+    if has_pruned:
+        return "PARTIAL_PRUNED"
+    if has_heuristic:
+        return "HEURISTIC_ONLY"
+    return "SUPPORTED"
+
+
 def _evaluate_clause_against_cited_evidence(
     clause: str,
     cited_excerpts: Sequence[str],
@@ -1820,7 +1880,9 @@ def _evaluate_clause_against_cited_evidence(
             (claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - all_ev_concepts
         ):
             return False, "CITATION_FACT_CONFLICT", "REJECTED"
-        for ev_sent in ev_sentences:
+        matched_atomic_sents = [
+            ev_sent
+            for ev_sent in ev_sentences
             if _atomic_sentence_supports_claim(
                 claim_facts=claim_facts,
                 claim_trend=claim_trend,
@@ -1830,15 +1892,15 @@ def _evaluate_clause_against_cited_evidence(
                 claim_entities=claim_entities,
                 all_ev_anchors=all_ev_anchors,
                 ev_sent=ev_sent,
-            ):
-                if not check_domain_support:
-                    return True, None, "HEURISTIC_ONLY"
-                grade = (
-                    "EXACT_SUPPORTED"
-                    if (same_script_excerpts or (claim_concepts and claim_concepts <= all_ev_concepts))
-                    else "HEURISTIC_ONLY"
-                )
-                return True, None, grade
+            )
+        ]
+        if matched_atomic_sents:
+            if not check_domain_support:
+                return True, None, "HEURISTIC_ONLY"
+            is_exact = same_script_excerpts and any(
+                _exact_sentence_contains_claim(clause, s) for s in matched_atomic_sents
+            )
+            return True, None, ("EXACT_SUPPORTED" if is_exact else "HEURISTIC_ONLY")
         return False, "CITATION_FACT_CONFLICT", "REJECTED"
 
     # 2. Named-entity conflict & trend/negation checks on non-numeric claims
@@ -1904,9 +1966,11 @@ def _evaluate_clause_against_cited_evidence(
         if (claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - pool_concepts:
             return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
         if not has_substantive_claim:
-            return True, None, "EXACT_SUPPORTED"
+            is_exact = any(
+                _exact_sentence_contains_claim(clause, s) for s in ev_sentences
+            )
+            return True, None, ("EXACT_SUPPORTED" if is_exact else "HEURISTIC_ONLY")
         supported = False
-        best_domain_hits = 0
         for s in pool_sentences:
             ev_dom = _extract_domain_terms(
                 s, include_metric_nouns=True, strip_meta=True, strip_glue=True
@@ -1914,14 +1978,11 @@ def _evaluate_clause_against_cited_evidence(
             ev_support = ev_dom | _extract_concept_tags(s)
             if claim_support & ev_support:
                 supported = True
-                best_domain_hits = max(best_domain_hits, len(claim_domain & ev_dom))
+                break
         if not supported:
             return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
-        if (claim_concepts and claim_concepts <= pool_concepts) or (
-            not claim_concepts and best_domain_hits >= min(2, len(claim_domain))
-        ):
-            return True, None, "EXACT_SUPPORTED"
-        return True, None, "HEURISTIC_ONLY"
+        is_exact = any(_exact_sentence_contains_claim(clause, s) for s in ev_sentences)
+        return True, None, ("EXACT_SUPPORTED" if is_exact else "HEURISTIC_ONLY")
 
     ev_concepts: set[str] = set()
     ev_en: set[str] = set()
@@ -1946,8 +2007,6 @@ def _evaluate_clause_against_cited_evidence(
         if claim_concepts and ev_concepts and not family_related:
             return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
         return True, None, "HEURISTIC_ONLY"
-    if claim_concepts and claim_concepts <= ev_concepts:
-        return True, None, "EXACT_SUPPORTED"
     return True, None, "HEURISTIC_ONLY"
 
 
@@ -1968,22 +2027,53 @@ def _check_clause_against_cited_evidence(
     return ok, code
 
 
-def _sanitize_citation_note(note_zh: str, excerpt: str) -> tuple[str, bool]:
-    """Verify citation note_zh against its bound evidence excerpt across all exits."""
+def _is_substantive_note_claim(text: str) -> bool:
+    clean = str(text or "").strip()
+    if not clean:
+        return False
+    if (
+        _extract_typed_facts(clean, is_claim=True)
+        or _extract_concept_tags(clean)
+        or _extract_named_entities(clean)
+    ):
+        return True
+    dom = _extract_domain_terms(
+        clean, include_metric_nouns=True, strip_meta=True, strip_glue=True
+    )
+    if len(dom) >= 2:
+        return True
+    en_words = [
+        w
+        for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(clean))
+        if w not in _GENERIC_STOPWORDS_EN
+    ]
+    return bool(en_words)
+
+
+def _sanitize_citation_note_with_grade(note_zh: str, excerpt: str) -> tuple[str, bool, str]:
+    """Verify citation note_zh and return ``(safe_note, was_pruned, grade)``."""
     clean_note = str(note_zh or "").strip()
     if not clean_note:
-        return "", False
+        return "", False, ""
     if not str(excerpt or "").strip():
-        return "", True
-    ok, _ = _check_clause_against_cited_evidence(
+        return "", True, "REJECTED"
+    ok, _, grade = _evaluate_clause_against_cited_evidence(
         clean_note,
         [excerpt],
         check_domain_support=True,
         session_excerpts=None,
     )
     if not ok:
-        return "", True
-    return clean_note, False
+        return "", True, "REJECTED"
+    if not _is_substantive_note_claim(clean_note):
+        return clean_note, False, "NON_CLAIM_STUB"
+    return clean_note, False, grade
+
+
+def _sanitize_citation_note(note_zh: str, excerpt: str) -> tuple[str, bool]:
+    """Verify citation note_zh against its bound evidence excerpt across all exits."""
+    safe_note, was_pruned, _ = _sanitize_citation_note_with_grade(note_zh, excerpt)
+    return safe_note, was_pruned
 
 
 def _prune_ungrounded_ref_clauses(
@@ -8607,12 +8697,14 @@ class WorkspaceIntelligenceHub:
                     seen_refs.add(ref)
                     base = dict(candidates[ref])
                     raw_note = _clean_text(entry.get("note_zh"), max_len=240)
-                    safe_note, was_pruned = _sanitize_citation_note(
+                    safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
                         raw_note, str(base.get("excerpt") or "")
                     )
                     if was_pruned:
                         note_pruned_count += 1
                     base["note_zh"] = safe_note
+                    if safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                        base["note_verification_grade"] = note_grade
                     hydrated_citations.append(base)
         inline_sources = (
             (answer_zh, *takeaways, *actions) if answerable_ok else (answer_zh,)
@@ -8623,12 +8715,14 @@ class WorkspaceIntelligenceHub:
                 if inline_ref in candidates and inline_ref not in seen_refs:
                     seen_refs.add(inline_ref)
                     base = dict(candidates[inline_ref])
-                    safe_note, was_pruned = _sanitize_citation_note(
+                    safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
                         str(base.get("point_zh") or ""), str(base.get("excerpt") or "")
                     )
                     if was_pruned:
                         note_pruned_count += 1
                     base["note_zh"] = safe_note
+                    if safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                        base["note_verification_grade"] = note_grade
                     hydrated_citations.append(base)
 
         surviving_inline_valid = {
@@ -8662,6 +8756,7 @@ class WorkspaceIntelligenceHub:
             related_excerpts: list[dict[str, Any]] = [
                 dict(item) for item in list(candidates.values())[:3]
             ]
+            scope_meta["contains_heuristic_claims"] = False
             scope_meta["fact_verification_state"] = refusal_reason_code
         else:
             refusal_reason_zh = ""
@@ -8693,6 +8788,12 @@ class WorkspaceIntelligenceHub:
                 check_domain_support=False,
             )
             all_conflicts = fact_conflicts + extra_conflicts
+            note_grades = [
+                str(c.get("note_verification_grade"))
+                for c in hydrated_citations
+                if str(c.get("note_zh") or "").strip()
+                and c.get("note_verification_grade") in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}
+            ]
             if not answer_zh:
                 refused = True
                 answer_status = "REFUSED_INSUFFICIENT_EVIDENCE"
@@ -8713,26 +8814,33 @@ class WorkspaceIntelligenceHub:
                 )
                 answer_zh = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
                 related_excerpts = [dict(item) for item in list(candidates.values())[:3]]
+                scope_meta["contains_heuristic_claims"] = False
                 scope_meta["fact_verification_state"] = refusal_reason_code
-            elif all_conflicts or note_pruned_count > 0:
-                scope_meta["partial_pruned"] = True
-                if all_conflicts:
-                    scope_meta["pruned_reasons"] = sorted(set(all_conflicts))
-                if note_pruned_count > 0:
-                    scope_meta["note_pruned_count"] = note_pruned_count
-                scope_meta["fact_verification_state"] = "PARTIAL_PRUNED"
-            elif "HEURISTIC_ONLY" in fact_grades or not fact_grades:
-                scope_meta["fact_verification_state"] = "HEURISTIC_ONLY"
             else:
-                scope_meta["fact_verification_state"] = "SUPPORTED"
+                all_grades = fact_grades + note_grades
+                has_pruned = bool(all_conflicts or note_pruned_count > 0)
+                has_heuristic = ("HEURISTIC_ONLY" in all_grades) or (not fact_grades)
+                if has_pruned:
+                    scope_meta["partial_pruned"] = True
+                    if all_conflicts:
+                        scope_meta["pruned_reasons"] = sorted(set(all_conflicts))
+                    if note_pruned_count > 0:
+                        scope_meta["note_pruned_count"] = note_pruned_count
+                scope_meta["contains_heuristic_claims"] = has_heuristic
+                scope_meta["fact_verification_state"] = _compose_fact_verification_state(
+                    has_pruned=has_pruned,
+                    has_heuristic=has_heuristic,
+                )
 
         source_integrity_status = "REFUSED" if refused else "VERIFIED"
         fact_verification_state = str(
             scope_meta.get("fact_verification_state")
             or ("NO_VERIFIED_CITATIONS" if refused else "SUPPORTED")
         )
+        contains_heuristic_claims = bool(scope_meta.get("contains_heuristic_claims", False))
         scope_meta["source_integrity_status"] = source_integrity_status
         scope_meta["fact_verification_state"] = fact_verification_state
+        scope_meta["contains_heuristic_claims"] = contains_heuristic_claims
         scope_meta["action_items_advisory"] = True
         scope_meta["answer_status"] = answer_status
         scope_meta["refused"] = refused
@@ -8808,6 +8916,7 @@ class WorkspaceIntelligenceHub:
             "answer_status": answer_status,
             "source_integrity_status": source_integrity_status,
             "fact_verification_state": fact_verification_state,
+            "contains_heuristic_claims": contains_heuristic_claims,
             "action_items_advisory": True,
             "refused": refused,
             "refusal_reason_zh": refusal_reason_zh,
@@ -8908,13 +9017,21 @@ class WorkspaceIntelligenceHub:
                     "",
                 ]
             )
-        elif not refused and resolved_fact_state == "HEURISTIC_ONLY":
-            md_lines.extend(
-                [
-                    "> [!NOTE] 启发式相关性提示：本回答引用的出处已通过主库核验，但部分跨语种或概括性表述仅通过启发式相关性检查，请结合下方原始摘录核对细节。",
-                    "",
-                ]
-            )
+        elif not refused:
+            if resolved_fact_state in {"PARTIAL_PRUNED", "PARTIAL_PRUNED_HEURISTIC"}:
+                md_lines.extend(
+                    [
+                        "> [!WARNING] 部分内容已裁剪：原回答中存在未被引用原文支持的句子或引用说明，已按 Fail-Closed 策略裁剪。",
+                        "",
+                    ]
+                )
+            if resolved_fact_state in {"HEURISTIC_ONLY", "PARTIAL_PRUNED_HEURISTIC"}:
+                md_lines.extend(
+                    [
+                        "> [!NOTE] 启发式相关性提示：本回答引用的出处已通过主库核验，但部分跨语种、概括性表述或引用说明仅通过启发式相关性检查，请结合下方原始摘录核对细节。",
+                        "",
+                    ]
+                )
         if scope_label_zh:
             md_lines.extend([f"> **研究范围**：{scope_label_zh}", ""])
         if covered_sources:
@@ -9086,22 +9203,30 @@ class WorkspaceIntelligenceHub:
             raw_citations = []
         citations: list[dict[str, Any]] = []
         note_pruned_hist = False
+        note_grades_hist: list[str] = []
         if isinstance(raw_citations, list):
             for entry in raw_citations:
                 if isinstance(entry, Mapping):
                     rev_c = self._reverify_serialized_citation(entry, pre_resolved=pre_resolved)
                     if rev_c.get("verified"):
                         orig_note = str(rev_c.get("note_zh") or "").strip()
-                        safe_note, was_pruned = _sanitize_citation_note(
+                        safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
                             orig_note, str(rev_c.get("excerpt") or "")
                         )
                         if was_pruned:
                             rev_c["note_zh"] = safe_note
                             note_pruned_hist = True
+                            rev_c.pop("note_verification_grade", None)
+                        elif safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                            rev_c["note_verification_grade"] = note_grade
+                            note_grades_hist.append(note_grade)
+                        else:
+                            rev_c.pop("note_verification_grade", None)
                     else:
                         if str(rev_c.get("note_zh") or "").strip():
                             rev_c["note_zh"] = ""
                             note_pruned_hist = True
+                        rev_c.pop("note_verification_grade", None)
                     citations.append(rev_c)
 
         verified_citation_count = sum(1 for c in citations if bool(c.get("verified")))
@@ -9206,15 +9331,22 @@ class WorkspaceIntelligenceHub:
                     parsed_scope["fact_verification_state"] = "UNSUPPORTED_CLAIM_UNVERIFIED"
                 else:
                     answer_str = "原历史回答未通过逐句可核验引用检查，已按 Fail-Closed 策略降级为待核验状态。"
-            elif hist_conflicts or note_pruned_hist:
-                parsed_scope["partial_pruned"] = True
-                if hist_conflicts:
-                    parsed_scope["pruned_reasons"] = sorted(set(hist_conflicts))
-                parsed_scope["fact_verification_state"] = "PARTIAL_PRUNED"
-            elif "HEURISTIC_ONLY" in hist_grades or not hist_grades:
-                parsed_scope["fact_verification_state"] = "HEURISTIC_ONLY"
+                parsed_scope["contains_heuristic_claims"] = False
             else:
-                parsed_scope["fact_verification_state"] = "SUPPORTED"
+                all_hist_grades = hist_grades + note_grades_hist
+                has_pruned_hist = bool(
+                    hist_conflicts or note_pruned_hist or parsed_scope.get("partial_pruned")
+                )
+                has_heuristic_hist = ("HEURISTIC_ONLY" in all_hist_grades) or (not hist_grades)
+                if has_pruned_hist:
+                    parsed_scope["partial_pruned"] = True
+                    if hist_conflicts:
+                        parsed_scope["pruned_reasons"] = sorted(set(hist_conflicts))
+                parsed_scope["contains_heuristic_claims"] = has_heuristic_hist
+                parsed_scope["fact_verification_state"] = _compose_fact_verification_state(
+                    has_pruned=has_pruned_hist,
+                    has_heuristic=has_heuristic_hist,
+                )
         source_integrity_status = (
             "REFUSED"
             if refused
@@ -9228,8 +9360,10 @@ class WorkspaceIntelligenceHub:
                 else ("NEEDS_REVERIFICATION" if answer_status == "NEEDS_REVERIFICATION" else "HEURISTIC_ONLY")
             )
         )
+        contains_heuristic_hist = bool(parsed_scope.get("contains_heuristic_claims", False))
         parsed_scope["source_integrity_status"] = source_integrity_status
         parsed_scope["fact_verification_state"] = fact_verification_state
+        parsed_scope["contains_heuristic_claims"] = contains_heuristic_hist
         parsed_scope["action_items_advisory"] = True
         provider_str = str(row["provider"])
         model_str = str(row["model"])
@@ -9259,6 +9393,7 @@ class WorkspaceIntelligenceHub:
             "answer_status": answer_status,
             "source_integrity_status": source_integrity_status,
             "fact_verification_state": fact_verification_state,
+            "contains_heuristic_claims": contains_heuristic_hist,
             "action_items_advisory": True,
             "verification_status": verification_status,
             "verified_citation_count": verified_citation_count,
@@ -11123,29 +11258,32 @@ class WorkspaceIntelligenceHub:
                     "SELECT * FROM research_qa_sessions ORDER BY created_at DESC, session_id ASC"
                 ).fetchall():
                     s_row = dict(row)
-                    try:
-                        exp_scope = json.loads(str(s_row.get("scope_json") or "{}"))
-                        if not isinstance(exp_scope, dict):
-                            exp_scope = {}
-                    except ValueError:
-                        exp_scope = {}
+                    verified_dto = self._row_to_research_session_dto(row)
+                    dto_scope = verified_dto.get("scope")
+                    exp_scope = dict(dto_scope) if isinstance(dto_scope, Mapping) else {}
                     exp_scope["archive_status"] = "EXPORTED_SNAPSHOT_UNVERIFIED_UNTIL_RESTORE"
-                    try:
-                        cites_raw = json.loads(str(s_row.get("citations_json") or "[]"))
-                    except ValueError:
-                        cites_raw = []
-                    if isinstance(cites_raw, list) and cites_raw:
-                        verified_dto = self._row_to_research_session_dto(row)
-                        s_row["citations_json"] = json.dumps(
-                            verified_dto["citations"], ensure_ascii=False
-                        )
-                        s_row["obsidian_markdown"] = verified_dto["obsidian_markdown"]
-                        exp_scope["source_integrity_status"] = verified_dto.get(
-                            "source_integrity_status", "VERIFIED"
-                        )
-                        exp_scope["fact_verification_state"] = verified_dto.get(
-                            "fact_verification_state", "HEURISTIC_ONLY"
-                        )
+                    exp_scope["source_integrity_status"] = verified_dto.get(
+                        "source_integrity_status", "NEEDS_REVERIFICATION"
+                    )
+                    exp_scope["fact_verification_state"] = verified_dto.get(
+                        "fact_verification_state", "HEURISTIC_ONLY"
+                    )
+                    exp_scope["contains_heuristic_claims"] = bool(
+                        verified_dto.get("contains_heuristic_claims", False)
+                    )
+                    s_row["answer_zh"] = str(verified_dto.get("answer_zh") or "")
+                    s_row["key_takeaways_json"] = json.dumps(
+                        verified_dto.get("key_takeaways_zh") or [], ensure_ascii=False
+                    )
+                    s_row["action_items_json"] = json.dumps(
+                        verified_dto.get("action_items_zh") or [], ensure_ascii=False
+                    )
+                    s_row["citations_json"] = json.dumps(
+                        verified_dto.get("citations") or [], ensure_ascii=False
+                    )
+                    s_row["obsidian_markdown"] = str(
+                        verified_dto.get("obsidian_markdown") or ""
+                    )
                     s_row["scope_json"] = json.dumps(exp_scope, ensure_ascii=False)
                     sessions.append(s_row)
                 for row in conn.execute(
@@ -11373,18 +11511,32 @@ class WorkspaceIntelligenceHub:
             cites_obj = []
 
         reverified_cites: list[dict[str, Any]] = []
+        note_pruned_restored = False
         for c in cites_obj:
             if isinstance(c, Mapping):
                 rev_c = self._reverify_serialized_citation(c)
                 if rev_c.get("verified"):
-                    safe_note, _ = _sanitize_citation_note(
-                        str(rev_c.get("note_zh") or ""),
+                    orig_note = str(rev_c.get("note_zh") or "").strip()
+                    safe_note, was_pruned, note_grade = _sanitize_citation_note_with_grade(
+                        orig_note,
                         str(rev_c.get("excerpt") or ""),
                     )
                     rev_c["note_zh"] = safe_note
+                    if was_pruned:
+                        note_pruned_restored = True
+                        rev_c.pop("note_verification_grade", None)
+                    elif safe_note and note_grade in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}:
+                        rev_c["note_verification_grade"] = note_grade
+                    else:
+                        rev_c.pop("note_verification_grade", None)
                 else:
+                    if str(rev_c.get("note_zh") or "").strip():
+                        note_pruned_restored = True
                     rev_c["note_zh"] = ""
+                    rev_c.pop("note_verification_grade", None)
                 reverified_cites.append(rev_c)
+        if note_pruned_restored:
+            scope_obj["partial_pruned"] = True
 
         raw_related = scope_obj.get("related_excerpts")
         if isinstance(raw_related, list):
@@ -11938,12 +12090,14 @@ class WorkspaceIntelligenceHub:
                             }
                             restored_valid_refs = set(restored_ref_excerpts.keys())
                             restored_conflicts: list[str] = []
+                            restored_grades: list[str] = []
                             s_answer = _prune_ungrounded_ref_clauses(
                                 s_answer,
                                 restored_valid_refs,
                                 require_valid_ref_per_sentence=True,
                                 cited_excerpts=restored_ref_excerpts,
                                 conflict_tracker=restored_conflicts,
+                                grade_tracker=restored_grades,
                                 session_excerpts=list(restored_ref_excerpts.values()),
                             )
                             s_takeaways = _filter_ungrounded_items(
@@ -11951,6 +12105,7 @@ class WorkspaceIntelligenceHub:
                                 restored_valid_refs,
                                 cited_excerpts=restored_ref_excerpts,
                                 conflict_tracker=restored_conflicts,
+                                grade_tracker=restored_grades,
                                 session_excerpts=list(restored_ref_excerpts.values()),
                             )
                             s_actions = _filter_ungrounded_items(
@@ -11960,6 +12115,14 @@ class WorkspaceIntelligenceHub:
                                 conflict_tracker=restored_conflicts,
                                 check_domain_support=False,
                             )
+                            restored_note_grades = [
+                                str(c.get("note_verification_grade"))
+                                for c in reverified_cites_list
+                                if bool(c.get("verified"))
+                                and str(c.get("note_zh") or "").strip()
+                                and c.get("note_verification_grade")
+                                in {"EXACT_SUPPORTED", "HEURISTIC_ONLY"}
+                            ]
                             if not s_answer.strip():
                                 s_answer_status = "NEEDS_REVERIFICATION"
                                 reverified_scope_obj["answer_status"] = "NEEDS_REVERIFICATION"
@@ -11971,16 +12134,59 @@ class WorkspaceIntelligenceHub:
                                     reverified_scope_obj["fact_verification_state"] = "UNSUPPORTED_CLAIM_UNVERIFIED"
                                 else:
                                     s_answer = "原历史回答未通过逐句可核验引用检查，已按 Fail-Closed 策略降级为待核验状态。"
+                                reverified_scope_obj["contains_heuristic_claims"] = False
                                 clean_scope_json = json.dumps(
                                     reverified_scope_obj, ensure_ascii=False
                                 )
-                            elif restored_conflicts:
-                                reverified_scope_obj["partial_pruned"] = True
-                                reverified_scope_obj["pruned_reasons"] = sorted(set(restored_conflicts))
-                                reverified_scope_obj["fact_verification_state"] = "PARTIAL_PRUNED"
+                            else:
+                                all_restored_grades = restored_grades + restored_note_grades
+                                has_pruned_r = bool(
+                                    restored_conflicts
+                                    or reverified_scope_obj.get("partial_pruned")
+                                )
+                                has_heuristic_r = (
+                                    "HEURISTIC_ONLY" in all_restored_grades
+                                ) or (not restored_grades)
+                                if has_pruned_r:
+                                    reverified_scope_obj["partial_pruned"] = True
+                                    if restored_conflicts:
+                                        reverified_scope_obj["pruned_reasons"] = sorted(
+                                            set(restored_conflicts)
+                                        )
+                                reverified_scope_obj["contains_heuristic_claims"] = (
+                                    has_heuristic_r
+                                )
+                                reverified_scope_obj["fact_verification_state"] = (
+                                    _compose_fact_verification_state(
+                                        has_pruned=has_pruned_r,
+                                        has_heuristic=has_heuristic_r,
+                                    )
+                                )
                                 clean_scope_json = json.dumps(
                                     reverified_scope_obj, ensure_ascii=False
                                 )
+                        restored_integrity_status = (
+                            "REFUSED"
+                            if s_refused
+                            else (
+                                "NEEDS_REVERIFICATION"
+                                if s_answer_status == "NEEDS_REVERIFICATION"
+                                else "VERIFIED"
+                            )
+                        )
+                        restored_fact_state = str(
+                            reverified_scope_obj.get("fact_verification_state")
+                            or (
+                                reverified_scope_obj.get("refusal_reason_code")
+                                or "NO_VERIFIED_CITATIONS"
+                                if s_refused
+                                else (
+                                    "NEEDS_REVERIFICATION"
+                                    if s_answer_status == "NEEDS_REVERIFICATION"
+                                    else "HEURISTIC_ONLY"
+                                )
+                            )
+                        )
                         raw_s_rel = reverified_scope_obj.get("related_excerpts")
                         raw_s_cov = reverified_scope_obj.get("covered_sources")
                         regenerated_sess_md = (
@@ -12016,6 +12222,8 @@ class WorkspaceIntelligenceHub:
                                 scope_label_zh=str(
                                     reverified_scope_obj.get("scope_label_zh") or ""
                                 ),
+                                source_integrity_status=restored_integrity_status,
+                                fact_verification_state=restored_fact_state,
                             )
                         )
                         conn.execute(

@@ -1678,12 +1678,12 @@ def test_n3_backup_graceful_degradation_above_40mib_and_64mib_cap(
     # Case (b): Visual assets near 40 MiB (~39 MiB raw -> ~52 MiB b64) PLUS > 10 MiB text -> trimmed <= 64 MiB & restores HTTP 200
     env_b = _build_env(tmp_path, monkeypatch, name="n3_over_64m")
     _seed_many_keyframes(env_b, vid_count=8, frames_per_vid=9)  # 72 * 500KB = 36MB raw (~48MB b64)
-    large_md_block = "大文本笔记内容段落。" * 70_000  # ~1.4 MiB per row
+    large_md_block = "大文本笔记内容段落。" * 35_000  # ~1.0 MiB in answer_zh + ~1.0 MiB rebuilt MD
     with env_b["hub"]._db_lock:
         conn = env_b["hub"]._connect_write()
         try:
             with conn:
-                for q_i in range(12):  # ~16.8 MiB text total
+                for q_i in range(12):  # ~24 MiB text total
                     conn.execute(
                         """
                         INSERT INTO research_qa_sessions (
@@ -1691,7 +1691,7 @@ def test_n3_backup_graceful_degradation_above_40mib_and_64mib_cap(
                             citations_json, video_count, provider, model, obsidian_markdown, created_at, scope_json
                         ) VALUES (?, ?, ?, '[]', '[]', '[]', 1, 'local_ollama', 'qwen3.5:9b', ?, '2026-11-24T01:00:00Z', '{}')
                         """,
-                        (f"big-qa-{q_i:02d}", f"Q{q_i}", "Ans", large_md_block),
+                        (f"big-qa-{q_i:02d}", f"Q{q_i}", large_md_block, large_md_block),
                     )
         finally:
             conn.close()
