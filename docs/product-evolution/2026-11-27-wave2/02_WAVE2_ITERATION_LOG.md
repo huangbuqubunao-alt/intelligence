@@ -25,3 +25,21 @@
   - 实测在 `#Home` 点击「一键导入示例笔记体验」触发 `POST /api/v1/local/imports?filename=intelligence-starter-local-first-rag.md` -> **`201 Created`**，自动打开文档阅读器并完整渲染 `速跳 · 文档原文`。
   - `390x844` 移动端零横向溢出；Warm Paper Light 与 Obsidian Dark 对比度清晰。
   - 实机截图归档：[Empty Home Dark](./screenshots/iter-6/step_4_shot_1_iter6_empty_home_dark.png)、[Empty Home Mobile Light](./screenshots/iter-6/step_6_shot_1_iter6_empty_home_mobile.png)、[Empty Following](./screenshots/iter-6/step_8_shot_1_iter6_empty_following.png)、[Starter Note Reader](./screenshots/iter-6/step_10_shot_1_iter6_starter_reader.png)。
+
+---
+
+## Iteration 7 (`EVO-W2-02`) — 专题→研究「对比共识与分歧」直达桥 + 同范围追问模板
+
+- **解决的用户问题**：用户在 `#Topics` 查看「跨来源观点对照」后无法一键带着这些对应内容进入 `#Research` 进行头对头共识/分歧追问；同时每次得到有据回答后仍面对空白输入框，缺乏零静默扣费的深挖追问模板；移动端 390px 下指定多视频对比选项标题被挤成窄竖条。
+- **核心改动**：
+  1. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)：新增 `setPendingResearchDraftQuestion` / `consumePendingResearchDraftQuestion` 可编辑预设草稿交接（绝不自动提交，零静默云端调用）；在有据回答卡片下方新增「同范围继续深挖」3 条分析视角胶囊及状态回显。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx)：在 `#Topics`「跨来源观点对照」区块标题旁增加「对比共识与分歧 (N) →」按钮，点击自动锁定来源视频 ID 并带入预填对比问题进入 `#Research`。
+  3. [demo_showcase.py](../../../src/youtube_intel/demo_showcase.py) & [test_public_beta_demo_showcase.py](../../../tests/integration/test_public_beta_demo_showcase.py)：基于真实 Chromium 首轮实测发现的回放检索遗漏，补充跨来源对比/深挖问句的正向概念词规范化（同时严格保持全部无关/编造/反前提问题的拒答红线）。
+  4. [styles.css](../../../frontend/src/workspace/styles.css)：新增 `.topic-perspectives-head`、`.ai-followup-strip`、`.ai-followup-chip`、`.ai-followup-toast`，并修复 `<=720px` 下 `.ai-video-compare-option` 响应式换行排版。
+- **自动化验证**：
+  - 后端：`ruff check`、`mypy` 0 errors；`tests/integration/test_public_beta_demo_showcase.py` → **8 passed in 56.00s**。
+  - 前端：`npx tsc --noEmit --incremental false` 0 errors；`npm run build` (`815ms`, `assets/index-DIj2APOA.js`)；新增 [EvolutionIter7.test.tsx](../../../frontend/src/workspace/EvolutionIter7.test.tsx)（3 passed）；Vitest **65/65 files, 1295/1295 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799` Demo 工作区）**：
+  - 验证加载 `assets/index-DIj2APOA.js`（`200 OK`）；**0 console errors、0 page errors、0 HTTP >=400**。
+  - 从「一人公司与 AI 产品化」点击「对比共识与分歧 (2) →」跳转 `#Research`，准确锁定 2 篇视频并预填可编辑问题（`0` 次自动发请求）；点击「AI 提问」返回 `200 OK`（`answer_status: GROUNDED`, `refused: false`, **3 条跨源可点击验证引用 `[E1]`/`[E2]`/`[E5]`**）并展现 3 枚深挖胶囊；`390x844` Warm Paper Light 移动端标题自然全宽换行、`mobileOverflow: false`。
+  - 实机截图归档：[Topic Compare CTA](./screenshots/iter-7/step_4_shot_1_iter7_topic_compare_cta.png)、[Research Handoff](./screenshots/iter-7/step_6_shot_1_iter7_research_handoff_dark.png)、[Grounded Followups](./screenshots/iter-7/step_10_shot_1_iter7_research_grounded_followups.png)、[Light Mobile 390px](./screenshots/iter-7/step_14_shot_1_iter7_research_light_mobile.png)。

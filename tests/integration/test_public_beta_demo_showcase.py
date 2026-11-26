@@ -331,3 +331,22 @@ def test_demo_showcase_topic_detail_provides_cross_source_synthesis_and_perspect
     perspectives = cast(list[dict[str, object]], evo.get("source_perspectives") or [])
     assert len(perspectives) >= 2
     assert len({str(p.get("channel_name") or "") for p in perspectives}) >= 2
+
+    # Handing off topic comparison video_ids + follow-up questions must yield grounded citations
+    # without breaking strict off-topic refusal.
+    topic_vids = [str(p["video_id"]) for p in perspectives if p.get("video_id")]
+    for compare_q in (
+        f"横向对比「{target['name']}」下这 {len(topic_vids)} 篇不同来源的核心共识、关键分歧与适用边界",
+        "对比不同来源的核心分歧与边界条件",
+        "提炼最值得立即落地的 3 个执行步骤",
+        "哪些结论仅由单一来源提及、需要进一步验证？",
+    ):
+        q_code, q_body = runtime.fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/research/ask",
+            json.dumps({"question": compare_q, "video_ids": topic_vids}).encode("utf-8"),
+        )
+        assert q_code == 200
+        q_session = cast(dict[str, object], q_body["session"])
+        assert q_session["refused"] is False, compare_q
+        assert len(cast(list[object], q_session["citations"])) >= 1, compare_q

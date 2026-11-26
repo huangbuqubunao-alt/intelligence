@@ -264,6 +264,7 @@ let pendingContentTopic = "";
 let pendingTopicClusterName = "";
 let pendingIntelligenceTopicId = "";
 let pendingResearchVideoIds: string[] = [];
+let pendingResearchDraftQuestion = "";
 
 export function setPendingResearchTopicCluster(topicName: string): void {
   pendingResearchTopicCluster = topicName.trim();
@@ -354,6 +355,16 @@ export function setPendingResearchVideoIds(videoIds: string[]): void {
 export function consumePendingResearchVideoIds(): string[] {
   const next = pendingResearchVideoIds;
   pendingResearchVideoIds = [];
+  return next;
+}
+
+export function setPendingResearchDraftQuestion(question: string): void {
+  pendingResearchDraftQuestion = question.trim();
+}
+
+export function consumePendingResearchDraftQuestion(): string {
+  const next = pendingResearchDraftQuestion;
+  pendingResearchDraftQuestion = "";
   return next;
 }
 
@@ -3387,20 +3398,22 @@ export function WorkspaceAiResearchPanel({
     topic: string;
     channel: string;
     starredOnly: boolean;
+    draftQuestion: string;
   } | null>(null);
   if (initialPendingRef.current === null) {
     const rawVids = consumePendingResearchVideoIds();
     const rawTopic = consumePendingResearchTopicCluster();
     const rawChannel = consumePendingResearchChannel();
     const rawStarred = consumePendingResearchStarredOnly();
+    const rawDraft = consumePendingResearchDraftQuestion();
     if (rawVids.length > 0) {
-      initialPendingRef.current = { videoIds: rawVids, topic: "", channel: "", starredOnly: false };
+      initialPendingRef.current = { videoIds: rawVids, topic: "", channel: "", starredOnly: false, draftQuestion: rawDraft };
     } else if (rawTopic) {
-      initialPendingRef.current = { videoIds: [], topic: rawTopic, channel: "", starredOnly: false };
+      initialPendingRef.current = { videoIds: [], topic: rawTopic, channel: "", starredOnly: false, draftQuestion: rawDraft };
     } else if (rawChannel) {
-      initialPendingRef.current = { videoIds: [], topic: "", channel: rawChannel, starredOnly: false };
+      initialPendingRef.current = { videoIds: [], topic: "", channel: rawChannel, starredOnly: false, draftQuestion: rawDraft };
     } else {
-      initialPendingRef.current = { videoIds: [], topic: "", channel: "", starredOnly: rawStarred };
+      initialPendingRef.current = { videoIds: [], topic: "", channel: "", starredOnly: rawStarred, draftQuestion: rawDraft };
     }
   }
   const [selectedChannel, setSelectedChannel] = useState(
@@ -3414,7 +3427,8 @@ export function WorkspaceAiResearchPanel({
   );
   const pendingSessionIdRef = useRef<string>("");
   const hasInitialVideosHandoffRef = useRef<boolean>(
-    (initialPendingRef.current?.videoIds.length ?? 0) > 0,
+    (initialPendingRef.current?.videoIds.length ?? 0) > 0 ||
+      Boolean(initialPendingRef.current?.draftQuestion),
   );
   const [comparePickerOpen, setComparePickerOpen] = useState(
     () => (initialPendingRef.current?.videoIds.length ?? 0) > 0,
@@ -3427,7 +3441,10 @@ export function WorkspaceAiResearchPanel({
   );
   const [compareSearch, setCompareSearch] = useState("");
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
-  const [questionInput, setQuestionInput] = useState("");
+  const [questionInput, setQuestionInput] = useState(
+    () => initialPendingRef.current?.draftQuestion ?? "",
+  );
+  const [followUpNotice, setFollowUpNotice] = useState<string | null>(null);
   const [sessionSearch, setSessionSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [sessionMutatingId, setSessionMutatingId] = useState<string | null>(null);
@@ -3519,6 +3536,15 @@ export function WorkspaceAiResearchPanel({
     const nextCh = consumePendingResearchChannel();
     const nextTp = consumePendingResearchTopicCluster();
     const nextStarred = consumePendingResearchStarredOnly();
+    const nextDraft = consumePendingResearchDraftQuestion();
+    if (nextDraft) {
+      setQuestionInput(nextDraft);
+      setFollowUpNotice(
+        zh
+          ? "已锁定对比来源并填入预设问题，可直接按 Enter 发送或自由微调。"
+          : "Comparison scope locked & prompt filled — edit or press Enter to ask.",
+      );
+    }
     if (nextVids.length > 0) {
       applyVideoCompareScope(nextVids);
     } else if (nextTp) {
@@ -3527,7 +3553,7 @@ export function WorkspaceAiResearchPanel({
       applyChannelScope(nextCh);
     } else if (nextStarred) {
       applyStarredScope(true);
-    } else if (hasInitialVideosHandoffRef.current) {
+    } else if (nextDraft || hasInitialVideosHandoffRef.current) {
       hasInitialVideosHandoffRef.current = false;
       queueMicrotask(() => questionInputRef.current?.focus());
     }
@@ -4101,6 +4127,12 @@ export function WorkspaceAiResearchPanel({
         </div>
       ) : null}
 
+      {followUpNotice ? (
+        <p className="ai-followup-toast" role="status" aria-live="polite">
+          {followUpNotice}
+        </p>
+      ) : null}
+
       <form className="ai-research-ask-form" onSubmit={handleSubmit}>
         <div className="ai-research-input-wrap">
           <textarea
@@ -4115,11 +4147,17 @@ export function WorkspaceAiResearchPanel({
             }
             value={questionInput}
             disabled={busy || isEmptyLibrary}
-            onChange={(e) => setQuestionInput(e.target.value)}
+            onChange={(e) => {
+              setQuestionInput(e.target.value);
+              if (followUpNotice) setFollowUpNotice(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                if (!isEmptyLibrary) void ask(questionInput);
+                if (!isEmptyLibrary) {
+                  setFollowUpNotice(null);
+                  void ask(questionInput);
+                }
               }
             }}
           />
@@ -4131,6 +4169,7 @@ export function WorkspaceAiResearchPanel({
               title={zh ? "清空输入内容" : "Clear input"}
               onClick={() => {
                 setQuestionInput("");
+                setFollowUpNotice(null);
                 questionInputRef.current?.focus();
               }}
             >
@@ -4582,6 +4621,55 @@ export function WorkspaceAiResearchPanel({
                   </div>
                 ))}
               </div>
+            </div>
+          ) : null}
+
+          {!activeSession.refused && canFollowUpActiveSession ? (
+            <div
+              className="ai-followup-strip"
+              role="group"
+              aria-label={zh ? "同范围继续深挖" : "Follow-up angles (same scope)"}
+            >
+              <span className="ai-followup-label">
+                {zh ? "同范围继续深挖：" : "Follow-up angles (same scope):"}
+              </span>
+              {(zh
+                ? [
+                    "对比不同来源的核心分歧与边界条件",
+                    "提炼最值得立即落地的 3 个执行步骤",
+                    "哪些结论仅由单一来源提及、需要进一步验证？",
+                  ]
+                : [
+                    "Compare core disagreements and boundary conditions across sources",
+                    "Extract the top 3 concrete implementation steps",
+                    "Which claims come from only a single source and need verification?",
+                  ]
+              ).map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  className="ai-followup-chip"
+                  disabled={busy}
+                  onClick={() => {
+                    applyActiveSessionFollowUp();
+                    setQuestionInput(prompt);
+                    setFollowUpNotice(
+                      zh
+                        ? "已锁定当前来源范围并填入追问，可微调后按 Enter 发送。"
+                        : "Scope locked & follow-up filled — edit or press Enter to ask.",
+                    );
+                    queueMicrotask(() => {
+                      const el = questionInputRef.current;
+                      if (el) {
+                        el.focus();
+                        el.setSelectionRange?.(prompt.length, prompt.length);
+                      }
+                    });
+                  }}
+                >
+                  {prompt}
+                </button>
+              ))}
             </div>
           ) : null}
 

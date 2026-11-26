@@ -65,6 +65,7 @@ import {
   setPendingContentTopic,
   setPendingIntelligenceTopicId,
   setPendingResearchChannel,
+  setPendingResearchDraftQuestion,
   setPendingResearchSessionId,
   setPendingResearchStarredOnly,
   setPendingResearchTopicCluster,
@@ -2207,6 +2208,16 @@ function Workspace() {
             onOpenContent={(id) => openContent(id)}
             onAskTopicResearch={(topicName) => {
               setPendingResearchTopicCluster(topicName);
+              setHandoffSeq((value) => value + 1);
+              navigate("Research");
+            }}
+            onCompareTopicSources={(topicName, videoIds) => {
+              setPendingResearchVideoIds(videoIds);
+              setPendingResearchDraftQuestion(
+                language === "zh-CN"
+                  ? `横向对比「${topicName}」下这 ${videoIds.length} 篇不同来源的核心共识、关键分歧与适用边界`
+                  : `Compare core consensus, disagreements, and trade-offs across these ${videoIds.length} sources on "${topicName}"`,
+              );
               setHandoffSeq((value) => value + 1);
               navigate("Research");
             }}
@@ -8403,6 +8414,7 @@ function Topics({
   onHashTargetChange,
   onOpenContent,
   onAskTopicResearch,
+  onCompareTopicSources,
   onBrowseTopicContent,
   onBrowseTopicIntelligence,
   onAddContent,
@@ -8416,6 +8428,7 @@ function Topics({
   onHashTargetChange?: (topicId: string | null) => void;
   onOpenContent?: (videoId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
+  onCompareTopicSources?: (topicName: string, videoIds: string[]) => void;
   onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
   onBrowseTopicIntelligence?: (topicId: string) => void;
   onAddContent?: () => void;
@@ -8704,11 +8717,32 @@ function Topics({
                     ? `当前基于 ${evo.video_count} 篇已提炼内容持续追踪。`
                     : `Grounded in ${evo.video_count} distilled items.`)}
             </p>
-            {evo.source_perspectives && evo.source_perspectives.length >= 2 ? (
+            {evo.source_perspectives && evo.source_perspectives.length >= 2 ? (() => {
+              const compareVideoIds = Array.from(
+                new Set(evo.source_perspectives.map((p) => p.video_id).filter(Boolean)),
+              );
+              return (
               <div className="topic-perspectives-section">
-                <h4 className="topic-section-subhead">
-                  {zh ? "跨来源观点对照" : "Cross-source comparison"}
-                </h4>
+                <div className="topic-perspectives-head">
+                  <h4 className="topic-section-subhead">
+                    {zh ? "跨来源观点对照" : "Cross-source comparison"}
+                  </h4>
+                  {compareVideoIds.length >= 2 && onCompareTopicSources ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small tabular-nums"
+                      onClick={(event) => {
+                        pulseCelebration(event.currentTarget);
+                        onCompareTopicSources(topic.name, compareVideoIds);
+                      }}
+                    >
+                      <PhosphorIcon name="sparkle" size={13} />
+                      {zh
+                        ? `对比共识与分歧 (${compareVideoIds.length}) →`
+                        : `Compare consensus & divergence (${compareVideoIds.length}) →`}
+                    </button>
+                  ) : null}
+                </div>
                 <div className="topic-perspectives-grid">
                   {evo.source_perspectives.map((p) => (
                     <article
@@ -8743,7 +8777,8 @@ function Topics({
                   ))}
                 </div>
               </div>
-            ) : null}
+              );
+            })() : null}
             {evo.top_opportunities_zh.length > 0 ? (
               <div className="topic-opps-section">
                 <h4 className="topic-section-subhead">
