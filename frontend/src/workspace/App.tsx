@@ -2184,6 +2184,7 @@ function Workspace() {
               setHandoffSeq((value) => value + 1);
               navigate("Research");
             }}
+            onOpenSettings={() => navigate("Settings")}
           />
         )}
         {page === "Content" && (
@@ -10014,6 +10015,68 @@ function FollowingReadNotice({ reading, error, errorCode, onReload, detail = fal
   </>;
 }
 
+function describeSourceRecoveryGuidance(
+  source: Source,
+  creatorFollowingWithdrawn: boolean,
+  zh: boolean,
+): { message: string; showSettingsCta: boolean } | null {
+  if (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) {
+    return {
+      message: zh
+        ? "B 站创作者连续追踪当前受限，可改用「导入」粘贴单条公开 B 站视频链接。"
+        : "Continuous Bilibili creator tracking is unavailable; you can still import individual public Bilibili video URLs.",
+      showSettingsCta: false,
+    };
+  }
+  const health = source.tracking?.health;
+  const errCode = source.last_error?.code ?? "";
+  if (
+    source.last_error ||
+    health === "OFFLINE" ||
+    health === "NETWORK_UNAVAILABLE" ||
+    health === "PROVIDER_ERROR" ||
+    health === "RATE_LIMITED" ||
+    health === "UPDATE_GAP" ||
+    health === "CHECK_INCOMPLETE"
+  ) {
+    const authIssue =
+      /AUTH|COOKIE|LOGIN|FORBIDDEN|401|403/i.test(errCode) || health === "PROVIDER_ERROR";
+    const rateLimited = health === "RATE_LIMITED" || /429|RATE/i.test(errCode);
+    return {
+      message: rateLimited
+        ? zh
+          ? "来源触发频率限制：请稍后再点击右侧「立即重检」，或改用单个公开链接/本地导入。"
+          : "Source rate-limited: wait before clicking Retry check, or import individual URLs / local files."
+        : authIssue
+          ? zh
+            ? "来源抓取受阻或授权异常：可检查网络并前往设置确认授权与工具配置后重检。"
+            : "Source fetch/auth issue: verify network and Settings authorization/tools before retrying."
+          : zh
+            ? "检查未完成或网络受阻：确认本机网络后可点击右侧「立即重检」（不会后台自动连发请求）。"
+            : "Check incomplete or offline: verify connectivity and click Retry check when ready (no automatic background retries).",
+      showSettingsCta: authIssue,
+    };
+  }
+  if ((source.tracking?.unavailable_count ?? 0) > 0) {
+    const unavailable = source.tracking?.unavailable_count ?? 0;
+    return {
+      message: zh
+        ? `含 ${unavailable} 条暂无可用字幕内容：可在内容页使用离线语音转写或导入本地文本。`
+        : `${unavailable} item(s) lack captions: open in Content for offline transcription or local import.`,
+      showSettingsCta: true,
+    };
+  }
+  if (source.source_type === "CHANNEL" && !source.tracking) {
+    return {
+      message: zh
+        ? "尚未建立追踪基线：请打开详情核对订阅信息或前往设置检查环境配置。"
+        : "Tracking baseline missing: open details or review Settings.",
+      showSettingsCta: true,
+    };
+  }
+  return null;
+}
+
 function Sources(
   {
     refresh,
@@ -10024,6 +10087,7 @@ function Sources(
     onAdd,
     onBrowseChannelContent,
     onAskChannelResearch,
+    onOpenSettings,
   }: {
     refresh: number;
     listResetSeq?: number;
@@ -10033,6 +10097,7 @@ function Sources(
     onAdd: (provider: "YOUTUBE" | "LOCAL") => void;
     onBrowseChannelContent?: (channelKey: string) => void;
     onAskChannelResearch?: (channelKey: string) => void;
+    onOpenSettings?: () => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -10140,6 +10205,16 @@ function Sources(
       totalVideos > 0 ? Math.round((totalLong / totalVideos) * 100) : null;
     return { totalVideos, totalLong, totalShorts, overallSignalPct, bestSource, noisySources };
   })();
+  const isAttentionSource = (source: Source): boolean =>
+    Boolean(
+      (source.source_type === "CHANNEL" && !source.tracking) ||
+        (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) ||
+        source.last_error ||
+        (source.tracking?.pending_count ?? 0) > 0 ||
+        (source.tracking?.processing_count ?? 0) > 0 ||
+        (source.tracking?.unavailable_count ?? 0) > 0,
+    );
+  const attentionSources = topLevelSources.filter(isAttentionSource);
   const filteredFollowing = topLevelSources.filter(
     source => {
       const sig = aiSignals[source.source_id];
@@ -10154,15 +10229,7 @@ function Sources(
               sig.total_videos >= 1 &&
               (sig.shorts_count > 0 || (sig.signal_rate_pct !== null && sig.signal_rate_pct < 60)),
           )) ||
-        (filter === "attention" &&
-          Boolean(
-            (source.source_type === "CHANNEL" && !source.tracking) ||
-              (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) ||
-              source.last_error ||
-              (source.tracking?.pending_count ?? 0) > 0 ||
-              (source.tracking?.processing_count ?? 0) > 0 ||
-              (source.tracking?.unavailable_count ?? 0) > 0,
-          )) ||
+        (filter === "attention" && isAttentionSource(source)) ||
         (filter === "paused" && !source.enabled)
       );
     },
@@ -10249,50 +10316,71 @@ function Sources(
                 </div>
               </div>
             ) : null}
-            {hasAiSignals && signalDigest && signalDigest.totalVideos > 0 ? (
+            {(hasAiSignals && signalDigest && signalDigest.totalVideos > 0) || attentionSources.length > 0 ? (
               <div
                 className="following-health-digest tabular-nums"
                 role="region"
                 aria-label={language === "zh-CN" ? "频道信噪比健康简报" : "Channel signal-to-noise digest"}
               >
-                {signalDigest.overallSignalPct !== null ? (
-                  <span className="following-health-pill">
-                    {language === "zh-CN"
-                      ? `整体干货信噪比 ${signalDigest.overallSignalPct}%`
-                      : `Library signal rate ${signalDigest.overallSignalPct}%`}
-                  </span>
+                {hasAiSignals && signalDigest && signalDigest.totalVideos > 0 ? (
+                  <>
+                    {signalDigest.overallSignalPct !== null ? (
+                      <span className="following-health-pill">
+                        {language === "zh-CN"
+                          ? `整体干货信噪比 ${signalDigest.overallSignalPct}%`
+                          : `Library signal rate ${signalDigest.overallSignalPct}%`}
+                      </span>
+                    ) : null}
+                    {signalDigest.bestSource ? (() => {
+                      const bestSig = aiSignals[signalDigest.bestSource.source_id];
+                      if (!bestSig || bestSig.avg_long_score === null) return null;
+                      const bestLabel =
+                        signalDigest.bestSource.provider === "LOCAL"
+                          ? t("Local library")
+                          : sourceLabel(signalDigest.bestSource);
+                      return (
+                        <span className="following-health-pill is-best">
+                          {language === "zh-CN"
+                            ? `最高信噪比：${bestLabel} · 均分 ${bestSig.avg_long_score.toFixed(1)}`
+                            : `Top signal: ${bestLabel} · Avg ${bestSig.avg_long_score.toFixed(1)}`}
+                        </span>
+                      );
+                    })() : null}
+                    {signalDigest.noisySources.length > 0 ? (
+                      <button
+                        type="button"
+                        aria-pressed={filter === "low_signal"}
+                        className={`following-health-review-btn${filter === "low_signal" ? " is-active" : ""}`}
+                        onClick={() => setFilter(filter === "low_signal" ? "all" : "low_signal")}
+                      >
+                        {language === "zh-CN"
+                          ? `待评估信源 (${signalDigest.noisySources.length}) · 含 Shorts / 低干货率`
+                          : `Review noisy sources (${signalDigest.noisySources.length})`}
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
-                {signalDigest.bestSource ? (() => {
-                  const bestSig = aiSignals[signalDigest.bestSource.source_id];
-                  if (!bestSig || bestSig.avg_long_score === null) return null;
-                  const bestLabel =
-                    signalDigest.bestSource.provider === "LOCAL"
-                      ? t("Local library")
-                      : sourceLabel(signalDigest.bestSource);
-                  return (
-                    <span className="following-health-pill is-best">
-                      {language === "zh-CN"
-                        ? `最高信噪比：${bestLabel} · 均分 ${bestSig.avg_long_score.toFixed(1)}`
-                        : `Top signal: ${bestLabel} · Avg ${bestSig.avg_long_score.toFixed(1)}`}
-                    </span>
-                  );
-                })() : null}
-                {signalDigest.noisySources.length > 0 ? (
+                {attentionSources.length > 0 ? (
                   <button
                     type="button"
-                    aria-pressed={filter === "low_signal"}
-                    className={`following-health-review-btn${filter === "low_signal" ? " is-active" : ""}`}
-                    onClick={() => setFilter(filter === "low_signal" ? "all" : "low_signal")}
+                    aria-pressed={filter === "attention"}
+                    className={`following-health-review-btn is-attention${filter === "attention" ? " is-active" : ""}`}
+                    onClick={() => setFilter(filter === "attention" ? "all" : "attention")}
                   >
                     {language === "zh-CN"
-                      ? `待评估信源 (${signalDigest.noisySources.length}) · 含 Shorts / 低干货率`
-                      : `Review noisy sources (${signalDigest.noisySources.length})`}
+                      ? `需处理异常信源 (${attentionSources.length})`
+                      : `Needs attention (${attentionSources.length})`}
                   </button>
                 ) : null}
               </div>
             ) : null}
             {orderedFollowing.map((source) => {
               const sig = aiSignals[source.source_id] ?? null;
+              const recoveryHint = describeSourceRecoveryGuidance(
+                source,
+                creatorFollowingWithdrawn,
+                language === "zh-CN",
+              );
               const signalCopy =
                 sig && sig.distilled_count > 0
                   ? language === "zh-CN"
@@ -10426,6 +10514,23 @@ function Sources(
                     {t("Open Source")}
                   </a>}
                 </div>
+                {recoveryHint ? (
+                  <div className="source-recovery-hint" role="note">
+                    <span className="source-recovery-copy">
+                      <PhosphorIcon name="warning-circle" size={14} />
+                      <span>{recoveryHint.message}</span>
+                    </span>
+                    {recoveryHint.showSettingsCta && onOpenSettings ? (
+                      <button
+                        type="button"
+                        className="button button-ghost button-small"
+                        onClick={onOpenSettings}
+                      >
+                        {language === "zh-CN" ? "前往设置" : "Open Settings"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               );
             })}

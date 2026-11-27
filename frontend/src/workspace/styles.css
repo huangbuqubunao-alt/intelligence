@@ -7337,3 +7337,43 @@ input[type="radio"] {
 .detail-panel.is-reading-comfort .panel {
   border-color: color-mix(in srgb, var(--accent-border) 38%, var(--border));
 }
+
+/* Iter 22: Actionable Following attention filter & inline safe recovery guidance */
+.following-health-review-btn.is-attention {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 45%, var(--border-strong));
+}
+
+.following-health-review-btn.is-attention.is-active,
+.following-health-review-btn.is-attention[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 65%, var(--border-strong));
+  background: color-mix(in srgb, var(--warning, #d97706) 14%, transparent);
+  color: var(--text-strong);
+}
+
+.source-recovery-hint {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 9px 13px;
+  border-top: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, var(--surface));
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.source-recovery-copy {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.source-recovery-copy svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--warning, #d97706);
+}

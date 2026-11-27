@@ -64,3 +64,14 @@
   - TypeScript / Build / Vitest：`npx tsc --noEmit --incremental false`（0 errors）、`npm run build`（`assets/index-CMR687yE.js` + `assets/index-DjV7XEVn.css`）、Vitest **79/79 files, 1323/1323 tests passed**。
   - 实机 Chromium（`http://127.0.0.1:8799`）：确认新包 HTTP 200、`#Content/vidDemoAgt1` 展示 `约 1 分钟精读` 与 `舒朗排版 -> 标准排版` 切换、`#Home` 右栏出现 `最近阅读 · 继续精读`、点击 `继续 →` 回跳原文、点击 `清空` 即刻移除；Dark / Light / Mobile (`390x844`, `mobileOverflow: false`)、`0` console/network 错误。
   - 实机截图归档：[Reader Comfort Dark](./screenshots/iter-21/step_1_iter21_reader_comfort_dark.png)、[Home Continue Dark](./screenshots/iter-21/step_2_iter21_home_continue_dark.png)、[Home Continue Light](./screenshots/iter-21/step_3_iter21_home_continue_light.png)、[Home Continue Mobile](./screenshots/iter-21/step_4_iter21_home_continue_mobile.png)。
+
+## Iteration 22 (`EVO-W4-05`) — Actionable `#Following` Attention Filter & Safe Source Recovery Guidance
+- **产品目标**：让订阅源异常与低产排查变得可操作但不打扰用户——存在异常或缺少基线的信源时在健康简报栏直出“需处理异常信源 (N)”一键筛选，并在行内展示诚实、零静默重试的恢复建议与设置直达入口。
+- **代码变更**：
+  - 修改 `frontend/src/workspace/App.tsx`：向 `Sources` 传入 `onOpenSettings={() => navigate("Settings")}`，抽取 `isAttentionSource` 复用过滤规则，在 `.following-health-digest` 中当 `attentionSources.length > 0` 时渲染可切换的 `需处理异常信源 (N)` / `Needs attention (N)` 胶囊按钮；新增 `describeSourceRecoveryGuidance` 纯函数（覆盖频率限制、授权/抓取异常、无可用字幕、B 站连续追踪受限、缺少基线等状态，绝不触发任何自动后台重试），并在 `.source-row` 内作为 `.source-actions` 之后的独立网格跨列兄弟节点 `.source-recovery-hint`（绝不嵌套在 `button.source-select` 内）展示提示及可选 `前往设置` 入口。
+  - 修改 `frontend/src/workspace/styles.css`：新增 `.following-health-review-btn.is-attention` 与跨列 `.source-recovery-hint` (`grid-column: 1 / -1`) 深浅色自适应样式。
+  - 新增 `frontend/src/workspace/EvolutionIter22.test.tsx`：验证异常信源在 `.following-health-digest` 中一键筛选、`.source-recovery-hint` 不嵌套于 `<button class="source-select">`、点击筛选与恢复引导不会触发自动重检请求、点击 `前往设置` 正常跳转 `#Settings`。
+- **验证证据**：
+  - TypeScript / Build / Vitest：`npx tsc --noEmit --incremental false`（0 errors）、`npm run build`（`assets/index-DSDkFkus.js` + `assets/index-Mb47NKEr.css`）、Vitest **80/80 files, 1324/1324 tests passed**。
+  - 实机 Chromium（`http://127.0.0.1:8799/#Following` & `http://127.0.0.1:8796/#Following`）：确认新包 HTTP 200；Demo 全健康信源下简报栏不误报异常、`待评估信源 (1)` 切换筛选正常、空工作区展示规范引导；Dark / Light / Mobile (`390x844`, `mobileOverflow: false`)、`0` console/network 错误。
+  - 实机截图归档：[Following Dark](./screenshots/iter-22/step_1_iter22_following_dark.png)、[Following Light](./screenshots/iter-22/step_2_iter22_following_light.png)、[Following Mobile](./screenshots/iter-22/step_3_iter22_following_mobile.png)、[Empty Following](./screenshots/iter-22/step_4_iter22_empty_following.png)。
