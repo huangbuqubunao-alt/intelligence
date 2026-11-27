@@ -7683,3 +7683,12 @@ input[type="radio"] {
   font-size: 11.5px;
   font-weight: 550;
 }
+
+/* Iteration 30: Weekly Knowledge Review Markdown export in KnowledgeDelta */
+.knowledge-delta .panel-heading {
+  flex-wrap: wrap;
+}
+
+.delta-export-btn {
+  flex-shrink: 0;
+}

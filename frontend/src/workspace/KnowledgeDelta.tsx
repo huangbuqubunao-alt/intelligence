@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { readAllPersonalNotes } from "./personalNotes";
+import { buildWeeklyReviewMarkdown, downloadMarkdownText } from "./weeklyReviewExport";
 import { useUiLanguage } from "./uiLanguage";
 
 export type DeltaTarget = { kind: "content" | "intelligence" | "topic" | "source"; id: string };
@@ -39,6 +41,12 @@ export function KnowledgeDelta({ refresh, onOpen }: { refresh: number; onOpen: (
   const [delta, setDelta] = useState<KnowledgeDeltaProjection | null>(null);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!exportNotice) return undefined;
+    const timer = window.setTimeout(() => setExportNotice(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [exportNotice]);
   useEffect(() => {
     let alive = true;
     setDelta(null);
@@ -53,9 +61,39 @@ export function KnowledgeDelta({ refresh, onOpen }: { refresh: number; onOpen: (
     timeZone: delta?.timezone, year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   }).format(new Date(value));
   const empty = delta?.status === "available" && delta.categories.every(category => category.count === 0);
+  const handleExportWeeklyReview = () => {
+    if (!delta || unavailable || empty) return;
+    const zh = language === "zh-CN";
+    const result = buildWeeklyReviewMarkdown(delta, {
+      zh,
+      personalNotes: readAllPersonalNotes(),
+    });
+    downloadMarkdownText(result.filename, result.markdown);
+    setExportNotice(
+      zh
+        ? `已导出本周复盘周报 (.md · ${result.changedItemCount} 条动态 · ${result.recentNoteCount} 篇批注)。`
+        : `Exported weekly review (.md · ${result.changedItemCount} updates · ${result.recentNoteCount} notes).`,
+    );
+  };
   return (
     <section className="panel knowledge-delta" aria-labelledby="knowledge-delta-heading" aria-busy={!delta && !failed}>
-      <div className="panel-heading"><h2 id="knowledge-delta-heading">{t("What changed in the last 7 days?")}</h2></div>
+      <div className="panel-heading">
+        <h2 id="knowledge-delta-heading">{t("What changed in the last 7 days?")}</h2>
+        {delta && !unavailable && !empty ? (
+          <button
+            type="button"
+            className="button button-ghost button-small delta-export-btn"
+            onClick={handleExportWeeklyReview}
+          >
+            {language === "zh-CN" ? "导出周报 (.md)" : "Export weekly review (.md)"}
+          </button>
+        ) : null}
+      </div>
+      {exportNotice ? (
+        <p className="semantic-state state-neutral" role="status">
+          {exportNotice}
+        </p>
+      ) : null}
       {delta && <p className="delta-window">{date(delta.window_start)} – {date(delta.window_end)} · {delta.timezone}</p>}
       {!delta && !failed && <p role="status" className="hint">{t("Checking recent changes…")}</p>}
       {unavailable && <p role="alert" className="hint">{t("Recent changes are unavailable. Try again shortly.")}</p>}
