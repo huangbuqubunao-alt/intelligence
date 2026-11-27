@@ -39,3 +39,22 @@
   - 在 `8796` 打开导入 →「粘贴文本/笔记」，粘贴 Markdown 笔记并提交 `POST /api/v1/local/imports?filename=2026-Agent-Reliability-Notes.md` 返回 **`201`**，自动打开纯文档阅读器展现「原文已就绪 · 待提炼洞察」。
   - 在 `390x844` Warm Paper Light 下粘贴弹窗与文档阅读器均保持 **`mobileOverflow: false`**。
   - 实机截图归档：[Paste Modal Dark](./screenshots/iter-13/step_6_shot_1_iter13_paste_modal_dark.png)、[Pasted Reader Dark](./screenshots/iter-13/step_8_shot_1_iter13_pasted_reader_dark.png)、[Pasted Reader Mobile Light](./screenshots/iter-13/step_10_shot_1_iter13_pasted_reader_mobile_light.png)、[Paste Modal Mobile Light](./screenshots/iter-13/step_14_shot_1_iter13_paste_modal_mobile_light.png)。
+
+---
+
+## Iteration 14 (`EVO-W3-03`) — 阅读器个人思考批注、原话证据一键摘录与 Obsidian 笔记融合导出
+
+- **解决的用户问题**：阅读长视频洞察与可追溯原话证据时，用户无法在当前阅读流中沉淀个人思考、摘录关键原句并在后续导出 Obsidian Markdown 时自动带上个人批注，研究闭环断裂。
+- **核心改动**：
+  1. 新增 [personalNotes.ts](../../../frontend/src/workspace/personalNotes.ts)：本地 `localStorage` (`yia.personal-notes.v1`) 个人笔记与 `#tag` 持久化 CRUD、`appendQuoteToPersonalNote`、防重复追加检测、`mergePersonalNoteIntoMarkdown`（导出 Obsidian Markdown 时自动注入 `## 我的思考与批注`）、`exportPersonalNotesJson` / `importPersonalNotesJson` 与跨组件状态广播事件。
+  2. 新增 [ReaderPersonalNoteCard.tsx](../../../frontend/src/workspace/ReaderPersonalNoteCard.tsx)：按需展开式行内「我的思考与批注」编辑器与 `#tag` 标签输入（支持防抖落盘、失焦即时保存、清空重置与本机存储标识）。
+  3. [App.tsx](../../../frontend/src/workspace/App.tsx) & [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)：在 `ContentEvidencePanel` 每张证据卡底栏新增「+ 摘录到笔记」动作（含 `已摘录` 瞬态反馈并自动展开批注卡片）；在 `#Content` 列表为有个人批注的内容显示「有笔记」徽章；在 Obsidian Markdown 导出/复制流程自动融合个人笔记与标签。
+  4. [styles.css](../../../frontend/src/workspace/styles.css)：为 `.reader-personal-note-*`、`.personal-note-*`、`.content-note-badge` 与 `.evidence-clip-note-btn` 适配深浅双主题与移动端窄屏布局。
+- **自动化验证**：
+  - 新增 [EvolutionIter14.test.tsx](../../../frontend/src/workspace/EvolutionIter14.test.tsx)（2 passed）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`1.11s` (`assets/index-BrfhhcIU.js` / `assets/index-cDWPMURx.css`)；Vitest：**72/72 files, 1310/1310 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoAgt1`）**：
+  - 验证加载 `assets/index-BrfhhcIU.js` & `assets/index-cDWPMURx.css`（均为 `200 OK`）；**0 console errors、0 pageerrors、0 HTTP >=400**。
+  - 在「原话证据 (9)」抽屉点击第一张证据卡「+ 摘录到笔记」，按钮切换为「已摘录」；关闭抽屉后「我的思考与批注」自动展开并写入带时间戳的引用块 `>`；追加个人想法与 `#核心结论 #待复盘` 标签并在 `page.reload` 刷新后验证完整持久留存。
+  - 返回 `#Content` 列表确认 `vidDemoAgt1` 正确呈现 `有笔记` 徽章；Warm Paper Light 与 `390x844` 移动端（`mobileOverflow: false`）无裁切或横向溢出。
+  - 实机截图归档：[Evidence Clip Dark](./screenshots/iter-14/step_10_shot_1_iter14_evidence_clip_dark.png)、[Personal Note Dark](./screenshots/iter-14/step_14_shot_1_iter14_personal_note_dark.png)、[Content Noted Badge Dark](./screenshots/iter-14/step_16_shot_1_iter14_content_badge_dark.png)、[Personal Note Light](./screenshots/iter-14/step_18_shot_1_iter14_personal_note_light.png)、[Personal Note Mobile](./screenshots/iter-14/final_step_20_iter14_personal_note_mobile.png)。

@@ -11,6 +11,15 @@ import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ReaderMediaStage, formatHumanDuration } from "./ReaderMediaStage";
 import { ReaderReferenceDrawer, type ReaderDrawerTab } from "./ReaderReferenceDrawer";
 import { ReaderDrawerSearchBar, formatSegmentQuote, highlightTextMatches, splitSearchableParagraphs } from "./ReaderSearchTools";
+import { ReaderPersonalNoteCard } from "./ReaderPersonalNoteCard";
+import {
+  PERSONAL_NOTES_CHANGED_EVENT,
+  appendQuoteToPersonalNote,
+  listPersonalNoteVideoIds,
+  mergePersonalNoteIntoMarkdown,
+  type PersonalNote,
+  readPersonalNote,
+} from "./personalNotes";
 import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
@@ -4287,6 +4296,13 @@ function ContentPage(
   );
   const [contentSortMode, setContentSortMode] = useState<"newest" | "score">("newest");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [notedVideoIds, setNotedVideoIds] = useState<Set<string>>(() => listPersonalNoteVideoIds());
+  useEffect(() => {
+    const refreshNoted = () => setNotedVideoIds(listPersonalNoteVideoIds());
+    refreshNoted();
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, refreshNoted);
+    return () => window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, refreshNoted);
+  }, []);
   if (latestFilterRef) {
     latestFilterRef.current = {
       searchQuery,
@@ -5300,6 +5316,11 @@ function ContentPage(
           </span>
         </span>
         <span className="content-row-trailing">
+          {notedVideoIds.has(item.video_id) ? (
+            <span className="content-note-badge">
+              {language === "zh-CN" ? "有笔记" : "Notes"}
+            </span>
+          ) : null}
           {brief?.source_basis === "METADATA_ONLY" && !brief.is_short_noise ? (
             <span className="ai-basis-pill is-compact">
               {language === "zh-CN" ? "简介速览" : "Metadata"}
@@ -6684,6 +6705,7 @@ function ContentDetailPanel(
   const [transcriptVerbatim, setTranscriptVerbatim] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState("");
   const [copiedSegmentKey, setCopiedSegmentKey] = useState<string | null>(null);
+  const [personalNote, setPersonalNote] = useState<PersonalNote | null>(() => readPersonalNote(id));
   const [summaryVerbatim, setSummaryVerbatim] = useState(false);
   const [loadedEvidence, setLoadedEvidence] = useState<ContentEvidence[]>([]);
   const [sharedTranslations, setSharedTranslations] = useState<Record<string, { excerpt: string; language: "zh-CN" | "en" }>>({});
@@ -6711,6 +6733,7 @@ function ContentDetailPanel(
     setLocalMediaErrorCode(null);
     setTranscriptSearch("");
     setCopiedSegmentKey(null);
+    setPersonalNote(readPersonalNote(id));
     drawerReturnFocusRef.current = null;
   }, [id]);
   useEffect(() => {
@@ -6880,7 +6903,11 @@ function ContentDetailPanel(
                 transcriptAvailable={transcript.status === "AVAILABLE"}
                 transcriberReady={wsCapabilities ? wsCapabilities.transcriber_ready : undefined}
                 aiBrief={aiBrief}
-                obsidianMarkdown={data.obsidian_markdown}
+                obsidianMarkdown={
+                  data.obsidian_markdown
+                    ? mergePersonalNoteIntoMarkdown(data.obsidian_markdown, personalNote, zhReader)
+                    : data.obsidian_markdown
+                }
                 initialTranscribeJob={wsCapabilities?.transcribe_job}
                 actionRequest={wsActionRequest}
                 onTranscribeStateChange={(running, stage) =>
@@ -6927,7 +6954,7 @@ function ContentDetailPanel(
                         const cleanedPts = note?.core_points
                           ? dedupeSummaryPoints(cleanedSummary, note.core_points)
                           : [];
-                        const md = buildMarkdownVideoNote({
+                        const rawNoteMd = buildMarkdownVideoNote({
                           title: data.video.title ?? data.video.video_id,
                           channelName: data.video.channel_name,
                           sourceUrl: data.video.source_url,
@@ -6938,6 +6965,7 @@ function ContentDetailPanel(
                           chineseGuide: guideLines,
                           corePoints: cleanedPts,
                         });
+                        const md = mergePersonalNoteIntoMarkdown(rawNoteMd, personalNote, zhReader);
                         void navigator.clipboard?.writeText(md);
                         setCopiedMarkdown(true);
                         setTimeout(() => setCopiedMarkdown(false), 2200);
@@ -7600,6 +7628,10 @@ function ContentDetailPanel(
           )}
       </Panel>
       ) : null}
+      <ReaderPersonalNoteCard
+        videoId={data.video.video_id}
+        onNoteChange={setPersonalNote}
+      />
       <section
         className="panel reader-drawer-launchers"
         aria-label={zhReader ? "按需查阅原始资料" : "Source transcript, evidence & history"}
@@ -8348,15 +8380,17 @@ function ContentEvidencePanel(
   const [evidenceVerbatim, setEvidenceVerbatim] = useState(false);
   const [evidenceSearch, setEvidenceSearch] = useState("");
   const [translationBusy, setTranslationBusy] = useState<string | null>(null);
+  const [copiedEvidenceId, setCopiedEvidenceId] = useState<string | null>(null);
+  const [clippedEvidenceId, setClippedEvidenceId] = useState<string | null>(null);
   useEffect(() => {
     setEvidenceSearch("");
+    setClippedEvidenceId(null);
   }, [videoId]);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [createdTranslations, setCreatedTranslations] = useState<Record<
     string,
     { excerpt: string; language: "zh-CN" | "en" }
   >>({});
-  const [copiedEvidenceId, setCopiedEvidenceId] = useState<string | null>(null);
   useEffect(() => {
     if (!highlightedEvidenceId) {
       setTargetLookup(null);
@@ -8601,54 +8635,90 @@ function ContentEvidencePanel(
                   : null}
                 {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
                 <div className="evidence-card-footer">
-                  {sourceUrl
-                    ? (
-                      <a
-                        className="button button-ghost button-small evidence-source-link"
-                        href={videoAt(sourceUrl, item.start_ms)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
-                      </a>
-                    )
-                    : <p className="hint">{t("Source URL unavailable.")}</p>}
-                  <button
-                    type="button"
-                    className="button button-secondary button-small evidence-copy-quote-btn"
-                    aria-label={
-                      language === "zh-CN"
-                        ? `复制引用：${item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}`
-                        : `Copy quote: ${item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}`
-                    }
-                    onClick={(event) => {
-                      pulseCelebration(event.currentTarget);
-                      const locator =
-                        item.locator_type === "TEXT_RANGE"
-                          ? textLineRange(item.start_line, item.end_line, t)
-                          : timestampRange(item.start_ms, item.end_ms);
-                      const verbatimText = (
-                        evidenceVerbatim
-                          ? item.original_excerpt
-                          : cleanCaptionText(item.original_excerpt).text
-                      ).trim();
-                      const formattedQuote = `> "${verbatimText}"\n— 《${videoTitle || videoId}》 [${locator}]`;
-                      void navigator.clipboard?.writeText(formattedQuote);
-                      setCopiedEvidenceId(item.evidence_id);
-                      setTimeout(() => {
-                        setCopiedEvidenceId((cur) => (cur === item.evidence_id ? null : cur));
-                      }, 1800);
-                    }}
-                  >
-                    <PhosphorIcon name="quotes" size={13} />
-                    {copiedEvidenceId === item.evidence_id
-                      ? language === "zh-CN"
-                        ? "已复制"
-                        : "Copied"
-                      : language === "zh-CN"
-                        ? "复制引用"
-                        : "Copy quote"}
-                  </button>
+                  {(() => {
+                    const locator =
+                      item.locator_type === "TEXT_RANGE"
+                        ? textLineRange(item.start_line, item.end_line, t)
+                        : timestampRange(item.start_ms, item.end_ms);
+                    const verbatimText = (
+                      evidenceVerbatim
+                        ? item.original_excerpt
+                        : cleanCaptionText(item.original_excerpt).text
+                    ).trim();
+                    const formattedQuote = formatSegmentQuote(
+                      verbatimText,
+                      videoTitle || videoId,
+                      locator,
+                    );
+                    return (
+                      <>
+                        {sourceUrl
+                          ? (
+                            <a
+                              className="button button-ghost button-small evidence-source-link"
+                              href={videoAt(sourceUrl, item.start_ms)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
+                            </a>
+                          )
+                          : <p className="hint">{t("Source URL unavailable.")}</p>}
+                        <button
+                          type="button"
+                          className="button button-secondary button-small evidence-copy-quote-btn"
+                          aria-label={
+                            language === "zh-CN"
+                              ? `复制引用：${locator}`
+                              : `Copy quote: ${locator}`
+                          }
+                          onClick={(event) => {
+                            pulseCelebration(event.currentTarget);
+                            void navigator.clipboard?.writeText(formattedQuote);
+                            setCopiedEvidenceId(item.evidence_id);
+                            setTimeout(() => {
+                              setCopiedEvidenceId((cur) => (cur === item.evidence_id ? null : cur));
+                            }, 1800);
+                          }}
+                        >
+                          <PhosphorIcon name="quotes" size={13} />
+                          {copiedEvidenceId === item.evidence_id
+                            ? language === "zh-CN"
+                              ? "已复制"
+                              : "Copied"
+                            : language === "zh-CN"
+                              ? "复制引用"
+                              : "Copy quote"}
+                        </button>
+                        <button
+                          type="button"
+                          className="button button-secondary button-small evidence-clip-note-btn"
+                          aria-label={
+                            language === "zh-CN"
+                              ? `摘录到笔记：${locator}`
+                              : `Clip to notes: ${locator}`
+                          }
+                          onClick={(event) => {
+                            pulseCelebration(event.currentTarget);
+                            appendQuoteToPersonalNote(videoId, formattedQuote);
+                            setClippedEvidenceId(item.evidence_id);
+                            setTimeout(() => {
+                              setClippedEvidenceId((cur) => (cur === item.evidence_id ? null : cur));
+                            }, 1800);
+                          }}
+                        >
+                          <PhosphorIcon name="plus" size={13} />
+                          {clippedEvidenceId === item.evidence_id
+                            ? language === "zh-CN"
+                              ? "已摘录"
+                              : "Clipped"
+                            : language === "zh-CN"
+                              ? "摘录到笔记"
+                              : "Clip to notes"}
+                        </button>
+                      </>
+                    );
+                  })()}
                   <details className="provenance">
                     <summary>{t("Citation details")}</summary>
                     <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
