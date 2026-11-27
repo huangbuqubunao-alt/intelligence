@@ -36,6 +36,10 @@ import { buildVerifiedIntelligenceMarkdown, downloadMarkdownText } from "./intel
 import { buildSelectedContentMarkdown } from "./contentExport";
 import { buildFollowingAuditMarkdown } from "./followingAuditExport";
 import {
+  collectWorkspaceChecklistItems,
+  togglePersonalNoteChecklistItem,
+} from "./actionChecklists";
+import {
   ACTIVE_RECALL_CHANGED_EVENT,
   buildActiveRecallDeck,
   markRecalledToday,
@@ -2712,6 +2716,7 @@ function Dashboard(
   }));
   const [recallIndex, setRecallIndex] = useState(0);
   const [recallRevealed, setRecallRevealed] = useState(false);
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [recalledTodayIds, setRecalledTodayIds] = useState<Set<string>>(() =>
     readRecalledTodayIds(),
   );
@@ -3195,7 +3200,25 @@ function Dashboard(
             const b = readVideoAiBrief(v.ai_brief, v.duration_seconds);
             return b?.is_read === true;
           }).length;
-          if (longFormVideos.length === 0 && studyCounts.noteCount === 0) return null;
+          const allChecklistItems = studyCounts.rev >= 0 ? collectWorkspaceChecklistItems() : [];
+          const openChecklistItems = allChecklistItems.filter((item) => !item.checked);
+          const doneChecklistItems = allChecklistItems.filter((item) => item.checked);
+          const videoTitleById = new Map<string, string>();
+          for (const item of allHomeVideos) {
+            const b = readVideoAiBrief(item.ai_brief, item.duration_seconds);
+            videoTitleById.set(item.video_id, b?.headline_zh || item.title || item.video_id);
+          }
+          const visibleChecklistItems =
+            showCompletedTasks || openChecklistItems.length === 0
+              ? allChecklistItems.slice(0, 6)
+              : openChecklistItems.slice(0, 6);
+          if (
+            longFormVideos.length === 0 &&
+            studyCounts.noteCount === 0 &&
+            allChecklistItems.length === 0
+          ) {
+            return null;
+          }
           const pct =
             longFormVideos.length > 0
               ? Math.round((readLongFormCount / longFormVideos.length) * 100)
@@ -3226,6 +3249,71 @@ function Dashboard(
                   ? `本机已沉淀 ${studyCounts.noteCount} 篇个人批注 · ${studyCounts.tagCount} 个自建标签`
                   : `${studyCounts.noteCount} personal note(s) · ${studyCounts.tagCount} custom tag(s) saved locally`}
               </p>
+              {allChecklistItems.length > 0 ? (
+                <div className="home-action-checklist" aria-label={zh ? "笔记行动清单" : "Action checklist"}>
+                  <div className="home-action-checklist-head tabular-nums">
+                    <span>
+                      {zh
+                        ? `待办行动项 (${openChecklistItems.length})`
+                        : `Action items (${openChecklistItems.length} open)`}
+                    </span>
+                    {doneChecklistItems.length > 0 && openChecklistItems.length > 0 ? (
+                      <button
+                        type="button"
+                        className="button button-ghost button-small"
+                        onClick={() => setShowCompletedTasks((prev) => !prev)}
+                      >
+                        {showCompletedTasks
+                          ? zh
+                            ? "隐藏已完成"
+                            : "Hide done"
+                          : zh
+                            ? `显示已完成 (${doneChecklistItems.length})`
+                            : `Show done (${doneChecklistItems.length})`}
+                      </button>
+                    ) : null}
+                  </div>
+                  <ul className="home-action-checklist-list">
+                    {visibleChecklistItems.map((task) => {
+                      const sourceTitle = videoTitleById.get(task.videoId) ?? task.videoId;
+                      return (
+                        <li
+                          key={`${task.videoId}:${task.lineIndex}`}
+                          className={`home-action-checklist-row${task.checked ? " is-done" : ""}`}
+                        >
+                          <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={task.checked}
+                            aria-label={
+                              zh
+                                ? `${task.checked ? "取消完成" : "标为完成"}：${task.text}`
+                                : `${task.checked ? "Mark incomplete" : "Mark complete"}: ${task.text}`
+                            }
+                            className={`home-action-check-btn${task.checked ? " is-checked" : ""}`}
+                            onClick={() => togglePersonalNoteChecklistItem(task.videoId, task.lineIndex)}
+                          >
+                            {task.checked ? "✓" : ""}
+                          </button>
+                          <div className="home-action-task-body">
+                            <span className={`home-action-task-text${task.checked ? " is-done" : ""}`}>
+                              {task.text}
+                            </span>
+                            <button
+                              type="button"
+                              className="home-action-source-link"
+                              onClick={() => openContent(task.videoId)}
+                              title={sourceTitle}
+                            >
+                              {sourceTitle} →
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
               {studyCounts.noteCount > 0 || studyCounts.tagCount > 0 ? (
                 <div className="button-row">
                   {studyCounts.noteCount > 0 && onOpenNotedContent ? (
