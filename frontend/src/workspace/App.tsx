@@ -8374,6 +8374,15 @@ function ContentDetailPanel(
           brief={aiBrief}
           obsidianMarkdown={data.obsidian_markdown}
           onSelectTopicCluster={onSelectTopicCluster}
+          capturedNoteText={personalNote?.text}
+          onCaptureTakeaway={(quoteText, categoryLabel) => {
+            const title = (data.video.title ?? data.video.video_id).trim();
+            const formatted = `> 【${categoryLabel}】${quoteText.trim()}\n— 《${title}》`;
+            const updated = appendQuoteToPersonalNote(data.video.video_id, formatted);
+            if (updated) {
+              setPersonalNote(updated);
+            }
+          }}
         />
         <WorkspaceVisualKeyframePanel
           videoId={id}

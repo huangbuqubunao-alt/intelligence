@@ -57,3 +57,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Research`）**：
   - 全程 `0` live `/research/ask` POST、`0` console/page/network 错误；点击「摘录进来源批注」反馈 `已将研究结论摘录进《Building High-Margin Local-First AI Tools Solo Builders Love》个人批注。`，置顶并开启「仅看置顶 (1)」精准收敛历史记录；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）。
   - 实机截图归档：[Research Dark](./screenshots/iter-39/iter39_research_dark.png)、[Research Light](./screenshots/iter-39/iter39_research_light.png)、[Research Mobile](./screenshots/iter-39/iter39_research_mobile.png)。
+
+## Iteration 40 (`EVO-W7-05`) — Reader 1-Click AI Takeaway Capture into Personal Notes
+
+- **解决的用户问题**：在长视频/文稿阅读详情页，用户浏览 AI 提炼的「AI 产品化启发」和「商业变现与切入机会」列表时，仍需手动选中复制才能写进下方「我的思考与批注」卡片。
+- **核心改动**：
+  1. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：为 `WorkspaceVideoAiBriefCard` 增加可选的 `onCaptureTakeaway` 与 `capturedNoteText` 同步状态，在每条启发旁渲染轻量 `+ 摘录` / `已摘录 ✓` 胶囊按钮（未传回调时不改变任何既有多列表呈现）。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx)：在 `ContentDetailPanel` 挂载回调，点击即刻调用 `appendQuoteToPersonalNote` 以幂等格式写入本机思考并实时更新 `personalNote` 状态与个人批注文本域。
+- **自动化验证**：
+  - 新增 [EvolutionIter40.test.tsx](../../../frontend/src/workspace/EvolutionIter40.test.tsx)（1 passed，覆盖一键摘录、`已摘录 ✓` 状态切换、幂等防重复与阅读器实时同步）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`874ms` (`assets/index-Bjre6ZJ1.js` / `assets/workspace-ai-hub-mTeg4sgk.js` / `assets/index-CVg34vlZ.css`)；Vitest：**98/98 files, 1359/1359 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoAgt1`）**：
+  - 确认加载最新构建资源（HTTP `200`）；点击「AI 产品化启发」旁 `+ 摘录` 即刻变为 `已摘录 ✓` 且下方个人思考文本框实时追加对应引用段落；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
+  - 实机截图归档：[Reader Dark](./screenshots/iter-40/iter40_reader_dark.png)、[Reader Light](./screenshots/iter-40/iter40_reader_light.png)、[Reader Mobile](./screenshots/iter-40/iter40_reader_mobile.png)。

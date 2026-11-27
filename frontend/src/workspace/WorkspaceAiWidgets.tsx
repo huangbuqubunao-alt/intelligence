@@ -2612,15 +2612,30 @@ export function WorkspaceVideoAiBriefCard({
   brief,
   obsidianMarkdown,
   onSelectTopicCluster,
+  onCaptureTakeaway,
+  capturedNoteText,
 }: {
   brief: VideoAiBrief | null;
   obsidianMarkdown?: string;
   onSelectTopicCluster?: (topicCluster: string) => void;
+  onCaptureTakeaway?: (quoteText: string, categoryLabel: string) => void;
+  capturedNoteText?: string;
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
+  const [capturedItems, setCapturedItems] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    setCapturedItems({});
+  }, [brief?.video_id]);
   if (!brief) return null;
   const md = obsidianMarkdown ?? brief.obsidian_markdown ?? "";
+  const isItemCaptured = (item: string) =>
+    Boolean(capturedItems[item] || (capturedNoteText && item.trim() && capturedNoteText.includes(item.trim())));
+  const handleCapture = (item: string, categoryLabel: string) => {
+    if (!onCaptureTakeaway) return;
+    onCaptureTakeaway(item, categoryLabel);
+    setCapturedItems((prev) => ({ ...prev, [item]: true }));
+  };
 
   return (
     <div className="video-ai-brief-card">
@@ -2659,9 +2674,36 @@ export function WorkspaceVideoAiBriefCard({
             <div className="weekly-insight-col">
               <h3>{zh ? "AI 产品化启发" : "AI product takeaways"}</h3>
               <ul>
-                {brief.product_opportunities_zh.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
+                {brief.product_opportunities_zh.map((item, i) => {
+                  const captured = isItemCaptured(item);
+                  const categoryLabel = zh ? "AI 产品化启发" : "AI product takeaway";
+                  return onCaptureTakeaway ? (
+                    <li key={i} className="brief-takeaway-item">
+                      <div className="brief-takeaway-row">
+                        <span>{item}</span>
+                        <button
+                          type="button"
+                          className={`brief-takeaway-capture-btn${captured ? " is-captured" : ""}`}
+                          aria-pressed={captured}
+                          aria-label={
+                            captured
+                              ? zh
+                                ? `已摘录：${item}`
+                                : `Saved: ${item}`
+                              : zh
+                                ? `摘录进个人批注：${item}`
+                                : `Save to personal notes: ${item}`
+                          }
+                          onClick={() => handleCapture(item, categoryLabel)}
+                        >
+                          {captured ? (zh ? "已摘录 ✓" : "Saved ✓") : zh ? "+ 摘录" : "+ Save"}
+                        </button>
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={i}>{item}</li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
@@ -2669,9 +2711,36 @@ export function WorkspaceVideoAiBriefCard({
             <div className="weekly-insight-col">
               <h3>{zh ? "商业变现与切入机会" : "Monetization opportunities"}</h3>
               <ul>
-                {brief.business_opportunities_zh.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
+                {brief.business_opportunities_zh.map((item, i) => {
+                  const captured = isItemCaptured(item);
+                  const categoryLabel = zh ? "商业变现启发" : "Monetization takeaway";
+                  return onCaptureTakeaway ? (
+                    <li key={i} className="brief-takeaway-item">
+                      <div className="brief-takeaway-row">
+                        <span>{item}</span>
+                        <button
+                          type="button"
+                          className={`brief-takeaway-capture-btn${captured ? " is-captured" : ""}`}
+                          aria-pressed={captured}
+                          aria-label={
+                            captured
+                              ? zh
+                                ? `已摘录：${item}`
+                                : `Saved: ${item}`
+                              : zh
+                                ? `摘录进个人批注：${item}`
+                                : `Save to personal notes: ${item}`
+                          }
+                          onClick={() => handleCapture(item, categoryLabel)}
+                        >
+                          {captured ? (zh ? "已摘录 ✓" : "Saved ✓") : zh ? "+ 摘录" : "+ Save"}
+                        </button>
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={i}>{item}</li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
