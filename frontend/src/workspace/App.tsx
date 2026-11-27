@@ -10,6 +10,7 @@ import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ReaderMediaStage, formatHumanDuration } from "./ReaderMediaStage";
 import { ReaderReferenceDrawer, type ReaderDrawerTab } from "./ReaderReferenceDrawer";
+import { ReaderDrawerSearchBar, formatSegmentQuote, highlightTextMatches, splitSearchableParagraphs } from "./ReaderSearchTools";
 import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
@@ -6680,6 +6681,8 @@ function ContentDetailPanel(
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
   const [transcriptVerbatim, setTranscriptVerbatim] = useState(false);
+  const [transcriptSearch, setTranscriptSearch] = useState("");
+  const [copiedSegmentKey, setCopiedSegmentKey] = useState<string | null>(null);
   const [summaryVerbatim, setSummaryVerbatim] = useState(false);
   const [loadedEvidence, setLoadedEvidence] = useState<ContentEvidence[]>([]);
   const [sharedTranslations, setSharedTranslations] = useState<Record<string, { excerpt: string; language: "zh-CN" | "en" }>>({});
@@ -6705,6 +6708,8 @@ function ContentDetailPanel(
     setWsActionRequest(null);
     setLocalMediaPlaying(false);
     setLocalMediaErrorCode(null);
+    setTranscriptSearch("");
+    setCopiedSegmentKey(null);
     drawerReturnFocusRef.current = null;
   }, [id]);
   useEffect(() => {
@@ -7738,6 +7743,21 @@ function ContentDetailPanel(
                 const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
                 const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
                 const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
+                const trimmedTranscriptSearch = transcriptSearch.trim().toLowerCase();
+                const filteredSegments = displaySegments
+                  ? trimmedTranscriptSearch
+                    ? displaySegments.filter((seg) => seg.text.toLowerCase().includes(trimmedTranscriptSearch))
+                    : displaySegments
+                  : null;
+                const rawPlainText = transcriptVerbatim ? transcript.text : plainClean?.text ?? "";
+                const plainParagraphs = !displaySegments ? splitSearchableParagraphs(rawPlainText) : [];
+                const filteredPlainParagraphs = trimmedTranscriptSearch
+                  ? plainParagraphs.filter((para) => para.toLowerCase().includes(trimmedTranscriptSearch))
+                  : plainParagraphs;
+                const showTranscriptSearch = displaySegments
+                  ? displaySegments.length >= 2
+                  : plainParagraphs.length >= 2 || rawPlainText.length >= 80;
+                const segmentBaseTitle = data.video.title ?? data.video.video_id;
                 return (
                   <>
                     <CaptionCleanBar
@@ -7745,10 +7765,94 @@ function ContentDetailPanel(
                       showVerbatim={transcriptVerbatim}
                       onToggle={() => setTranscriptVerbatim(current => !current)}
                     />
+                    {showTranscriptSearch ? (
+                      <ReaderDrawerSearchBar
+                        query={transcriptSearch}
+                        onChange={setTranscriptSearch}
+                        matchCount={displaySegments ? (filteredSegments?.length ?? 0) : filteredPlainParagraphs.length}
+                        totalCount={displaySegments ? displaySegments.length : Math.max(1, plainParagraphs.length)}
+                        ariaLabel={zhReader ? (isTextDocument ? "搜索文档原文" : "搜索字幕正文") : "Search transcript"}
+                        placeholder={zhReader ? (isTextDocument ? "在文档原文中搜索关键词…" : "在字幕时间轴中搜索关键词…") : "Search inside transcript…"}
+                        unitLabel={zhReader ? "段" : undefined}
+                      />
+                    ) : null}
                     <div className="transcript-scroll-box">
-                      {displaySegments
-                        ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{timestampRange(segment.start_ms, segment.end_ms)}</time><span>{segment.text}</span></li>)}</ol>
-                        : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
+                      {displaySegments ? (
+                        filteredSegments && filteredSegments.length > 0 ? (
+                          <ol className="timed-transcript">
+                            {filteredSegments.map((segment, index) => {
+                              const locator = timestampRange(segment.start_ms, segment.end_ms);
+                              const segKey = `${segment.start_ms}:${segment.end_ms}:${index}`;
+                              return (
+                                <li key={segKey}>
+                                  <time className="tabular-nums">{locator}</time>
+                                  <div className="timed-transcript-body">
+                                    <span>{highlightTextMatches(segment.text, transcriptSearch)}</span>
+                                    <div className="timed-transcript-item-actions">
+                                      <button
+                                        type="button"
+                                        className="timed-transcript-copy-btn"
+                                        aria-label={zhReader ? `复制此段：${locator}` : `Copy segment: ${locator}`}
+                                        onClick={() => {
+                                          void navigator.clipboard?.writeText(
+                                            formatSegmentQuote(segment.text, segmentBaseTitle, locator),
+                                          );
+                                          setCopiedSegmentKey(segKey);
+                                          setTimeout(() => {
+                                            setCopiedSegmentKey((cur) => (cur === segKey ? null : cur));
+                                          }, 1800);
+                                        }}
+                                      >
+                                        {copiedSegmentKey === segKey
+                                          ? zhReader
+                                            ? "已复制"
+                                            : "Copied"
+                                          : zhReader
+                                            ? "复制此段"
+                                            : "Copy"}
+                                      </button>
+                                      {data.video.source_url ? (
+                                        <a
+                                          className="timed-transcript-time-link tabular-nums"
+                                          href={videoAt(data.video.source_url, segment.start_ms)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          {`${Math.max(0, Math.floor(segment.start_ms / 1000))}s ↗`}
+                                        </a>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        ) : (
+                          <div className="semantic-state state-neutral">
+                            <p>{zhReader ? "未找到包含该关键词的字幕段落。" : "No matching transcript segments found."}</p>
+                            <button type="button" className="button button-secondary button-small" onClick={() => setTranscriptSearch("")}>
+                              {zhReader ? "清除搜索" : "Clear search"}
+                            </button>
+                          </div>
+                        )
+                      ) : trimmedTranscriptSearch ? (
+                        filteredPlainParagraphs.length > 0 ? (
+                          <div className="transcript-copy transcript-search-paragraphs">
+                            {filteredPlainParagraphs.map((para, idx) => (
+                              <p key={idx}>{highlightTextMatches(para, transcriptSearch)}</p>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="semantic-state state-neutral">
+                            <p>{zhReader ? "未找到匹配的原文段落。" : "No matching source paragraphs found."}</p>
+                            <button type="button" className="button button-secondary button-small" onClick={() => setTranscriptSearch("")}>
+                              {zhReader ? "清除搜索" : "Clear search"}
+                            </button>
+                          </div>
+                        )
+                      ) : (
+                        <div className="transcript-copy">{rawPlainText}</div>
+                      )}
                     </div>
                   </>
                 );
@@ -8241,7 +8345,11 @@ function ContentEvidencePanel(
   } | null>(null);
   const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
   const [evidenceVerbatim, setEvidenceVerbatim] = useState(false);
+  const [evidenceSearch, setEvidenceSearch] = useState("");
   const [translationBusy, setTranslationBusy] = useState<string | null>(null);
+  useEffect(() => {
+    setEvidenceSearch("");
+  }, [videoId]);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [createdTranslations, setCreatedTranslations] = useState<Record<
     string,
@@ -8455,7 +8563,7 @@ function ContentEvidencePanel(
                     <div>
                       <strong>{t("Translation")} · {target}</strong>
                       {translationAvailable
-                        ? <blockquote>{evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
+                        ? <blockquote>{highlightTextMatches(evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!), evidenceSearch)}</blockquote>
                         : sourceMatchesTarget
                         ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
                         : (
@@ -8483,7 +8591,7 @@ function ContentEvidencePanel(
                   ? (
                     <div>
                       <strong>{t("Original · authoritative source")} · {item.source_language}</strong>
-                      <blockquote>{evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text}</blockquote>
+                      <blockquote>{highlightTextMatches(evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text, evidenceSearch)}</blockquote>
                     </div>
                   )
                   : null}
@@ -8550,6 +8658,18 @@ function ContentEvidencePanel(
               </article>
             );
           };
+          const trimmedEvidenceSearch = evidenceSearch.trim().toLowerCase();
+          const matchedEntries = evidence
+            .map((item, idx) => ({ item, idx }))
+            .filter(({ item }) => {
+              if (!trimmedEvidenceSearch) return true;
+              const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
+              const trText = (local?.excerpt ?? item.translated_excerpt ?? "").toLowerCase();
+              return (
+                item.original_excerpt.toLowerCase().includes(trimmedEvidenceSearch) ||
+                trText.includes(trimmedEvidenceSearch)
+              );
+            });
           const overflowItems = evidence.slice(3);
           const hasTargetedOverflow = Boolean(
             highlightedEvidenceId &&
@@ -8557,27 +8677,53 @@ function ContentEvidencePanel(
           );
           return (
             <div className="evidence-trace-list">
+              {evidence.length >= 2 ? (
+                <ReaderDrawerSearchBar
+                  query={evidenceSearch}
+                  onChange={setEvidenceSearch}
+                  matchCount={matchedEntries.length}
+                  totalCount={evidence.length}
+                  ariaLabel={language === "zh-CN" ? "搜索原话证据" : "Search evidence quotes"}
+                  placeholder={language === "zh-CN" ? "搜索原话或译文关键词（自动穿透折叠列表）…" : "Search original or translated evidence…"}
+                  unitLabel={language === "zh-CN" ? "条" : undefined}
+                />
+              ) : null}
               <CaptionCleanBar
                 collapsedCount={collapsedEvidenceLines}
                 showVerbatim={evidenceVerbatim}
                 onToggle={() => setEvidenceVerbatim(current => !current)}
               />
-              {evidence.slice(0, 3).map((item, idx) => renderEvidenceCard(item, idx))}
-              {overflowItems.length > 0 ? (
-                <details
-                  className="evidence-overflow-drawer"
-                  open={hasTargetedOverflow || undefined}
-                >
-                  <summary className="tabular-nums">
-                    {language === "zh-CN"
-                      ? `展开其余 ${overflowItems.length} 条时间轴原话片段`
-                      : `Show ${overflowItems.length} more timeline excerpts`}
-                  </summary>
-                  <div className="evidence-trace-list evidence-overflow-list">
-                    {overflowItems.map((item, idx) => renderEvidenceCard(item, idx + 3))}
+              {trimmedEvidenceSearch ? (
+                matchedEntries.length > 0 ? (
+                  matchedEntries.map(({ item, idx }) => renderEvidenceCard(item, idx))
+                ) : (
+                  <div className="semantic-state state-neutral">
+                    <p>{language === "zh-CN" ? "未找到包含该关键词的原话证据。" : "No matching evidence excerpts found."}</p>
+                    <button type="button" className="button button-secondary button-small" onClick={() => setEvidenceSearch("")}>
+                      {language === "zh-CN" ? "清除搜索" : "Clear search"}
+                    </button>
                   </div>
-                </details>
-              ) : null}
+                )
+              ) : (
+                <>
+                  {evidence.slice(0, 3).map((item, idx) => renderEvidenceCard(item, idx))}
+                  {overflowItems.length > 0 ? (
+                    <details
+                      className="evidence-overflow-drawer"
+                      open={hasTargetedOverflow || undefined}
+                    >
+                      <summary className="tabular-nums">
+                        {language === "zh-CN"
+                          ? `展开其余 ${overflowItems.length} 条时间轴原话片段`
+                          : `Show ${overflowItems.length} more timeline excerpts`}
+                      </summary>
+                      <div className="evidence-trace-list evidence-overflow-list">
+                        {overflowItems.map((item, idx) => renderEvidenceCard(item, idx + 3))}
+                      </div>
+                    </details>
+                  ) : null}
+                </>
+              )}
             </div>
           );
         })()
