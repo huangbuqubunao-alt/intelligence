@@ -58,3 +58,20 @@
   - 在「原话证据 (9)」抽屉点击第一张证据卡「+ 摘录到笔记」，按钮切换为「已摘录」；关闭抽屉后「我的思考与批注」自动展开并写入带时间戳的引用块 `>`；追加个人想法与 `#核心结论 #待复盘` 标签并在 `page.reload` 刷新后验证完整持久留存。
   - 返回 `#Content` 列表确认 `vidDemoAgt1` 正确呈现 `有笔记` 徽章；Warm Paper Light 与 `390x844` 移动端（`mobileOverflow: false`）无裁切或横向溢出。
   - 实机截图归档：[Evidence Clip Dark](./screenshots/iter-14/step_10_shot_1_iter14_evidence_clip_dark.png)、[Personal Note Dark](./screenshots/iter-14/step_14_shot_1_iter14_personal_note_dark.png)、[Content Noted Badge Dark](./screenshots/iter-14/step_16_shot_1_iter14_content_badge_dark.png)、[Personal Note Light](./screenshots/iter-14/step_18_shot_1_iter14_personal_note_light.png)、[Personal Note Mobile](./screenshots/iter-14/final_step_20_iter14_personal_note_mobile.png)。
+
+---
+
+## Iteration 15 (`EVO-W3-04`) — 批量多条链接实时识别与顺序队列入库
+
+- **解决的用户问题**：研究一个主题时常需一次性导入 3–10 条 YouTube 视频、频道或 B 站公开视频；逐条重复打开弹窗粘贴极其繁琐。
+- **核心改动**：
+  1. [AddEntry.tsx](../../../frontend/src/workspace/AddEntry.tsx)：导出 `parseBatchLinks`（每批次上限 10 条、跨格式正则去重、区分有效/未识别行并统计跳过数量）；在 `YouTube / Bilibili` 弹窗保持默认单条 `<input>` 100% 兼容的同时新增「批量粘贴多条」切换，并在单条框内检测到粘贴多行链接时自动切入批量模式。
+  2. 批量模式支持实时分类识别标签（`YouTube 视频`、`YouTube 频道`、`B站视频`、`未识别`）、频道自动显示处理模式单选框、以及互不阻断的顺序队列提交流程（局部失败仅标记对应条目并继续剩余队列）。
+  3. [styles.css](../../../frontend/src/workspace/styles.css)：新增 `.batch-mode-bar`、`.batch-preview-list`、`.batch-kind-pill` 与 `.batch-status-pill` 响应式深浅双主题样式。
+- **自动化验证**：
+  - 新增 [EvolutionIter15.test.tsx](../../../frontend/src/workspace/EvolutionIter15.test.tsx)（2 passed，覆盖 10 条上限、去重、混杂无效行及部分失败韧性提交）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`1.15s` (`assets/index-DgbqmXOJ.js` / `assets/index-jRuCjh_j.css` / `assets/workspace-sources-models-DhXTeMVc.js`)；Vitest：**73/73 files, 1312/1312 passed**（含原 `AddEntry.test.tsx` 25 passed）。
+- **Chromium 实机验证（`127.0.0.1:8799/#Home`，零外部外网请求）**：
+  - 验证加载 `assets/index-DgbqmXOJ.js`、`assets/index-jRuCjh_j.css` & `assets/workspace-sources-models-DhXTeMVc.js`（均 `200 OK`）；**0 console errors、0 pageerrors**。
+  - 在「批量粘贴多条」输入 5 行测试数据后准确实时反馈「已识别 3 条可导入 · 1 条未识别 · 已去重 1 条」，自动显示频道处理策略选择器并渲染「开始批量导入 (3)」，Obsidian Dark、Warm Paper Light 及 `390x844` 移动端（`mobileOverflow: false`）均对齐清晰。
+  - 实机截图归档：[Batch Modal Dark](./screenshots/iter-15/step_10_shot_1_iter15_batch_modal_dark.png)、[Batch Modal Light](./screenshots/iter-15/step_12_shot_1_iter15_batch_modal_light.png)、[Batch Modal Mobile](./screenshots/iter-15/step_14_shot_1_iter15_batch_modal_mobile.png)。

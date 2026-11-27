@@ -6977,3 +6977,117 @@ input[type="radio"] {
   flex: 0 0 auto;
 }
 
+
+/* Iteration 15: Batch Multi-Link Recognition & Sequential Queue */
+.batch-mode-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.batch-mode-bar > p {
+  margin: 0;
+  flex: 1 1 220px;
+}
+
+.batch-mode-toggle {
+  flex: 0 0 auto;
+}
+
+.batch-links-textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.batch-preview-summary {
+  margin-top: 8px;
+}
+
+.batch-preview-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.batch-preview-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  font-size: 12px;
+}
+
+.batch-preview-item.is-invalid {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.batch-kind-pill {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+
+.batch-kind-pill.is-invalid {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+:root[data-theme="light"] .batch-kind-pill.is-invalid {
+  color: #b91c1c;
+}
+
+.batch-preview-target {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.batch-status-pill {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.batch-status-pill.is-done {
+  color: var(--accent-ink);
+}
+
+.batch-status-pill.is-error {
+  color: #f87171;
+}
+
+:root[data-theme="light"] .batch-status-pill.is-error {
+  color: #b91c1c;
+}
+
+.batch-run-summary {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+}

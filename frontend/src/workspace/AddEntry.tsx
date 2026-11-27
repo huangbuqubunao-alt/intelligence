@@ -14,6 +14,70 @@ const bv = /^BV[1-9A-HJ-NP-Za-km-z]{10}$/;
 const channelTabs = new Set(["videos", "shorts", "streams", "playlists", "about", "featured"]);
 export const invalidLinkCopy = "Paste a supported HTTPS YouTube video or channel link, @handle, channel ID, or Bilibili BV video link. To add a file, choose Import local file.";
 
+export type BatchParsedLink = {
+  raw: string;
+  recognized: RecognizedLink | null;
+};
+
+export type BatchParseSummary = {
+  items: BatchParsedLink[];
+  validItems: Array<{ raw: string; recognized: RecognizedLink }>;
+  invalidCount: number;
+  duplicateCount: number;
+  truncatedCount: number;
+};
+
+const MAX_BATCH_LINKS = 10;
+
+export function parseBatchLinks(raw: string, maxItems: number = MAX_BATCH_LINKS): BatchParseSummary {
+  const tokens = raw
+    .split(/[\r\n\s]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const items: BatchParsedLink[] = [];
+  const validItems: Array<{ raw: string; recognized: RecognizedLink }> = [];
+  const seenCanonical = new Set<string>();
+  const seenInvalid = new Set<string>();
+  let invalidCount = 0;
+  let duplicateCount = 0;
+  let truncatedCount = 0;
+
+  for (const token of tokens) {
+    const cleaned = token.replace(/[,.;:!，。；：！？>\]"']+$/, "");
+    const rec = recognizeLink(token) ?? (cleaned !== token ? recognizeLink(cleaned) : null);
+    if (!rec) {
+      if (seenInvalid.has(token)) {
+        duplicateCount += 1;
+        continue;
+      }
+      seenInvalid.add(token);
+      invalidCount += 1;
+      items.push({ raw: token, recognized: null });
+      continue;
+    }
+    if (seenCanonical.has(rec.canonical)) {
+      duplicateCount += 1;
+      continue;
+    }
+    seenCanonical.add(rec.canonical);
+    if (validItems.length >= maxItems) {
+      truncatedCount += 1;
+      continue;
+    }
+    const entry = { raw: token, recognized: rec };
+    validItems.push(entry);
+    items.push(entry);
+  }
+
+  return {
+    items,
+    validItems,
+    invalidCount,
+    duplicateCount,
+    truncatedCount,
+  };
+}
+
 /** Recognition is local and deterministic. Provider boundaries validate again. */
 export function recognizeLink(value: string): RecognizedLink | null {
   const raw = value.trim();
@@ -80,11 +144,42 @@ export function AddEntry({
     initialMode ?? (initialLocal ? "LOCAL" : "YOUTUBE"),
   );
   const [input, setInput] = useState("");
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchText, setBatchText] = useState("");
+  const [batchRunState, setBatchRunState] = useState<
+    Record<string, { status: "pending" | "running" | "done" | "error"; detail?: string }>
+  >({});
+  const [batchSummary, setBatchSummary] = useState<{
+    succeeded: number;
+    failed: number;
+    lastContentId?: string;
+  } | null>(null);
   const [mode, setMode] = useState("ORGANIZE_CONTENT");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ kind: RecognizedLink["kind"]; content_id?: string; status?: string } | null>(null);
   const recognized = recognizeLink(input);
+  const parsedBatch = parseBatchLinks(batchText);
+  const batchHasChannel = parsedBatch.validItems.some((item) => item.recognized.kind === "YOUTUBE_CHANNEL");
+  const batchKindLabel = (kind: RecognizedLink["kind"]) =>
+    kind === "YOUTUBE_CHANNEL"
+      ? zh
+        ? "YouTube 频道"
+        : "YouTube channel"
+      : kind === "BILIBILI_VIDEO"
+        ? zh
+          ? "B站视频"
+          : "Bilibili video"
+        : zh
+          ? "YouTube 视频"
+          : "YouTube video";
+  const formatBatchApiError = (reason: unknown, kind: RecognizedLink["kind"]) => {
+    const code = reason instanceof ApiRequestError ? reason.code : "NETWORK_UNAVAILABLE";
+    if (code.includes("INVALID") || code.includes("UNSUPPORTED")) return t(invalidLinkCopy);
+    return kind === "BILIBILI_VIDEO"
+      ? t(bilibiliStatus(code))
+      : t(trackingCopy(code.replace(/^YOUTUBE_/, ""), "YOUTUBE"));
+  };
   useEffect(() => {
     if (entryMode !== "YOUTUBE") return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -126,7 +221,41 @@ export function AddEntry({
         <button type="button" className="button button-secondary" disabled={busy} onClick={() => setEntryMode("LOCAL")}>{t("Local files")}</button>
         <button type="button" className="button button-secondary" disabled={busy} onClick={() => setEntryMode("PASTE")}>{zh ? "粘贴文本/笔记" : "Paste text"}</button>
       </div>
-      <p>{t("Paste a YouTube or Bilibili link. We will recognize it before you add it.")}</p>
+      <div className="batch-mode-bar">
+        <p>
+          {batchMode
+            ? zh
+              ? "最多可批量粘贴 10 条 YouTube 或 B 站链接（每行一条）。"
+              : "Paste up to 10 YouTube or Bilibili links (one per line)."
+            : t("Paste a YouTube or Bilibili link. We will recognize it before you add it.")}
+        </p>
+        <button
+          type="button"
+          className="button button-ghost button-small batch-mode-toggle"
+          disabled={busy}
+          onClick={() => {
+            setError(null);
+            setBatchSummary(null);
+            setBatchRunState({});
+            setBatchMode((prev) => {
+              const next = !prev;
+              if (next && !batchText.trim() && input.trim()) {
+                setBatchText(input.trim());
+              }
+              return next;
+            });
+          }}
+        >
+          {batchMode
+            ? zh
+              ? "切换单条输入"
+              : "Single link"
+            : zh
+              ? "批量粘贴多条"
+              : "Batch paste"}
+        </button>
+      </div>
+      {!batchMode ? (
       <form onSubmit={async event => {
         event.preventDefault(); if (busy) return;
         if (!recognized) { setError(invalidLinkCopy); return; }
@@ -155,7 +284,21 @@ export function AddEntry({
           setError(code.includes("INVALID") || code.includes("UNSUPPORTED") ? invalidLinkCopy : recognized.kind === "BILIBILI_VIDEO" ? bilibiliStatus(code) : trackingCopy(code.replace(/^YOUTUBE_/, ""), "YOUTUBE"));
         } finally { setBusy(false); }
       }}>
-        <label className="field">{t("Paste link")}<input autoFocus aria-label={t("Paste link")} value={input} maxLength={2048} disabled={busy} onChange={event => { setInput(event.target.value); setError(null); }} placeholder={zh ? "粘贴 YouTube 视频/频道链接，或 B 站 BV 链接" : "https://www.youtube.com/watch?v=..., @channel, or BV..."} /></label>
+        <label className="field">{t("Paste link")}<input autoFocus aria-label={t("Paste link")} value={input} maxLength={2048} disabled={busy} onPaste={event => {
+          const pasted = event.clipboardData?.getData("text") ?? "";
+          if (/[\r\n]/.test(pasted)) {
+            const preview = parseBatchLinks(pasted);
+            if (preview.validItems.length >= 2) {
+              event.preventDefault();
+              const combined = input.trim() && !pasted.includes(input.trim()) ? `${input.trim()}\n${pasted}` : pasted;
+              setBatchText(combined);
+              setBatchMode(true);
+              setBatchRunState({});
+              setBatchSummary(null);
+              setError(null);
+            }
+          }
+        }} onChange={event => { setInput(event.target.value); setError(null); }} placeholder={zh ? "粘贴 YouTube 视频/频道链接，或 B 站 BV 链接" : "https://www.youtube.com/watch?v=..., @channel, or BV..."} /></label>
         {recognized && <p className="semantic-state state-neutral" role="status">{zh ? "✓ 已识别 · " : "✓ Recognized · "}{t(confirmation[recognized.kind])}</p>}
         {!recognized && !error && input.trim().length > 0 && <p className="hint" role="status">{linkHint(input, zh)}</p>}
         {recognized?.kind === "YOUTUBE_CHANNEL" && <fieldset disabled={busy} className="processing-modes"><legend>{t("When new content is found")}</legend>
@@ -168,6 +311,157 @@ export function AddEntry({
           <button type="button" className="button button-secondary" disabled={busy} onClick={() => setEntryMode("LOCAL")}>{t("Import local file")}</button>
         </div>
       </form>
+      ) : (
+      <form onSubmit={async event => {
+        event.preventDefault();
+        if (busy || parsedBatch.validItems.length === 0) return;
+        setBusy(true);
+        setError(null);
+        setBatchSummary(null);
+        const initialState: Record<string, { status: "pending" | "running" | "done" | "error"; detail?: string }> = {};
+        for (const item of parsedBatch.validItems) {
+          initialState[item.recognized.canonical] = { status: "pending" };
+        }
+        setBatchRunState(initialState);
+        let succeeded = 0;
+        let failed = 0;
+        let lastContentId: string | undefined;
+        try {
+          for (const item of parsedBatch.validItems) {
+            const key = item.recognized.canonical;
+            setBatchRunState((prev) => ({ ...prev, [key]: { status: "running" } }));
+            try {
+              if (item.recognized.kind === "YOUTUBE_CHANNEL") {
+                await post("/sources/channels", { input: key, processing_mode: mode });
+              } else if (item.recognized.kind === "BILIBILI_VIDEO") {
+                const response = await post<{ import: { content_id: string } }>("/bilibili/imports", { input: key });
+                lastContentId = response.import.content_id;
+              } else {
+                const response = await post<{ source: { video_id: string } }>("/sources/import", { url: key, command_id: crypto.randomUUID() });
+                lastContentId = response.source.video_id;
+              }
+              succeeded += 1;
+              setBatchRunState((prev) => ({ ...prev, [key]: { status: "done" } }));
+            } catch (reason) {
+              failed += 1;
+              setBatchRunState((prev) => ({
+                ...prev,
+                [key]: { status: "error", detail: formatBatchApiError(reason, item.recognized.kind) },
+              }));
+            }
+          }
+          setBatchSummary({ succeeded, failed, lastContentId });
+        } finally {
+          setBusy(false);
+        }
+      }}>
+        <label className="field">
+          {zh ? "批量链接（每行一条，最多 10 条）" : "Batch links (one per line, up to 10)"}
+          <textarea
+            autoFocus
+            className="batch-links-textarea"
+            rows={5}
+            aria-label={zh ? "批量链接（每行一条，最多 10 条）" : "Batch links (one per line, up to 10)"}
+            value={batchText}
+            disabled={busy}
+            placeholder={zh ? "每行粘贴一条 YouTube 视频、频道/@用户名，或 B 站 BV 链接…" : "Paste up to 10 YouTube video/channel URLs, @handles, or Bilibili BV links…"}
+            onChange={(event) => {
+              setBatchText(event.target.value);
+              setBatchRunState({});
+              setBatchSummary(null);
+              setError(null);
+            }}
+          />
+        </label>
+        {batchText.trim().length > 0 && (
+          <p className="semantic-state state-neutral batch-preview-summary" role="status">
+            {zh
+              ? `已识别 ${parsedBatch.validItems.length} 条可导入${parsedBatch.invalidCount > 0 ? ` · ${parsedBatch.invalidCount} 条未识别` : ""}${parsedBatch.duplicateCount > 0 ? ` · 已去重 ${parsedBatch.duplicateCount} 条` : ""}${parsedBatch.truncatedCount > 0 ? ` · 超出上限跳过 ${parsedBatch.truncatedCount} 条` : ""}`
+              : `${parsedBatch.validItems.length} recognized${parsedBatch.invalidCount > 0 ? ` · ${parsedBatch.invalidCount} invalid` : ""}${parsedBatch.duplicateCount > 0 ? ` · ${parsedBatch.duplicateCount} duplicates removed` : ""}${parsedBatch.truncatedCount > 0 ? ` · ${parsedBatch.truncatedCount} over 10-link cap skipped` : ""}`}
+          </p>
+        )}
+        {parsedBatch.items.length > 0 && (
+          <ul className="batch-preview-list" aria-label={zh ? "批量链接识别队列" : "Batch link recognition queue"}>
+            {parsedBatch.items.map((item, idx) => {
+              const key = item.recognized ? item.recognized.canonical : `invalid-${idx}-${item.raw}`;
+              const run = item.recognized ? batchRunState[item.recognized.canonical] : undefined;
+              return (
+                <li key={key} className={`batch-preview-item${item.recognized ? "" : " is-invalid"}`}>
+                  <span className={`batch-kind-pill${item.recognized ? "" : " is-invalid"}`}>
+                    {item.recognized ? batchKindLabel(item.recognized.kind) : zh ? "未识别" : "Invalid"}
+                  </span>
+                  <span className="batch-preview-target">{item.recognized ? item.recognized.canonical : item.raw}</span>
+                  {run && (
+                    <span className={`batch-status-pill is-${run.status}`}>
+                      {run.status === "pending"
+                        ? zh
+                          ? "排队中"
+                          : "Queued"
+                        : run.status === "running"
+                          ? zh
+                            ? "导入中…"
+                            : "Importing…"
+                          : run.status === "done"
+                            ? zh
+                              ? "✓ 已加入"
+                              : "✓ Added"
+                            : run.detail
+                              ? `✗ ${run.detail}`
+                              : zh
+                                ? "✗ 失败"
+                                : "✗ Failed"}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {batchHasChannel && (
+          <fieldset disabled={busy} className="processing-modes"><legend>{t("When new content is found")}</legend>
+            <label><input type="radio" name="batch-processing-mode" checked={mode === "ORGANIZE_CONTENT"} onChange={() => setMode("ORGANIZE_CONTENT")} /> {t("Organize content")}<small>{t("Automatically save new content with readable summaries and verifiable source references.")}</small></label>
+            <label><input type="radio" name="batch-processing-mode" checked={mode === "EXTRACT_INTELLIGENCE"} onChange={() => setMode("EXTRACT_INTELLIGENCE")} /> {t("Also extract Intelligence")}<small>{t("After organizing content, consider which information deserves lasting knowledge. A qualified model and any required consent are needed.")}</small></label>
+          </fieldset>
+        )}
+        {batchSummary && (
+          <div className="batch-run-summary" role="status" aria-live="polite">
+            <p>
+              {zh
+                ? `批量导入完成：${batchSummary.succeeded} 条成功，${batchSummary.failed} 条失败。`
+                : `Batch complete: ${batchSummary.succeeded} succeeded, ${batchSummary.failed} failed.`}
+            </p>
+            <div className="button-row">
+              <a className="button button-secondary" href="#Content" onClick={onSaved}>
+                {zh ? "打开内容库" : "Open Content"}
+              </a>
+              <button type="button" className="button button-primary" onClick={onSaved}>
+                {t("Done")}
+              </button>
+            </div>
+          </div>
+        )}
+        {!batchSummary && (
+          <div className="button-row">
+            <button
+              type="submit"
+              className="button button-primary"
+              disabled={busy || parsedBatch.validItems.length === 0}
+            >
+              {busy
+                ? zh
+                  ? "正在依次导入…"
+                  : "Importing queue…"
+                : zh
+                  ? `开始批量导入 (${parsedBatch.validItems.length})`
+                  : `Import batch (${parsedBatch.validItems.length})`}
+            </button>
+            <button type="button" className="button button-secondary" disabled={busy} onClick={() => setEntryMode("LOCAL")}>
+              {t("Import local file")}
+            </button>
+          </div>
+        )}
+      </form>
+      )}
       <p className="hint">
         {zh
           ? "B 站与本地文件国内直连即可使用；YouTube 链接需当前网络可访问 YouTube。"
