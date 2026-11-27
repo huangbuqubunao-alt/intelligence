@@ -44,3 +44,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Following`）**：
   - 确认加载最新构建资源 `index-DvYVt2RR.js` 与 `index-GAUoG3-z.css`（HTTP `200`）；点击导出 `following-signal-audit-2026-11-27.md`（912 bytes）并展示 `已导出信源体检 (.md · 3 个信源)。`；搜索 `Atlas` 精准过滤至 1 条，零匹配搜索后点击「清空搜索」无损恢复；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Following Dark](./screenshots/iter-38/iter38_following_dark.png)、[Following Light](./screenshots/iter-38/iter38_following_light.png)、[Following Mobile](./screenshots/iter-38/iter38_following_mobile.png)。
+
+## Iteration 39 (`EVO-W7-04`) — `#Research` Pinned-Only Filter & Save Grounded Answer to Source Note
+
+- **解决的用户问题**：在 `#Research` 积累多条跨视频问答后，用户缺少一键聚焦「已置顶问答」的历史过滤开关；同时高价值的研究结论难以直接反哺写回对应被引用视频的个人批注中。
+- **核心改动**：
+  1. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：在「历史跨视频问答」标题栏新增仅当存在置顶记录时才显示的「仅看置顶 (N)」开关（置于 `.ai-session-history` 列表外侧以完全兼容既有键盘与排序契约，联动筛选面板与研究汇编导出）。
+  2. 在非拒答且具备至少 1 条已核验引用的问答动作栏新增「摘录进来源批注」按钮，点击后零后端调用即以幂等引用格式追加至首要引用视频的个人思考批注中并提示目标篇名（对拒答/零引用回答严格隐藏）。
+- **自动化验证**：
+  - 新增 [EvolutionIter39.test.tsx](../../../frontend/src/workspace/EvolutionIter39.test.tsx)（1 passed，验证仅看置顶过滤、零 `/research/ask` POST 反写来源批注、拒答隐藏按钮）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`916ms` (`assets/index-DCYJYqAq.js` / `assets/workspace-ai-hub-CUbqY7YM.js` / `assets/index-DIH8PVDv.css`)；Vitest：**97/97 files, 1358/1358 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Research`）**：
+  - 全程 `0` live `/research/ask` POST、`0` console/page/network 错误；点击「摘录进来源批注」反馈 `已将研究结论摘录进《Building High-Margin Local-First AI Tools Solo Builders Love》个人批注。`，置顶并开启「仅看置顶 (1)」精准收敛历史记录；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）。
+  - 实机截图归档：[Research Dark](./screenshots/iter-39/iter39_research_dark.png)、[Research Light](./screenshots/iter-39/iter39_research_light.png)、[Research Mobile](./screenshots/iter-39/iter39_research_mobile.png)。

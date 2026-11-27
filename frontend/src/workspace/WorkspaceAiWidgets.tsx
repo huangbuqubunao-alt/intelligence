@@ -12,6 +12,7 @@ import {
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
 import {
+  appendQuoteToPersonalNote,
   exportPersonalNotesJson,
   exportPersonalNotesMarkdown,
   importPersonalNotesJson,
@@ -3580,6 +3581,7 @@ export function WorkspaceAiResearchPanel({
   );
   const [followUpNotice, setFollowUpNotice] = useState<string | null>(null);
   const [sessionSearch, setSessionSearch] = useState("");
+  const [pinnedOnlyHistory, setPinnedOnlyHistory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sessionMutatingId, setSessionMutatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -3588,6 +3590,8 @@ export function WorkspaceAiResearchPanel({
   const [savingNote, setSavingNote] = useState(false);
   const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
   const [saveNoteError, setSaveNoteError] = useState<string | null>(null);
+  const [savedToSourceNote, setSavedToSourceNote] = useState(false);
+  const [sourceNoteFeedback, setSourceNoteFeedback] = useState<string | null>(null);
   const [dossierExportStatus, setDossierExportStatus] = useState<string | null>(null);
   const questionInputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -3606,6 +3610,8 @@ export function WorkspaceAiResearchPanel({
     setSavingNote(false);
     setSavedNoteId(null);
     setSaveNoteError(null);
+    setSavedToSourceNote(false);
+    setSourceNoteFeedback(null);
   }, [activeSession?.session_id]);
 
   const exportResearchDossier = (targetSessions: AiResearchSession[]) => {
@@ -4018,17 +4024,19 @@ export function WorkspaceAiResearchPanel({
     questionInputRef.current?.focus();
   };
 
+  const pinnedSessionCount = sessions.filter((s) => Boolean(s.pinned)).length;
+  const effectivePinnedOnly = pinnedOnlyHistory && pinnedSessionCount > 0;
   const trimmedHistoryQuery = sessionSearch.trim().toLowerCase();
-  const filteredSessions = trimmedHistoryQuery
-    ? sessions.filter((s) => {
-        const citeText = s.citations
-          .map((c) => `${c.video_title} ${c.channel_name}`)
-          .join(" ");
-        return `${s.question} ${s.scope_label_zh} ${s.answer_zh} ${citeText}`
-          .toLowerCase()
-          .includes(trimmedHistoryQuery);
-      })
-    : sessions;
+  const filteredSessions = sessions.filter((s) => {
+    if (effectivePinnedOnly && !s.pinned) return false;
+    if (!trimmedHistoryQuery) return true;
+    const citeText = s.citations
+      .map((c) => `${c.video_title} ${c.channel_name}`)
+      .join(" ");
+    return `${s.question} ${s.scope_label_zh} ${s.answer_zh} ${citeText}`
+      .toLowerCase()
+      .includes(trimmedHistoryQuery);
+  });
 
   return (
     <section
@@ -5021,6 +5029,39 @@ export function WorkspaceAiResearchPanel({
                 </button>
               )
             ) : null}
+            {!activeSession.refused &&
+            activeSession.citations.some((c) => c.verified !== false && Boolean(c.video_id)) ? (
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                onClick={(event) => {
+                  const primaryCite =
+                    activeSession.citations.find((c) => c.verified !== false && Boolean(c.video_id)) ??
+                    activeSession.citations[0];
+                  if (!primaryCite?.video_id) return;
+                  pulseCelebration(event.currentTarget);
+                  const quote = zh
+                    ? `> 【跨视频研究结论】${activeSession.question.trim()}\n> ${activeSession.answer_zh.trim()}\n— 出自 [${primaryCite.ref_label}] 《${primaryCite.video_title}》 (${primaryCite.timestamp_label})`
+                    : `> [Cross-Source Conclusion] ${activeSession.question.trim()}\n> ${activeSession.answer_zh.trim()}\n— From [${primaryCite.ref_label}] "${primaryCite.video_title}" (${primaryCite.timestamp_label})`;
+                  appendQuoteToPersonalNote(primaryCite.video_id, quote);
+                  setSavedToSourceNote(true);
+                  setSourceNoteFeedback(
+                    zh
+                      ? `已将研究结论摘录进《${primaryCite.video_title}》个人批注。`
+                      : `Saved conclusion into "${primaryCite.video_title}" personal notes.`,
+                  );
+                }}
+              >
+                <PhosphorIcon name="quotes" size={13} />
+                {savedToSourceNote
+                  ? zh
+                    ? "已摘录进来源批注 ✓"
+                    : "Saved to source note ✓"
+                  : zh
+                    ? "摘录进来源批注"
+                    : "Save to source note"}
+              </button>
+            ) : null}
             <button
               type="button"
               className={`button button-small ${activeSession.pinned ? "button-saved" : "button-ghost"}`}
@@ -5054,6 +5095,11 @@ export function WorkspaceAiResearchPanel({
               {zh ? "删除问答" : "Delete Q&A"}
             </button>
           </div>
+          {sourceNoteFeedback ? (
+            <p className="ai-source-note-feedback" role="status" aria-live="polite">
+              {sourceNoteFeedback}
+            </p>
+          ) : null}
           {saveNoteError ? (
             <p className="form-error" role="alert" style={{ marginTop: "8px" }}>
               {saveNoteError}
@@ -5064,20 +5110,42 @@ export function WorkspaceAiResearchPanel({
 
       {sessions.length >= 1 ? (
         <>
+          <div className="ai-session-history-head">
+            <h4>{zh ? "历史跨视频问答" : "Recent AI Q&A sessions"}</h4>
+            {pinnedSessionCount > 0 || sessions.length >= 3 ? (
+              <div className="ai-session-history-controls">
+                {pinnedSessionCount > 0 ? (
+                  <button
+                    type="button"
+                    className={`ai-question-chip tabular-nums${effectivePinnedOnly ? " is-active" : ""}`}
+                    aria-pressed={effectivePinnedOnly}
+                    onClick={() => setPinnedOnlyHistory((prev) => !prev)}
+                  >
+                    <PhosphorIcon
+                      name="push-pin"
+                      weight={effectivePinnedOnly ? "fill" : "regular"}
+                      size={11}
+                    />
+                    {" "}
+                    {zh
+                      ? `仅看置顶 (${pinnedSessionCount})`
+                      : `Pinned only (${pinnedSessionCount})`}
+                  </button>
+                ) : null}
+                {sessions.length >= 3 ? (
+                  <input
+                    type="search"
+                    className="ai-session-search-input"
+                    aria-label={zh ? "筛选历史问答" : "Filter Q&A history"}
+                    placeholder={zh ? "筛选历史问题或频道…" : "Filter past Q&A…"}
+                    value={sessionSearch}
+                    onChange={(e) => setSessionSearch(e.target.value)}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
           <div className="ai-session-history">
-            <div className="ai-session-history-head">
-              <h4>{zh ? "历史跨视频问答" : "Recent AI Q&A sessions"}</h4>
-              {sessions.length >= 3 ? (
-                <input
-                  type="search"
-                  className="ai-session-search-input"
-                  aria-label={zh ? "筛选历史问答" : "Filter Q&A history"}
-                  placeholder={zh ? "筛选历史问题或频道…" : "Filter past Q&A…"}
-                  value={sessionSearch}
-                  onChange={(e) => setSessionSearch(e.target.value)}
-                />
-              ) : null}
-            </div>
             {filteredSessions.length > 0 ? (
               <div className="ai-suggested-pills">
                 {filteredSessions.map((s) => {
