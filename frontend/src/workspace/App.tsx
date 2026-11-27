@@ -23,6 +23,15 @@ import {
   type ReadingHistoryEntry,
 } from "./readingHistory";
 import {
+  deleteSavedContentView,
+  matchesSavedContentView,
+  readSavedContentViews,
+  saveContentView,
+  SAVED_VIEWS_CHANGED_EVENT,
+  suggestSavedViewName,
+  type SavedContentView,
+} from "./savedViews";
+import {
   PERSONAL_NOTES_CHANGED_EVENT,
   type PersonalTagCount,
   appendQuoteToPersonalNote,
@@ -4414,6 +4423,20 @@ function ContentPage(
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [copiedSelectedDigest, setCopiedSelectedDigest] = useState(false);
   const [batchStarBusy, setBatchStarBusy] = useState(false);
+  const [savedViews, setSavedViews] = useState<SavedContentView[]>(() =>
+    readSavedContentViews(),
+  );
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [saveViewNameDraft, setSaveViewNameDraft] = useState("");
+  useEffect(() => {
+    const syncViews = () => setSavedViews(readSavedContentViews());
+    window.addEventListener(SAVED_VIEWS_CHANGED_EVENT, syncViews);
+    window.addEventListener("storage", syncViews);
+    return () => {
+      window.removeEventListener(SAVED_VIEWS_CHANGED_EVENT, syncViews);
+      window.removeEventListener("storage", syncViews);
+    };
+  }, []);
   const [notedVideoIds, setNotedVideoIds] = useState<Set<string>>(() => listPersonalNoteVideoIds());
   const [personalNotesMap, setPersonalNotesMap] = useState<Record<string, PersonalNote>>(() =>
     readAllPersonalNotes(),
@@ -5422,6 +5445,26 @@ function ContentPage(
     setTopicFilter("ALL");
     setTagFilter("ALL");
     setProviderFilter("ALL");
+    setSaveViewOpen(false);
+  };
+  const currentFilterCriteria = {
+    searchQuery,
+    providerFilter,
+    bucketFilter,
+    topicFilter,
+    channelFilter,
+    tagFilter,
+  };
+  const matchedSavedViewId =
+    savedViews.find((view) => matchesSavedContentView(view, currentFilterCriteria))?.id ?? null;
+  const applySavedView = (view: SavedContentView) => {
+    setSearchQuery(view.searchQuery);
+    setProviderFilter(view.providerFilter);
+    setBucketFilter(view.bucketFilter);
+    setTopicFilter(view.topicFilter);
+    setChannelFilter(view.channelFilter);
+    setTagFilter(view.tagFilter);
+    setSaveViewOpen(false);
   };
   const effectiveKbActiveId =
     kbActiveId && primaryIds.includes(kbActiveId) ? kbActiveId : (primaryIds[0] ?? null);
@@ -5877,6 +5920,47 @@ function ContentPage(
               </div>
             )}
           </div>
+          {savedViews.length > 0 ? (
+            <div
+              className="content-saved-views-strip"
+              role="group"
+              aria-label={language === "zh-CN" ? "已保存常用视图" : "Saved filter views"}
+            >
+              <span className="content-tag-filter-label">
+                {language === "zh-CN" ? "常用视图：" : "Saved views:"}
+              </span>
+              {savedViews.map((view) => {
+                const isActive = matchedSavedViewId === view.id;
+                return (
+                  <span
+                    key={view.id}
+                    className={`content-saved-view-pill${isActive ? " is-active" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="content-saved-view-select"
+                      aria-pressed={isActive}
+                      onClick={() => applySavedView(view)}
+                    >
+                      {view.name}
+                    </button>
+                    <button
+                      type="button"
+                      className="content-saved-view-delete"
+                      aria-label={
+                        language === "zh-CN"
+                          ? `删除常用视图 ${view.name}`
+                          : `Delete saved view ${view.name}`
+                      }
+                      onClick={() => setSavedViews(deleteSavedContentView(view.id))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
           {(personalTagCounts.length > 0 || tagFilter !== "ALL") ? (
             <div
               className="content-tag-filter-strip"
@@ -6012,8 +6096,8 @@ function ContentPage(
             hasCustomResearchScope &&
             filteredQuestionVideoIds.length > 0) ||
             (onAskStarredResearch && totalStarredCount > 0) ||
-            (bucketFilter !== "SHORTS" && unreadInViewIds.length > 0) ||
-            (hasActiveContentFilter && filteredVideos.length > 0))) ||
+            (bucketFilter !== "SHORTS" && unreadInViewIds.length > 0))) ||
+            hasActiveContentFilter ||
             selectablePrimaryIds.length > 0) ? (
             <div className="library-batch-actions tabular-nums">
               {selectablePrimaryIds.length > 0 ? (
@@ -6081,6 +6165,27 @@ function ContentPage(
                     : `Mark view read (${unreadInViewIds.length})`}
                 </button>
               ) : null}
+              {hasActiveContentFilter ? (
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  aria-expanded={saveViewOpen}
+                  onClick={() => {
+                    setSaveViewOpen((open) => {
+                      const next = !open;
+                      if (next) {
+                        setSaveViewNameDraft(
+                          suggestSavedViewName(currentFilterCriteria, language === "zh-CN"),
+                        );
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <PhosphorIcon name="bookmark-simple" size={13} />
+                  {language === "zh-CN" ? "保存视图" : "Save view"}
+                </button>
+              ) : null}
               {hasActiveContentFilter && filteredVideos.length > 0 ? (
                 <button
                   type="button"
@@ -6091,6 +6196,44 @@ function ContentPage(
                 </button>
               ) : null}
             </div>
+          ) : null}
+          {saveViewOpen && hasActiveContentFilter ? (
+            <form
+              className="content-save-view-popover"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSavedViews(
+                  saveContentView(
+                    {
+                      ...currentFilterCriteria,
+                      name: saveViewNameDraft,
+                    },
+                    language === "zh-CN",
+                  ),
+                );
+                setSaveViewOpen(false);
+              }}
+            >
+              <input
+                type="text"
+                className="content-save-view-input"
+                aria-label={language === "zh-CN" ? "常用视图名称" : "Saved view name"}
+                placeholder={language === "zh-CN" ? "输入视图名称…" : "View name…"}
+                maxLength={40}
+                value={saveViewNameDraft}
+                onChange={(event) => setSaveViewNameDraft(event.target.value)}
+              />
+              <button type="submit" className="button button-primary button-small">
+                {language === "zh-CN" ? "保存" : "Save"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => setSaveViewOpen(false)}
+              >
+                {language === "zh-CN" ? "取消" : "Cancel"}
+              </button>
+            </form>
           ) : null}
             </div>
           ) : null}
