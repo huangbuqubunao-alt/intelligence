@@ -46,12 +46,14 @@ import {
   appendQuoteToPersonalNote,
   batchAddPersonalTags,
   consumePendingContentTag,
+  deletePersonalTag,
   listPersonalNoteVideoIds,
   listPersonalTagCounts,
   mergePersonalNoteIntoMarkdown,
   type PersonalNote,
   readAllPersonalNotes,
   readPersonalNote,
+  renamePersonalTag,
   setPendingContentTag,
 } from "./personalNotes";
 import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
@@ -10129,6 +10131,9 @@ function Topics({
   const [topicSearch, setTopicSearch] = useState("");
   const [topicSortMode, setTopicSortMode] = useState<"newest" | "count" | "score">("newest");
   const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [managingTags, setManagingTags] = useState(false);
+  const [tagDrafts, setTagDrafts] = useState<Record<string, string>>({});
+  const [tagActionFeedback, setTagActionFeedback] = useState<string | null>(null);
   const selectTopic = (nextId: string | null) => {
     setSelected(nextId);
     onHashTargetChange?.(nextId);
@@ -10189,24 +10194,110 @@ function Topics({
       >
         <div className="topics-personal-tags-head">
           <strong>{zh ? "我的自建标签" : "My Personal Tags"}</strong>
-          <small className="tabular-nums">
-            {zh
-              ? `共 ${personalTagCounts.length} 个标签 · 点击按标签聚焦内容`
-              : `${personalTagCounts.length} tag(s) · Click to filter Content`}
-          </small>
-        </div>
-        <div className="topics-personal-tags-chips">
-          {personalTagCounts.map((entry) => (
+          <div className="topics-personal-tags-head-actions">
+            <small className="tabular-nums">
+              {zh
+                ? `共 ${personalTagCounts.length} 个标签 · 点击按标签聚焦内容`
+                : `${personalTagCounts.length} tag(s) · Click to filter Content`}
+            </small>
             <button
-              key={entry.tag}
               type="button"
-              className="content-tag-chip tabular-nums"
-              onClick={() => onBrowsePersonalTag?.(entry.tag)}
+              className="button button-ghost button-small"
+              aria-expanded={managingTags}
+              onClick={() => {
+                setManagingTags((prev) => !prev);
+                setTagActionFeedback(null);
+              }}
             >
-              #{entry.tag} ({entry.count})
+              {managingTags ? (zh ? "完成管理" : "Done") : zh ? "管理标签" : "Manage tags"}
             </button>
-          ))}
+          </div>
         </div>
+        {!managingTags ? (
+          <div className="topics-personal-tags-chips">
+            {personalTagCounts.map((entry) => (
+              <button
+                key={entry.tag}
+                type="button"
+                className="content-tag-chip tabular-nums"
+                onClick={() => onBrowsePersonalTag?.(entry.tag)}
+              >
+                #{entry.tag} ({entry.count})
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div
+            className="topics-personal-tags-manager"
+            role="list"
+            aria-label={zh ? "标签治理列表" : "Tag governance list"}
+          >
+            {personalTagCounts.map((entry) => {
+              const draft = tagDrafts[entry.tag] ?? entry.tag;
+              const cleanDraft = draft.trim().replace(/^#+/, "");
+              const canRename = cleanDraft.length > 0 && cleanDraft !== entry.tag;
+              return (
+                <div className="topics-tag-manage-row" role="listitem" key={entry.tag}>
+                  <span className="topics-tag-manage-name tabular-nums">
+                    #{entry.tag} ({entry.count})
+                  </span>
+                  <input
+                    type="text"
+                    className="topics-tag-manage-input"
+                    aria-label={zh ? `重命名标签 ${entry.tag}` : `Rename tag ${entry.tag}`}
+                    value={draft}
+                    maxLength={32}
+                    onChange={(event) =>
+                      setTagDrafts((prev) => ({ ...prev, [entry.tag]: event.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    disabled={!canRename}
+                    onClick={() => {
+                      const res = renamePersonalTag(entry.tag, draft);
+                      if (res.affectedCount > 0) {
+                        setTagDrafts((prev) => {
+                          const next = { ...prev };
+                          delete next[entry.tag];
+                          return next;
+                        });
+                        setTagActionFeedback(
+                          zh
+                            ? `已将 #${entry.tag} 重命名/合并为 #${res.targetTag}（更新 ${res.affectedCount} 篇）。`
+                            : `Merged #${entry.tag} into #${res.targetTag} (${res.affectedCount} note(s)).`,
+                        );
+                      }
+                    }}
+                  >
+                    {zh ? "重命名 / 合并" : "Rename / Merge"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    aria-label={zh ? `删除标签 ${entry.tag}` : `Delete tag ${entry.tag}`}
+                    onClick={() => {
+                      const res = deletePersonalTag(entry.tag);
+                      setTagActionFeedback(
+                        zh
+                          ? `已从 ${res.affectedCount} 篇内容移除标签 #${entry.tag}（批注正文已保留）。`
+                          : `Removed #${entry.tag} from ${res.affectedCount} note(s) (text preserved).`,
+                      );
+                    }}
+                  >
+                    {zh ? "删除" : "Delete"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {tagActionFeedback ? (
+          <p className="topics-tag-manage-feedback" role="status" aria-live="polite">
+            {tagActionFeedback}
+          </p>
+        ) : null}
       </section>
     ) : null;
     if (!allTopics.length) {

@@ -7274,6 +7274,51 @@ input[type="radio"] {
   gap: 6px 12px;
 }
 
+.topics-personal-tags-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.topics-personal-tags-manager {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.topics-tag-manage-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.topics-tag-manage-name {
+  min-width: 112px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.topics-tag-manage-input {
+  flex: 1 1 160px;
+  min-width: 120px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.topics-tag-manage-feedback {
+  margin: 0;
+  font-size: 12px;
+  color: var(--accent-ink);
+}
+
 .topics-personal-tags-head small {
   font-size: 12px;
   color: var(--text-muted);

@@ -197,6 +197,82 @@ export function batchAddPersonalTags(
   return { updatedCount, tagsAdded };
 }
 
+export function renamePersonalTag(
+  oldTag: string,
+  newTagRaw: string,
+): { affectedCount: number; targetTag: string } {
+  const oldClean = oldTag.trim().replace(/^#+/, "");
+  const [targetTag = ""] = normalizeNoteTags(newTagRaw);
+  if (!oldClean || !targetTag || oldClean === targetTag) {
+    return { affectedCount: 0, targetTag };
+  }
+  const oldLower = oldClean.toLowerCase();
+  const targetLower = targetTag.toLowerCase();
+  const store = readNoteStore();
+  const nowIso = new Date().toISOString();
+  let affectedCount = 0;
+
+  for (const [videoId, note] of Object.entries(store)) {
+    const hasOld = note.tags.some((t) => t.trim().toLowerCase() === oldLower);
+    if (!hasOld) continue;
+    const seen = new Set<string>();
+    const nextTags: string[] = [];
+    for (const tag of note.tags) {
+      const clean = tag.trim().replace(/^#+/, "");
+      if (!clean) continue;
+      const lower = clean.toLowerCase();
+      if (lower === oldLower) {
+        if (!seen.has(targetLower)) {
+          seen.add(targetLower);
+          nextTags.push(targetTag);
+        }
+      } else if (!seen.has(lower)) {
+        seen.add(lower);
+        nextTags.push(clean);
+      }
+    }
+    store[videoId] = {
+      text: note.text,
+      tags: nextTags.slice(0, 12),
+      updatedAt: nowIso,
+    };
+    affectedCount += 1;
+  }
+
+  if (affectedCount > 0) {
+    writeNoteStore(store);
+  }
+  return { affectedCount, targetTag };
+}
+
+export function deletePersonalTag(tagToDelete: string): { affectedCount: number } {
+  const cleanTarget = tagToDelete.trim().replace(/^#+/, "").toLowerCase();
+  if (!cleanTarget) return { affectedCount: 0 };
+  const store = readNoteStore();
+  const nowIso = new Date().toISOString();
+  let affectedCount = 0;
+
+  for (const [videoId, note] of Object.entries(store)) {
+    const nextTags = note.tags.filter((t) => t.trim().replace(/^#+/, "").toLowerCase() !== cleanTarget);
+    if (nextTags.length === note.tags.length) continue;
+    affectedCount += 1;
+    if (!note.text.trim() && nextTags.length === 0) {
+      delete store[videoId];
+    } else {
+      store[videoId] = {
+        text: note.text,
+        tags: nextTags,
+        updatedAt: nowIso,
+      };
+    }
+  }
+
+  if (affectedCount > 0) {
+    writeNoteStore(store);
+  }
+  return { affectedCount };
+}
+
 export function appendQuoteToPersonalNote(videoId: string, formattedQuote: string): PersonalNote | null {
   const quote = formattedQuote.trim();
   if (!videoId || !quote) return readPersonalNote(videoId);

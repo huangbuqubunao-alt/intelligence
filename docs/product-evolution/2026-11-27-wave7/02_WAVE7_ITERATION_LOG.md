@@ -18,3 +18,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Content`）**：
   - 确认加载最新构建资源 `index-D3a5bv9b.js` 与 `index-CEo4D2Uv.css`（HTTP `200`）；多选 2 篇内容执行批量打标签（`#Wave7验证 #架构设计`）并导出 `reading-pack-2026-11-27.md`（1834 bytes），顶部 `#tag` 胶囊与「有笔记」计数同步实时更新；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Content Dark](./screenshots/iter-36/iter36_content_dark.png)、[Content Light](./screenshots/iter-36/iter36_content_light.png)、[Content Mobile](./screenshots/iter-36/iter36_content_mobile.png)。
+
+## Iteration 37 (`EVO-W7-02`) — `#Topics` Personal Tag Governance (Rename / Merge & Delete)
+
+- **解决的用户问题**：用户在内容库积累多个自建 `#tag` 后容易产生同义标签碎片（如 `#Agent` 与 `#Agents`）或废弃临时标签；在 `#Topics` 缺少原地重命名、合并及只删标签不误删批注正文的治理机制。
+- **核心改动**：
+  1. [personalNotes.ts](../../../frontend/src/workspace/personalNotes.ts)：新增 `renamePersonalTag`（大小写无关安全替换并跨笔记去重合并，保留所有思考正文）与 `deletePersonalTag`（移除标签，仅当批注正文与剩余标签均为空时才清理空壳条目）。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：在「我的自建标签」卡片新增「管理标签 / 完成管理」切换按钮，默认浏览态保持极简，展开治理态后为每个标签提供行内重命名/合并输入与安全删除动作。
+- **自动化验证**：
+  - 新增 [EvolutionIter37.test.tsx](../../../frontend/src/workspace/EvolutionIter37.test.tsx)（3 passed，覆盖合并去重、删标签保留正文与 `#Topics` 治理面板 UI 交互）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`1.20s` (`assets/index-CdKfYk17.js` / `assets/index-DcWKGOfm.css`)；Vitest（4 进程平衡并发）：**95/95 files, 1355/1355 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Topics`）**：
+  - 确认加载最新构建资源 `index-CdKfYk17.js` 与 `index-DcWKGOfm.css`（HTTP `200`）；展开「管理标签」将 `#Wave7验证 (2)` 合并为 `#架构设计` 后标签计数精准收敛（5 → 4），并安全切回标签胶囊视图；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
+  - 实机截图归档：[Topics Dark](./screenshots/iter-37/iter37_topics_dark.png)、[Topics Light](./screenshots/iter-37/iter37_topics_light.png)、[Topics Mobile](./screenshots/iter-37/iter37_topics_mobile.png)。
