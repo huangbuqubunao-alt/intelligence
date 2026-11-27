@@ -1,14 +1,11 @@
-# Wave 8 检查点（Checkpoint）
+# Wave 8 检查点（Checkpoint — Codex PR #59 终审整改完成）
 
-- **当前波次**：Wave 8（Iter 42–44 全部完成，准备提交纯文档并推送 Draft PR）
-- **分支**：`antigravity/autonomous-product-evolution-wave8-20261127`
-- **基线来源（Wave 7 PR #58）**：`e1497b6707e09f6578601be57458e7b12f1ebffd`
+- **分支**：`antigravity/autonomous-product-evolution-wave8-20261127`（[PR #59](https://github.com/huangbuqubunao-alt/intelligence/pull/59)，Draft）
 - **仓库 `main` 基线**：`f7b97134a9fafd3e8e447851a4237bdc66f7e60e`（未触碰）
-- **VERIFIED_CODE_SHA**：`f3cd556357f48365a434a5812c52d1c50babb9b5`
-- **逐迭代提交清单**：
-  - `56c48782` — Wave 8 审计报告与优先级 Backlog
-  - `d9ec5439` — Iter 42 (`EVO-W8-01`)：首页「知识沉淀进度」聚合个人笔记 `- [ ]` 行动清单
-  - `206dc372` — Iter 43 (`EVO-W8-02`)：`Cmd+K` 直达已保存智能视图、学习镜像备份与标签治理
-  - `f3cd5563` — Iter 44 (`EVO-W8-03`)：阅读器笔记一键复制、交互式行动项勾选条、实时统计与全量双实机 QA
-- **验证证据**：`tsc` 0 错误、`vite build` `1.27s`、Vitest **102/102 文件（1366/1366 用例）通过**、Python 静态门禁全绿 + `pytest` 107 passed、双实机 Chromium（12 张截图归档）0 错误通过。
-- **下一步**：提交纯文档交付记录（`03_WAVE8_DELIVERY_REPORT.md` + `CHECKPOINT.md`），推送并创建 Draft PR #59，汇总结算全部 8 波成果并在 `19:00 Asia/Shanghai` 向项目所有者汇报。
+- **第 44 项整提交回退提交**：`f4da98e4`（已从当前分支清晰移除 `f3cd5563`）
+- **VERIFIED_CODE_SHA_R2**：`81c16adb1be072cb3353d4b7194a4b6fae947e80`
+- **已完成闭环**：
+  - 全部 4 项 P1（跨标签页并发同步防覆盖、501 条自导出快照完整恢复、无时间戳 v1 冲突保守保护、研究证据等级透传与多出处归属）
+  - 全部 10 项 P2 + P3-01（配额真实校验与部分失败反馈、前置 `File.size` 拦截、防抖落盘时态、多词标签重命名防截断、快捷键模态焦点陷阱、跨午夜主动回忆刷新、B 站作者契约强制断言、390px 首页日常操作前置与周报默认紧凑、YAML frontmatter 汇编标题修正）
+- **本地全量验证**：Vitest **102/102（1370/1370）通过**、Vite 构建 `889ms`、`ruff`/`mypy` 0 错误、6 个后端套件 **131 passed**、真实 Chrome 双标签页实机 **0 报错**。
+- **交付报告**：[01_CODEX_REVIEW_REMEDIATION_REPORT.md](../2026-11-28-pr59-remediation/01_CODEX_REVIEW_REMEDIATION_REPORT.md)
