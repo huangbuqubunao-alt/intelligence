@@ -92,3 +92,20 @@
   - 开启「多选对比」，跨源勾选 `demo-architecture-notes.md`（本地）+ `Deterministic State Machines for Production AI Agents`（YouTube）+ `本地优先知识库与反幻觉证据链实战架构`（B 站）；点击「对比提问 (3) →」无自动发问，直接点击「AI 提问」对默认草稿发起 `POST /api/v1/workspace-ai/research/ask` 返回 **`200 OK`**、`answer_status: GROUNDED`、`有效引用 3 条 · 覆盖来源 3 篇`（跨 YouTube + B 站 + 本地 `[E1] [E2] [E3]`）。
   - 验证 Warm Paper Light 与 `390x844` 移动端（`mobileOverflow: false`，工作台按钮自然换行无溢出）。
   - 实机截图归档：[Multiselect Dark](./screenshots/iter-16/step_6_shot_1_iter16_multiselect_dark.png)、[Multiselect Light](./screenshots/iter-16/step_8_shot_1_iter16_multiselect_light.png)、[Multiselect Mobile](./screenshots/iter-16/step_10_shot_1_iter16_multiselect_mobile.png)、[Research Cross-Source Grounded](./screenshots/iter-16/final_step_30_iter16_research_grounded.png)。
+
+---
+
+## Iteration 17 (`EVO-W3-06`) — 本机个人笔记 JSON 备份/恢复、`有笔记` 专属筛选与 Wave 3 全界面巡检收口
+
+- **解决的用户问题**：个人批注与标签仅存储在浏览器本机，缺少一键导出备份与跨环境合并恢复机制；同时当笔记积累增多后，用户在 `#Content` 无法一键筛出所有写过思考批注的内容。
+- **核心改动**：
+  1. [App.tsx](../../../frontend/src/workspace/App.tsx)：为 `#Content` 分流芯片与 `ContentFilterSnapshot` 新增按需出现的 `NOTED`（「有笔记」/「Noted」）分栏，当本机存在任意个人笔记时自动呈现并计数，点击即可聚焦全部已批注条目的内容阅读与导出。
+  2. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)：在 `#Settings`「知识库导出与快照」区域内置 `.personal-notes-backup-row`，实时统计本机笔记数量并支持一键导出 `intelligence-personal-notes-YYYY-MM-DD.json` 与按时间戳非破坏性合并导入恢复（含畸形 JSON 报错拦截）。
+  3. [styles.css](../../../frontend/src/workspace/styles.css)：为 `.personal-notes-backup-row` 适配深浅双主题与 `390px` 移动端排版；更新 [EvolutionIter14.test.tsx](../../../frontend/src/workspace/EvolutionIter14.test.tsx) 精准校验 `.content-note-badge`。
+- **自动化验证**：
+  - 新增 [EvolutionIter17.test.tsx](../../../frontend/src/workspace/EvolutionIter17.test.tsx)（2 passed，覆盖 `#Content`「有笔记」筛选分流与 `#Settings` 个人笔记 JSON 导出/合并导入/异常 JSON 拦截）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`807ms` (`assets/index-Dkl-0Uxz.js` / `assets/index-CZ-EQaXr.css` / `assets/workspace-ai-hub-C1tENCbQ.js`)；Vitest：**75/75 files, 1315/1315 passed**。
+- **Chromium 7 视图全界面 QA 巡检（`127.0.0.1:8799` Demo & `127.0.0.1:8796` 空库）**：
+  - 验证加载 `assets/index-Dkl-0Uxz.js`、`assets/index-CZ-EQaXr.css` & `assets/workspace-ai-hub-C1tENCbQ.js`（均 `200 OK`）；双实例全量页面 **0 console errors、0 pageerrors、0 HTTP >=400**。
+  - `#Content` 点击 `有笔记 (1)` 精准收敛到 `vidDemoAgt1`；`#Settings` 点击「导出个人笔记 (.json)」即时提示「已导出本机个人笔记与标签（共 1 条）。」；中英双语（`Noted` / `Personal notes & tags`）、Obsidian Dark / Warm Paper Light、`390x844` 移动端（`mobileOverflow: false`）与 `8796` 空工作台启动引导均完整通过。
+  - 实机截图归档：[Content Noted Dark](./screenshots/iter-17/step_6_iter17_content_noted_dark.png)、[Settings Notes Backup Dark](./screenshots/iter-17/step_8_iter17_settings_notes_backup_dark.png)、[Settings Notes Backup Light](./screenshots/iter-17/step_10_iter17_settings_notes_backup_light.png)、[Content Noted EN Light](./screenshots/iter-17/step_12_iter17_content_noted_en_light.png)、[Settings Mobile](./screenshots/iter-17/step_14_iter17_settings_mobile.png)、[Content Mobile](./screenshots/iter-17/step_18_iter17_content_mobile.png)、[Empty 8796 Home Desktop](./screenshots/iter-17/step_20_iter17_empty8796_home_desktop.png)、[Empty 8796 Home Mobile](./screenshots/iter-17/step_20_iter17_empty8796_home_mobile.png)。

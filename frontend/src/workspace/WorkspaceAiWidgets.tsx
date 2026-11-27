@@ -4,6 +4,12 @@ import { pulseCelebration } from "./motion";
 import { OpenResearchSource } from "./ResearchTypes";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
+import {
+  exportPersonalNotesJson,
+  importPersonalNotesJson,
+  listPersonalNoteVideoIds,
+  PERSONAL_NOTES_CHANGED_EVENT,
+} from "./personalNotes";
 
 export type VideoAiBrief = {
   video_id: string;
@@ -5040,6 +5046,64 @@ export function WorkspaceAiSettingsPanel({
   const [exportingObsidianZip, setExportingObsidianZip] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
+  const notesImportInputRef = useRef<HTMLInputElement | null>(null);
+  const [personalNoteCount, setPersonalNoteCount] = useState(() => listPersonalNoteVideoIds().size);
+  const [notesBackupFeedback, setNotesBackupFeedback] = useState<string | null>(null);
+  const [notesBackupError, setNotesBackupError] = useState<string | null>(null);
+  useEffect(() => {
+    const syncNoteCount = () => setPersonalNoteCount(listPersonalNoteVideoIds().size);
+    syncNoteCount();
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNoteCount);
+    window.addEventListener("storage", syncNoteCount);
+    return () => {
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNoteCount);
+      window.removeEventListener("storage", syncNoteCount);
+    };
+  }, []);
+  const handleExportPersonalNotes = () => {
+    setNotesBackupError(null);
+    const json = exportPersonalNotesJson();
+    const count = listPersonalNoteVideoIds().size;
+    setPersonalNoteCount(count);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.download = `intelligence-personal-notes-${stamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotesBackupFeedback(
+      zh
+        ? `已导出本机个人笔记与标签（共 ${count} 条）。`
+        : `Exported ${count} local personal note(s) and tags.`,
+    );
+  };
+  const handleImportPersonalNotes = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setNotesBackupFeedback(null);
+    setNotesBackupError(null);
+    try {
+      const raw = await file.text();
+      const result = importPersonalNotesJson(raw);
+      setPersonalNoteCount(result.totalCount);
+      setNotesBackupFeedback(
+        zh
+          ? `已合并导入 ${result.importedCount} 条个人笔记，当前本机共 ${result.totalCount} 条。`
+          : `Merged ${result.importedCount} personal note(s); total now ${result.totalCount}.`,
+      );
+    } catch {
+      setNotesBackupError(
+        zh
+          ? "未能导入个人笔记，请选择有效的 intelligence-personal-notes .json 备份文件。"
+          : "Could not import personal notes. Choose a valid personal-notes .json backup file.",
+      );
+    }
+  };
   const sectionRef = useRef<HTMLElement | null>(null);
   const dirtyRef = useRef(false);
   const [modeDraft, setModeDraft] = useState<"local_ollama" | "cloud_byok">(
@@ -5915,6 +5979,51 @@ export function WorkspaceAiSettingsPanel({
                 ? "导入并恢复快照 (.json)"
                 : "Restore (.json)"}
           </button>
+        </div>
+        <div
+          className="personal-notes-backup-row"
+          role="group"
+          aria-label={zh ? "本机个人笔记与标签备份" : "Local personal notes backup"}
+        >
+          <span className="personal-notes-backup-meta tabular-nums">
+            {zh ? `个人笔记与标签（本机 ${personalNoteCount} 条）` : `Personal notes & tags (${personalNoteCount} local)`}
+          </span>
+          <div className="button-row">
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={handleExportPersonalNotes}
+            >
+              <PhosphorIcon name="archive" size={13} />
+              {zh ? "导出个人笔记 (.json)" : "Export personal notes (.json)"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={() => notesImportInputRef.current?.click()}
+            >
+              <PhosphorIcon name="folder-open" size={13} />
+              {zh ? "导入个人笔记 (.json)" : "Import personal notes (.json)"}
+            </button>
+            <input
+              ref={notesImportInputRef}
+              type="file"
+              accept=".json,application/json"
+              hidden
+              aria-label={zh ? "选择个人笔记 JSON 文件" : "Choose personal notes JSON file"}
+              onChange={(event) => void handleImportPersonalNotes(event)}
+            />
+          </div>
+          {notesBackupFeedback ? (
+            <p className="semantic-state state-neutral" role="status">
+              {notesBackupFeedback}
+            </p>
+          ) : null}
+          {notesBackupError ? (
+            <p className="form-error" role="alert">
+              {notesBackupError}
+            </p>
+          ) : null}
         </div>
       </div>
     </section>

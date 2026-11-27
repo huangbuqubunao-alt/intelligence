@@ -1771,7 +1771,7 @@ export function App() {
 type ContentFilterSnapshot = {
   searchQuery: string;
   providerFilter: "ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL";
-  bucketFilter: "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS";
+  bucketFilter: "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED";
   topicFilter: string;
   channelFilter: string;
 };
@@ -4294,7 +4294,7 @@ function ContentPage(
     () => restoredContentRef.current?.providerFilter ?? "ALL",
   );
   const [bucketFilter, setBucketFilter] = useState<
-    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
+    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED"
   >(
     () =>
       consumePendingContentBucket() ||
@@ -4723,6 +4723,8 @@ function ContentPage(
       filterParts.push(language === "zh-CN" ? "已收藏" : "Starred");
     } else if (bucketFilter === "TUTORIAL") {
       filterParts.push(language === "zh-CN" ? "教程拆解" : "Tutorials");
+    } else if (bucketFilter === "NOTED") {
+      filterParts.push(language === "zh-CN" ? "有笔记" : "Noted");
     } else if (bucketFilter === "UNREAD") {
       filterParts.push(language === "zh-CN" ? "仅未读" : "Unread only");
     }
@@ -4755,6 +4757,9 @@ function ContentPage(
           return false;
         }
         if (bucketFilter === "TUTORIAL" && brief.content_bucket !== "TUTORIAL") {
+          return false;
+        }
+        if (bucketFilter === "NOTED" && !notedVideoIds.has(item.video_id)) {
           return false;
         }
         if (trimmedQuery) {
@@ -5091,6 +5096,8 @@ function ContentPage(
       if (!brief || !brief.starred) return false;
     } else if (bucketFilter === "TUTORIAL") {
       if (!brief || brief.content_bucket !== "TUTORIAL") return false;
+    } else if (bucketFilter === "NOTED") {
+      if (!notedVideoIds.has(item.video_id)) return false;
     } else if (bucketFilter === "SHORTS") {
       const isShort = brief
         ? brief.is_short_noise || brief.content_bucket === "SHORTS_PROMO"
@@ -5165,7 +5172,7 @@ function ContentPage(
     return matchesContentSearch(item, briefByVideoId.get(item.video_id) ?? null);
   });
   const bucketCounts: Record<
-    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS",
+    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED",
     number
   > = {
     ALL: providerAndTopicVideos.filter((item) => !isAutoFoldedItem(item)).length,
@@ -5184,6 +5191,7 @@ function ContentPage(
     TUTORIAL: providerAndTopicVideos.filter(
       (item) => briefByVideoId.get(item.video_id)?.content_bucket === "TUTORIAL",
     ).length,
+    NOTED: providerAndTopicVideos.filter((item) => notedVideoIds.has(item.video_id)).length,
     SHORTS: providerAndTopicVideos.filter((item) => {
       const b = briefByVideoId.get(item.video_id);
       const p = item.provider ?? "YOUTUBE";
@@ -5708,16 +5716,17 @@ function ContentPage(
                 role="group"
                 aria-label={language === "zh-CN" ? "内容价值分流" : "Value filter"}
               >
-                {(
-                  [
-                    ["ALL", language === "zh-CN" ? "全部" : "All"],
-                    ["UNREAD", language === "zh-CN" ? "未读干货" : "Unread"],
-                    ["MUST_WATCH", language === "zh-CN" ? "必看长视频" : "Must-watch"],
-                    ["STARRED", language === "zh-CN" ? "已收藏" : "Starred"],
-                    ["TUTORIAL", language === "zh-CN" ? "实操教程" : "Tutorials"],
-                    ["SHORTS", language === "zh-CN" ? "Shorts 短片" : "Shorts"],
-                  ] as const
-                ).map(([key, label]) => (
+                {([
+                  ["ALL", language === "zh-CN" ? "全部" : "All"],
+                  ["UNREAD", language === "zh-CN" ? "未读干货" : "Unread"],
+                  ["MUST_WATCH", language === "zh-CN" ? "必看长视频" : "Must-watch"],
+                  ["STARRED", language === "zh-CN" ? "已收藏" : "Starred"],
+                  ["TUTORIAL", language === "zh-CN" ? "实操教程" : "Tutorials"],
+                  ["SHORTS", language === "zh-CN" ? "Shorts 短片" : "Shorts"],
+                  ...(notedVideoIds.size > 0 || bucketFilter === "NOTED"
+                    ? ([["NOTED", language === "zh-CN" ? "有笔记" : "Noted"]] as const)
+                    : []),
+                ] as const).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"

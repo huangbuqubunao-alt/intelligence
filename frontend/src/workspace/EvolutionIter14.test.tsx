@@ -194,7 +194,8 @@ it("clips evidence quote into ReaderPersonalNoteCard, merges into Obsidian copy,
   firstView.unmount();
   location.hash = "#Content";
   render(<App />);
-  expect(await screen.findByText("有笔记")).toBeTruthy();
+  const notedNodes = await screen.findAllByText("有笔记");
+  expect(notedNodes.some((node) => node.classList.contains("content-note-badge"))).toBe(true);
 
   // Cleanup helper check
   savePersonalNote("vidNoteDemo", { text: "", tags: [] });
