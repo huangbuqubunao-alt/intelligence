@@ -13,6 +13,16 @@ import { ReaderReferenceDrawer, type ReaderDrawerTab } from "./ReaderReferenceDr
 import { ReaderDrawerSearchBar, formatSegmentQuote, highlightTextMatches, splitSearchableParagraphs } from "./ReaderSearchTools";
 import { ReaderPersonalNoteCard } from "./ReaderPersonalNoteCard";
 import {
+  clearReadingHistory,
+  estimateReadingMinutes,
+  readReaderComfortMode,
+  readReadingHistory,
+  recordReadingVisit,
+  writeReaderComfortMode,
+  READING_HISTORY_CHANGED_EVENT,
+  type ReadingHistoryEntry,
+} from "./readingHistory";
+import {
   PERSONAL_NOTES_CHANGED_EVENT,
   type PersonalTagCount,
   appendQuoteToPersonalNote,
@@ -2561,6 +2571,18 @@ function Dashboard(
   const [triageBusyId, setTriageBusyId] = useState<string | null>(null);
   const [sampleImportBusy, setSampleImportBusy] = useState(false);
   const [sampleImportError, setSampleImportError] = useState<string | null>(null);
+  const [recentReading, setRecentReading] = useState<ReadingHistoryEntry[]>(() =>
+    readReadingHistory(),
+  );
+  useEffect(() => {
+    const syncHistory = () => setRecentReading(readReadingHistory());
+    window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
+    window.addEventListener("storage", syncHistory);
+    return () => {
+      window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
+      window.removeEventListener("storage", syncHistory);
+    };
+  }, []);
   const isDemoMode = Boolean(data?.demo_mode);
   const [onboardingOverride, setOnboardingOverride] = useState<{ mode: boolean; done: boolean } | null>(null);
   const [replayingOnboarding, setReplayingOnboarding] = useState(false);
@@ -2589,6 +2611,59 @@ function Dashboard(
     hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0 || weeklyBrief !== null;
   const isFreshLibrary = data.operations?.source_count === 0 &&
     !intelligence.length && !topics.length && !hasWeeklyHistory && !attention.length;
+  const continueReadingPanel = recentReading.length > 0 ? (
+    <Panel
+      title={zh ? "最近阅读 · 继续精读" : "Continue Reading"}
+      icon="clock"
+      actions={
+        <button
+          type="button"
+          className="button button-ghost button-small"
+          onClick={() => clearReadingHistory()}
+        >
+          {zh ? "清空" : "Clear"}
+        </button>
+      }
+    >
+      <div className="recent-reading-list">
+        {recentReading.slice(0, 4).map((entry) => (
+          <button
+            type="button"
+            key={entry.videoId}
+            className="recent-reading-item"
+            onClick={() => openContent(entry.videoId)}
+          >
+            <div className="recent-reading-copy">
+              <strong>{entry.title}</strong>
+              <span>
+                {[
+                  entry.channelName ??
+                    (entry.provider === "LOCAL"
+                      ? zh
+                        ? "本地资料"
+                        : "Local"
+                      : null),
+                  entry.estimatedMinutes != null
+                    ? zh
+                      ? `约 ${entry.estimatedMinutes} 分钟`
+                      : `~${entry.estimatedMinutes} min`
+                    : null,
+                  entry.visitCount > 1
+                    ? zh
+                      ? `已读 ${entry.visitCount} 次`
+                      : `${entry.visitCount} visits`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </div>
+            <span className="recent-reading-cta">{zh ? "继续 →" : "Resume →"}</span>
+          </button>
+        ))}
+      </div>
+    </Panel>
+  ) : null;
   if (replayingOnboarding || (isFreshLibrary && !onboardingDone)) {
     return (
       <FirstRunOnboarding
@@ -2735,6 +2810,7 @@ function Dashboard(
             </p>
           ) : null}
         </Panel>
+        {continueReadingPanel}
       </div>
     );
   }
@@ -2952,6 +3028,7 @@ function Dashboard(
             </Panel>
           );
         })()}
+        {continueReadingPanel}
         <Panel title="Pinned Topics" icon="stack">
           {topics.length
             ? (
@@ -7039,6 +7116,8 @@ function ContentDetailPanel(
   const [transcriptSearch, setTranscriptSearch] = useState("");
   const [copiedSegmentKey, setCopiedSegmentKey] = useState<string | null>(null);
   const [personalNote, setPersonalNote] = useState<PersonalNote | null>(() => readPersonalNote(id));
+  const [comfortMode, setComfortMode] = useState<boolean>(() => readReaderComfortMode());
+  const recordedVisitVideoIdRef = useRef<string | null>(null);
   const [summaryVerbatim, setSummaryVerbatim] = useState(false);
   const [loadedEvidence, setLoadedEvidence] = useState<ContentEvidence[]>([]);
   const [sharedTranslations, setSharedTranslations] = useState<Record<string, { excerpt: string; language: "zh-CN" | "en" }>>({});
@@ -7101,6 +7180,28 @@ function ContentDetailPanel(
     const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [data]);
+  useEffect(() => {
+    if (!data?.video || data.video.video_id !== id || data.video.work_kind) return;
+    if (recordedVisitVideoIdRef.current === id) return;
+    recordedVisitVideoIdRef.current = id;
+    const textSample =
+      data.transcript.text?.trim() ||
+      data.transcript.timed_segments?.map((seg) => seg.text).filter(Boolean).join(" ") ||
+      readVideoAiBrief(data.video.ai_brief, data.video.duration_seconds)?.summary_zh ||
+      data.note.v2?.summary ||
+      "";
+    recordReadingVisit({
+      videoId: data.video.video_id,
+      title: data.video.title ?? data.video.video_id,
+      channelName: data.video.channel_name ?? null,
+      provider: data.video.provider ?? null,
+      mediaKind: data.video.media_kind ?? null,
+      estimatedMinutes: estimateReadingMinutes({
+        text: textSample,
+        durationSeconds: data.video.duration_seconds,
+      }),
+    });
+  }, [data, id]);
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data?.video || data.video.video_id !== id) return <Empty>Loading Content detail…</Empty>;
   if (data.video.work_kind) {
@@ -7191,6 +7292,16 @@ function ContentDetailPanel(
     !aiBrief ||
     (isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE");
   const zhReader = language === "zh-CN";
+  const transcriptTextForEstimate =
+    transcript.text?.trim() ||
+    transcript.timed_segments?.map((seg) => seg.text).filter(Boolean).join(" ") ||
+    aiBrief?.summary_zh ||
+    note?.summary ||
+    "";
+  const estimatedReadingMinutes = estimateReadingMinutes({
+    text: transcriptTextForEstimate,
+    durationSeconds: data.video.duration_seconds,
+  });
   const jumpItems = ([
     ["section-intelligence", "sparkle", "Jump · Intelligence"],
     ...(showSummaryPanel ? ([["section-summary", "file-text", "Jump · Summary"]] as const) : []),
@@ -7200,7 +7311,7 @@ function ContentDetailPanel(
   ] as const);
 
   return (
-    <div className="dashboard-stack reader-detail-stack">
+    <div className={`dashboard-stack reader-detail-stack detail-panel${comfortMode ? " is-reading-comfort" : ""}`}>
       <div className="reader-back-row">
         <button className="button button-ghost" onClick={onClose}>
           <PhosphorIcon name="arrow-left" size={14} />
@@ -7214,6 +7325,43 @@ function ContentDetailPanel(
               : `Active filter: ${activeFilterSummary}`}
           </span>
         ) : null}
+        <div className="reader-back-row-tools">
+          {estimatedReadingMinutes != null ? (
+            <span className="reader-read-time-pill tabular-nums">
+              <PhosphorIcon name="clock" size={12} />
+              {zhReader
+                ? `约 ${estimatedReadingMinutes} 分钟精读`
+                : `~${estimatedReadingMinutes} min read`}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className={`button button-ghost button-small reader-comfort-toggle${comfortMode ? " is-active" : ""}`}
+            aria-pressed={comfortMode}
+            aria-label={
+              comfortMode
+                ? zhReader
+                  ? "切回标准阅读排版"
+                  : "Switch to standard reading typography"
+                : zhReader
+                  ? "开启舒朗阅读排版"
+                  : "Enable comfort reading typography"
+            }
+            onClick={() => {
+              const next = !comfortMode;
+              setComfortMode(next);
+              writeReaderComfortMode(next);
+            }}
+          >
+            {comfortMode
+              ? zhReader
+                ? "标准排版"
+                : "Standard type"
+              : zhReader
+                ? "舒朗排版"
+                : "Comfort type"}
+          </button>
+        </div>
       </div>
       <Panel title={data.video.title ?? data.video.video_id} className="reader-hero-panel">
         <div className={!isTextDocument ? "reader-hero-grid" : undefined}>

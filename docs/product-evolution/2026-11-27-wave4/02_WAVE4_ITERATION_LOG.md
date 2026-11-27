@@ -52,3 +52,15 @@
   - 验证加载 `assets/index-CoCrF203.js` & `assets/index-BhqP1hHm.css`（均 `200 OK`）；**0 console errors、0 pageerrors、0 HTTP >=400**。
   - `#Topics` 顶部展示「我的自建标签」`#核心结论 (1)`、`#状态机 (1)`；点击 `#核心结论 (1)` 跳转 `#Content` 并高亮激活 `.content-tag-chip.is-active`，精准收敛展示 `1 / 6` 匹配条目（`vidDemoAgt1`）；Obsidian Dark、Warm Paper Light 与 `390x844` 移动端均 `mobileOverflow: false`。
   - 实机截图归档：[Topics Personal Tags Dark](./screenshots/iter-20/step_4_iter20_topics_tags_dark.png)、[Content Tag Filter Dark](./screenshots/iter-20/step_6_iter20_content_tag_dark.png)、[Content Tag Filter Light](./screenshots/iter-20/step_10_iter20_content_tag_light.png)、[Content Tag Filter Mobile](./screenshots/iter-20/final_step_12_iter20_content_tag_mobile.png)。
+
+## Iteration 21 (`EVO-W4-04`) — Reader Study Continuity, Reading Time Estimate & Comfort Typography
+- **产品目标**：降低长资料反复阅读与回溯的认知切换成本——打开任意精读详情自动估算阅读耗时并提供"舒朗排版"模式，返回首页时右侧直出"最近阅读 · 继续精读"快捷续读入口。
+- **代码变更**：
+  - 新增 `frontend/src/workspace/readingHistory.ts`：`estimateReadingMinutes`（中文/英文分词估算 + 音视频时长兜底）、`readReadingHistory` / `recordReadingVisit` / `clearReadingHistory`（`yia.reading_history.v1` 最多保留 8 条 + 跨标签页事件同步）、`readReaderComfortMode` / `writeReaderComfortMode`。
+  - 修改 `frontend/src/workspace/App.tsx`：`Dashboard` 新增 `continueReadingPanel`（在含周报/队列的常规首页与已导入示例笔记的新手首页双路径均展示最近 4 条访问记录及一键`清空`），`ContentDetailPanel` 新增阅读时间胶囊 `.reader-read-time-pill`、`标准排版 / 舒朗排版` 切换按钮（`.reader-comfort-toggle` + `.detail-panel.is-reading-comfort`）以及基于正文/分段的访问自动记账。
+  - 修改 `frontend/src/workspace/styles.css`：新增 `.recent-reading-*`、`.reader-back-row-tools`、`.reader-read-time-pill`、`.detail-panel.is-reading-comfort` 等深浅色自适应样式。
+  - 新增 `frontend/src/workspace/EvolutionIter21.test.tsx`：验证中英文与时长估算、进入 Reader 后自动入账并在 `#Home` 呈现与一键清空、`舒朗排版` 切换与 `aria-pressed` 状态持久化。
+- **验证证据**：
+  - TypeScript / Build / Vitest：`npx tsc --noEmit --incremental false`（0 errors）、`npm run build`（`assets/index-CMR687yE.js` + `assets/index-DjV7XEVn.css`）、Vitest **79/79 files, 1323/1323 tests passed**。
+  - 实机 Chromium（`http://127.0.0.1:8799`）：确认新包 HTTP 200、`#Content/vidDemoAgt1` 展示 `约 1 分钟精读` 与 `舒朗排版 -> 标准排版` 切换、`#Home` 右栏出现 `最近阅读 · 继续精读`、点击 `继续 →` 回跳原文、点击 `清空` 即刻移除；Dark / Light / Mobile (`390x844`, `mobileOverflow: false`)、`0` console/network 错误。
+  - 实机截图归档：[Reader Comfort Dark](./screenshots/iter-21/step_1_iter21_reader_comfort_dark.png)、[Home Continue Dark](./screenshots/iter-21/step_2_iter21_home_continue_dark.png)、[Home Continue Light](./screenshots/iter-21/step_3_iter21_home_continue_light.png)、[Home Continue Mobile](./screenshots/iter-21/step_4_iter21_home_continue_mobile.png)。
