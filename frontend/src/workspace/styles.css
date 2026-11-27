@@ -7091,3 +7091,65 @@ input[type="radio"] {
   border: 1px solid var(--accent-border);
   background: var(--accent-soft);
 }
+
+/* Iteration 16: #Content Multi-Select Cross-Source Workbench */
+.content-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.content-selection-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.content-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.content-row-checkbox {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-left: 12px;
+  accent-color: var(--accent-ink);
+  cursor: pointer;
+}
+
+.content-row-shell.is-plain-selectable {
+  display: flex;
+  align-items: center;
+}
+
+.content-row-shell.is-plain-selectable > .content-media-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.content-row-shell.is-selected,
+.content-media-row.is-selected {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+@media (max-width: 640px) {
+  .content-selection-bar {
+    padding: 10px;
+  }
+
+  .content-row-checkbox {
+    margin-left: 8px;
+  }
+}

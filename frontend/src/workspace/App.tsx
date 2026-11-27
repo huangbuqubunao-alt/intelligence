@@ -2200,6 +2200,17 @@ function Workspace() {
                 setHandoffSeq((value) => value + 1);
                 navigate("Research");
               }}
+              onCompareSelectedResearch={(videoIds, titles) => {
+                setPendingResearchVideoIds(videoIds);
+                const previewTitles = titles.slice(0, 3).join(" vs ");
+                const draft =
+                  language === "zh-CN"
+                    ? `横向对比这 ${videoIds.length} 篇指定视频（${previewTitles}${videoIds.length > 3 ? " 等" : ""}）的核心共识、观点分歧与演进脉络`
+                    : `Compare key takeaways, consensus, and differences across these ${videoIds.length} selected sources (${previewTitles}${videoIds.length > 3 ? ", ..." : ""}).`;
+                setPendingResearchDraftQuestion(draft);
+                setHandoffSeq((value) => value + 1);
+                navigate("Research");
+              }}
               onSelectTopicCluster={(clusterName) => {
                 setPendingTopicClusterName(clusterName);
                 setHandoffSeq((value) => value + 1);
@@ -4251,6 +4262,7 @@ function ContentPage(
     onAddLocal,
     onAskStarredResearch,
     onAskFilteredResearch,
+    onCompareSelectedResearch,
     onSelectTopicCluster,
   }: {
     refresh: number;
@@ -4265,6 +4277,7 @@ function ContentPage(
     onAddLocal?: () => void;
     onAskStarredResearch?: () => void;
     onAskFilteredResearch?: (videoIds: string[]) => void;
+    onCompareSelectedResearch?: (videoIds: string[], titles: string[]) => void;
     onSelectTopicCluster?: (clusterName: string) => void;
   },
 ) {
@@ -4296,6 +4309,10 @@ function ContentPage(
   );
   const [contentSortMode, setContentSortMode] = useState<"newest" | "score">("newest");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [copiedSelectedDigest, setCopiedSelectedDigest] = useState(false);
+  const [batchStarBusy, setBatchStarBusy] = useState(false);
   const [notedVideoIds, setNotedVideoIds] = useState<Set<string>>(() => listPersonalNoteVideoIds());
   useEffect(() => {
     const refreshNoted = () => setNotedVideoIds(listPersonalNoteVideoIds());
@@ -5027,6 +5044,30 @@ function ContentPage(
       setBatchCurationBusy(false);
     }
   };
+  const toggleSelectedId = (videoId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(videoId)) next.delete(videoId);
+      else next.add(videoId);
+      return next;
+    });
+  };
+  const batchStarSelected = async (targetIds: string[]) => {
+    if (!targetIds.length || batchStarBusy || batchCurationBusy || curationBusyId !== null) return;
+    setBatchStarBusy(true);
+    try {
+      await post("/workspace-ai/curation/batch", {
+        video_ids: targetIds,
+        starred: true,
+      });
+      applyLocalCurationPatch(new Set(targetIds), { starred: true });
+      setRevision((value) => value + 1);
+    } catch {
+      /* Preserve existing view on transient network failure */
+    } finally {
+      setBatchStarBusy(false);
+    }
+  };
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const isAutoFoldedItem = (item: ContentItem) =>
     Boolean(
@@ -5182,6 +5223,17 @@ function ContentPage(
     : sortedFilteredVideos
   ).filter((item) => !manualPendingIds.has(item.video_id));
   const primaryIds = primaryVideos.map((v) => v.video_id);
+  const selectablePrimaryItems = primaryVideos.filter((item) => !item.work_kind);
+  const selectablePrimaryIds = selectablePrimaryItems.map((item) => item.video_id);
+  const selectedPrimaryItems = selectablePrimaryItems.filter((item) =>
+    selectedIds.has(item.video_id),
+  );
+  const selectedUnreadIds = selectedPrimaryItems
+    .filter((item) => {
+      const b = briefByVideoId.get(item.video_id);
+      return Boolean(b && !b.is_short_noise && !b.is_read);
+    })
+    .map((item) => item.video_id);
   const unreadInViewIds = primaryVideos
     .filter((item) => {
       if (item.work_kind) return false;
@@ -5265,14 +5317,36 @@ function ContentPage(
         }
       : contentStatus(item.provider, item.processing_status);
     const hasShell = hasAiBriefs && Boolean(brief) && !item.work_kind;
+    const isSelectable = selectMode && !item.work_kind;
+    const isSelected = isSelectable && selectedIds.has(item.video_id);
+    const selectCheckbox = isSelectable ? (
+      <input
+        type="checkbox"
+        className="content-row-checkbox"
+        checked={isSelected}
+        aria-label={
+          language === "zh-CN"
+            ? `选择：${item.title ?? item.video_id}`
+            : `Select: ${item.title ?? item.video_id}`
+        }
+        onClick={(event) => event.stopPropagation()}
+        onChange={() => toggleSelectedId(item.video_id)}
+      />
+    ) : null;
     const rowButton = (
       <button
         type="button"
-        className={`list-row content-media-row${brief?.is_read ? " is-read-row" : ""}${!hasShell && isKbActive ? " is-kb-active" : ""}`}
-        key={hasShell ? undefined : item.video_id}
+        className={`list-row content-media-row${brief?.is_read ? " is-read-row" : ""}${!hasShell && isKbActive ? " is-kb-active" : ""}${!hasShell && isSelected ? " is-selected" : ""}`}
+        key={hasShell || isSelectable ? undefined : item.video_id}
         data-kb-video-id={hasShell ? undefined : item.video_id}
         data-kb-active={!hasShell && isKbActive ? "true" : undefined}
-        onClick={() => onOpen(item.video_id)}
+        onClick={() => {
+          if (isSelectable) {
+            toggleSelectedId(item.video_id);
+            return;
+          }
+          onOpen(item.video_id);
+        }}
       >
         <span className="content-media-lead">
           <span className={`provider-glyph provider-${(item.provider ?? "YOUTUBE").toLowerCase()}`} aria-hidden="true">
@@ -5332,18 +5406,30 @@ function ContentPage(
       </button>
     );
     if (!hasShell || !brief) {
+      if (isSelectable) {
+        return (
+          <div
+            className={`content-row-shell is-plain-selectable${isSelected ? " is-selected" : ""}`}
+            key={item.video_id}
+          >
+            {selectCheckbox}
+            {rowButton}
+          </div>
+        );
+      }
       return rowButton;
     }
     const zh = language === "zh-CN";
     const rowBusy = curationBusyId === item.video_id;
     return (
       <div
-        className={`content-row-shell${brief.is_read ? " is-read-shell" : ""}${isKbActive ? " is-kb-active" : ""}`}
+        className={`content-row-shell${brief.is_read ? " is-read-shell" : ""}${isKbActive ? " is-kb-active" : ""}${isSelected ? " is-selected" : ""}`}
         key={item.video_id}
         data-kb-video-id={item.video_id}
         data-kb-active={isKbActive ? "true" : undefined}
         onMouseEnter={() => setKbActiveId(item.video_id)}
       >
+        {selectCheckbox}
         {rowButton}
         <div
           className="content-curation-inline"
@@ -5741,14 +5827,41 @@ function ContentPage(
               ))}
             </div>
           )}
-          {hasAiBriefs &&
+          {((hasAiBriefs &&
           ((onAskFilteredResearch &&
             hasCustomResearchScope &&
             filteredQuestionVideoIds.length > 0) ||
             (onAskStarredResearch && totalStarredCount > 0) ||
             (bucketFilter !== "SHORTS" && unreadInViewIds.length > 0) ||
-            (hasActiveContentFilter && filteredVideos.length > 0)) ? (
+            (hasActiveContentFilter && filteredVideos.length > 0))) ||
+            selectablePrimaryIds.length > 0) ? (
             <div className="library-batch-actions tabular-nums">
+              {selectablePrimaryIds.length > 0 ? (
+                <button
+                  type="button"
+                  className={`button button-small ${selectMode ? "button-primary" : "button-secondary"}`}
+                  aria-pressed={selectMode}
+                  onClick={() => {
+                    setSelectMode((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        setSelectedIds(new Set());
+                        setCopiedSelectedDigest(false);
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <PhosphorIcon name="stack" size={13} />
+                  {selectMode
+                    ? language === "zh-CN"
+                      ? "退出多选"
+                      : "Exit select"
+                    : language === "zh-CN"
+                      ? "多选对比"
+                      : "Select & compare"}
+                </button>
+              ) : null}
               {onAskFilteredResearch &&
               hasCustomResearchScope &&
               filteredQuestionVideoIds.length > 0 ? (
@@ -5870,6 +5983,124 @@ function ContentPage(
               >
                 {t("Dismiss")}
               </button>
+            </div>
+          </div>
+        ) : null}
+        {selectMode && selectablePrimaryIds.length > 0 ? (
+          <div
+            className="content-selection-bar tabular-nums"
+            role="region"
+            aria-label={language === "zh-CN" ? "多选批量工作台" : "Multi-select workbench"}
+          >
+            <span className="content-selection-count">
+              {language === "zh-CN"
+                ? `已选 ${selectedPrimaryItems.length} 条${selectedPrimaryItems.length > 12 ? "（对比最多带入前 12 条）" : ""}`
+                : `${selectedPrimaryItems.length} selected${selectedPrimaryItems.length > 12 ? " (max 12 for Q&A)" : ""}`}
+            </span>
+            <div className="content-selection-actions">
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => {
+                  const nextIds = selectablePrimaryIds.slice(0, 12);
+                  setSelectedIds(new Set(nextIds));
+                }}
+              >
+                {language === "zh-CN" ? "全选当前页" : "Select all"}
+              </button>
+              {selectedPrimaryItems.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  {language === "zh-CN" ? "清空" : "Clear"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="button button-primary button-small"
+                disabled={selectedPrimaryItems.length === 0 || !onCompareSelectedResearch}
+                onClick={() => {
+                  const scoped = selectedPrimaryItems.slice(0, 12);
+                  onCompareSelectedResearch?.(
+                    scoped.map((item) => item.video_id),
+                    scoped.map((item) => item.title ?? item.video_id),
+                  );
+                }}
+              >
+                <PhosphorIcon name="sparkle" size={13} />
+                {language === "zh-CN"
+                  ? `对比提问 (${Math.min(selectedPrimaryItems.length, 12)}) →`
+                  : `Compare in Q&A (${Math.min(selectedPrimaryItems.length, 12)}) →`}
+              </button>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={selectedPrimaryItems.length === 0}
+                onClick={(event) => {
+                  pulseCelebration(event.currentTarget);
+                  const withBrief = selectedPrimaryItems.flatMap((item) => {
+                    const brief = briefByVideoId.get(item.video_id);
+                    return brief ? [{ item, brief }] : [];
+                  });
+                  const withoutBrief = selectedPrimaryItems.filter(
+                    (item) => !briefByVideoId.has(item.video_id),
+                  );
+                  const parts: string[] = [];
+                  if (withBrief.length > 0) {
+                    parts.push(formatPlainTextContentDigest(withBrief, language));
+                  }
+                  if (withoutBrief.length > 0) {
+                    const extra = withoutBrief
+                      .map((item) => `- ${item.title ?? item.video_id}`)
+                      .join("\n");
+                    parts.push(extra);
+                  }
+                  void navigator.clipboard?.writeText(parts.join("\n\n"));
+                  setCopiedSelectedDigest(true);
+                  setTimeout(() => setCopiedSelectedDigest(false), 2200);
+                }}
+              >
+                <PhosphorIcon name="quotes" size={13} />
+                {copiedSelectedDigest
+                  ? language === "zh-CN"
+                    ? "已复制所选摘要"
+                    : "Copied selected"
+                  : language === "zh-CN"
+                    ? "复制所选摘要"
+                    : "Copy selected"}
+              </button>
+              {hasAiBriefs ? (
+                <>
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    disabled={
+                      selectedPrimaryItems.length === 0 || batchStarBusy || batchCurationBusy
+                    }
+                    onClick={() =>
+                      void batchStarSelected(selectedPrimaryItems.map((item) => item.video_id))
+                    }
+                  >
+                    <PhosphorIcon name="bookmark-simple" size={13} />
+                    {language === "zh-CN" ? "批量收藏" : "Star selected"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    disabled={
+                      selectedUnreadIds.length === 0 || batchCurationBusy || batchStarBusy
+                    }
+                    onClick={() => void markVisibleUnreadAsRead(selectedUnreadIds)}
+                  >
+                    <PhosphorIcon name="check-circle" size={13} />
+                    {language === "zh-CN"
+                      ? `批量标已读${selectedUnreadIds.length > 0 ? ` (${selectedUnreadIds.length})` : ""}`
+                      : `Mark read${selectedUnreadIds.length > 0 ? ` (${selectedUnreadIds.length})` : ""}`}
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}

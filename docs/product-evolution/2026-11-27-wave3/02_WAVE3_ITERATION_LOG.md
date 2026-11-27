@@ -75,3 +75,20 @@
   - 验证加载 `assets/index-DgbqmXOJ.js`、`assets/index-jRuCjh_j.css` & `assets/workspace-sources-models-DhXTeMVc.js`（均 `200 OK`）；**0 console errors、0 pageerrors**。
   - 在「批量粘贴多条」输入 5 行测试数据后准确实时反馈「已识别 3 条可导入 · 1 条未识别 · 已去重 1 条」，自动显示频道处理策略选择器并渲染「开始批量导入 (3)」，Obsidian Dark、Warm Paper Light 及 `390x844` 移动端（`mobileOverflow: false`）均对齐清晰。
   - 实机截图归档：[Batch Modal Dark](./screenshots/iter-15/step_10_shot_1_iter15_batch_modal_dark.png)、[Batch Modal Light](./screenshots/iter-15/step_12_shot_1_iter15_batch_modal_light.png)、[Batch Modal Mobile](./screenshots/iter-15/step_14_shot_1_iter15_batch_modal_mobile.png)。
+
+---
+
+## Iteration 16 (`EVO-W3-05`) — `#Content` 多选跨源对比提问与批量整理工作台
+
+- **解决的用户问题**：用户此前只能基于筛选结果全量带入 `#Research` 提问或整表标已读，无法按需自由勾选任意几条不同来源（例如 1 条 YouTube + 1 条 B 站 + 1 篇本地 Markdown）一键对比提问、批量收藏或复制所选摘要合集。
+- **核心改动**：
+  1. [App.tsx](../../../frontend/src/workspace/App.tsx)：在 `#Content` 列表工具栏新增「多选对比」模式开关及内联 `.content-selection-bar` 工作台，支持单行独立复选框（`<input type="checkbox">` 与行按钮规范隔离、零嵌套按钮）、全选本页（最多 12 条）、清空、**「对比提问 (N) →」**（锁定 `videoIds` 并预填可编辑跨源对比草稿、严禁自动代发提问）、**「复制所选摘要」**、**「批量收藏」** 与带撤销条的 **「批量标已读」**。
+  2. [styles.css](../../../frontend/src/workspace/styles.css)：新增 `.content-selection-bar`、`.content-row-checkbox` 及选中行高亮样式，适配深浅双主题与 `390px` 移动端折行布局。
+- **自动化验证**：
+  - 新增 [EvolutionIter16.test.tsx](../../../frontend/src/workspace/EvolutionIter16.test.tsx)（1 passed，覆盖多选入池、复制所选摘要、调用 `/workspace-ai/curation/batch` 批量收藏及带草稿跳转 `#Research` 且不自动触发 `/ask`）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`1.00s` (`assets/index-Bf7Nq8pv.js` / `assets/index-CYXgmwF7.css`)；Vitest：**74/74 files, 1313/1313 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Content` → `#Research`）**：
+  - 验证加载 `assets/index-Bf7Nq8pv.js` & `assets/index-CYXgmwF7.css`（均 `200 OK`）；**0 console errors、0 pageerrors、0 HTTP >=400**。
+  - 开启「多选对比」，跨源勾选 `demo-architecture-notes.md`（本地）+ `Deterministic State Machines for Production AI Agents`（YouTube）+ `本地优先知识库与反幻觉证据链实战架构`（B 站）；点击「对比提问 (3) →」无自动发问，直接点击「AI 提问」对默认草稿发起 `POST /api/v1/workspace-ai/research/ask` 返回 **`200 OK`**、`answer_status: GROUNDED`、`有效引用 3 条 · 覆盖来源 3 篇`（跨 YouTube + B 站 + 本地 `[E1] [E2] [E3]`）。
+  - 验证 Warm Paper Light 与 `390x844` 移动端（`mobileOverflow: false`，工作台按钮自然换行无溢出）。
+  - 实机截图归档：[Multiselect Dark](./screenshots/iter-16/step_6_shot_1_iter16_multiselect_dark.png)、[Multiselect Light](./screenshots/iter-16/step_8_shot_1_iter16_multiselect_light.png)、[Multiselect Mobile](./screenshots/iter-16/step_10_shot_1_iter16_multiselect_mobile.png)、[Research Cross-Source Grounded](./screenshots/iter-16/final_step_30_iter16_research_grounded.png)。
