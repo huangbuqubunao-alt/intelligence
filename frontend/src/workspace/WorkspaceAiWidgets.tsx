@@ -13,14 +13,16 @@ import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
 import {
   appendQuoteToPersonalNote,
-  exportPersonalNotesJson,
   exportPersonalNotesMarkdown,
-  importPersonalNotesJson,
   listPersonalNoteVideoIds,
   listPersonalTagCounts,
   PERSONAL_NOTES_CHANGED_EVENT,
   readAllPersonalNotes,
 } from "./personalNotes";
+import {
+  exportStudyWorkspaceSnapshotJson,
+  importStudyWorkspaceSnapshotJson,
+} from "./studyWorkspaceSnapshot";
 import {
   clearReadingHistory,
   READING_HISTORY_CHANGED_EVENT,
@@ -5498,9 +5500,11 @@ export function WorkspaceAiSettingsPanel({
   };
   const handleExportPersonalNotes = () => {
     setNotesBackupError(null);
-    const json = exportPersonalNotesJson();
+    const json = exportStudyWorkspaceSnapshotJson();
     const count = listPersonalNoteVideoIds().size;
+    const viewCount = readSavedContentViews().length;
     setPersonalNoteCount(count);
+    setSavedViewCount(viewCount);
     const blob = new Blob([json], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -5512,9 +5516,13 @@ export function WorkspaceAiSettingsPanel({
     link.remove();
     URL.revokeObjectURL(url);
     setNotesBackupFeedback(
-      zh
-        ? `已导出本机个人笔记与标签（共 ${count} 条）。`
-        : `Exported ${count} local personal note(s) and tags.`,
+      viewCount > 0
+        ? zh
+          ? `已导出本机个人笔记与标签（共 ${count} 条 · 含 ${viewCount} 个常用视图）。`
+          : `Exported ${count} local personal note(s), tags, and ${viewCount} saved view(s).`
+        : zh
+          ? `已导出本机个人笔记与标签（共 ${count} 条）。`
+          : `Exported ${count} local personal note(s) and tags.`,
     );
   };
   const handleExportPersonalNotesMarkdown = async () => {
@@ -5558,12 +5566,17 @@ export function WorkspaceAiSettingsPanel({
     setNotesBackupError(null);
     try {
       const raw = await file.text();
-      const result = importPersonalNotesJson(raw);
-      setPersonalNoteCount(result.totalCount);
+      const result = importStudyWorkspaceSnapshotJson(raw);
+      setPersonalNoteCount(result.totalNotes);
+      setSavedViewCount(result.totalViews);
       setNotesBackupFeedback(
-        zh
-          ? `已合并导入 ${result.importedCount} 条个人笔记，当前本机共 ${result.totalCount} 条。`
-          : `Merged ${result.importedCount} personal note(s); total now ${result.totalCount}.`,
+        result.importedViews > 0
+          ? zh
+            ? `已合并导入 ${result.importedNotes} 条个人笔记与 ${result.importedViews} 个常用视图，当前本机共 ${result.totalNotes} 条笔记 · ${result.totalViews} 个视图。`
+            : `Merged ${result.importedNotes} personal note(s) and ${result.importedViews} saved view(s); total now ${result.totalNotes} note(s) and ${result.totalViews} view(s).`
+          : zh
+            ? `已合并导入 ${result.importedNotes} 条个人笔记，当前本机共 ${result.totalNotes} 条。`
+            : `Merged ${result.importedNotes} personal note(s); total now ${result.totalNotes}.`,
       );
     } catch {
       setNotesBackupError(

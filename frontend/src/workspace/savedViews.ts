@@ -212,3 +212,32 @@ export function deleteSavedContentView(viewId: string): SavedContentView[] {
 export function clearSavedContentViews(): void {
   writeSavedViews([]);
 }
+
+export function mergeSavedContentViews(incoming: readonly unknown[]): {
+  importedCount: number;
+  totalCount: number;
+} {
+  const current = readSavedContentViews();
+  if (!Array.isArray(incoming) || incoming.length === 0) {
+    return { importedCount: 0, totalCount: current.length };
+  }
+  const next = [...current];
+  let importedCount = 0;
+
+  for (const raw of incoming.slice(0, 32)) {
+    if (next.length >= MAX_SAVED_VIEWS) break;
+    const clean = sanitizeView(raw);
+    if (!clean) continue;
+    const duplicate = next.some(
+      (existing) => existing.id === clean.id || matchesSavedContentView(existing, clean),
+    );
+    if (duplicate) continue;
+    next.push(clean);
+    importedCount += 1;
+  }
+
+  if (importedCount > 0) {
+    writeSavedViews(next);
+  }
+  return { importedCount, totalCount: next.length };
+}

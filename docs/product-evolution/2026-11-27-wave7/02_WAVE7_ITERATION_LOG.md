@@ -70,3 +70,18 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoAgt1`）**：
   - 确认加载最新构建资源（HTTP `200`）；点击「AI 产品化启发」旁 `+ 摘录` 即刻变为 `已摘录 ✓` 且下方个人思考文本框实时追加对应引用段落；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Reader Dark](./screenshots/iter-40/iter40_reader_dark.png)、[Reader Light](./screenshots/iter-40/iter40_reader_light.png)、[Reader Mobile](./screenshots/iter-40/iter40_reader_mobile.png)。
+
+## Iteration 41 (`EVO-W7-06`) — Unified v2 Portable Study State Snapshot & Wave 7 Full 8-View QA
+
+- **解决的用户问题**：用户在 `#Settings` 导出本机个人笔记（`.json`）时此前未一并包含在 `#Content` 中辛苦沉淀的「常用筛选视图」（`SavedContentView`），跨设备或重装迁移时仍会丢失高频工作流视图配置。
+- **核心改动**：
+  1. [savedViews.ts](../../../frontend/src/workspace/savedViews.ts)：新增 `mergeSavedContentViews`，支持按过滤条件签名与 ID 双重去重，严守上限 8 条视图且不覆写已有常用视图。
+  2. 新增 [studyWorkspaceSnapshot.ts](../../../frontend/src/workspace/studyWorkspaceSnapshot.ts)：实现 `exportStudyWorkspaceSnapshotJson`（产出 `version: 2` 统一学习快照：含 `notes` 与 `saved_views`）及 `importStudyWorkspaceSnapshotJson`（同时兼容旧版 `version: 1` 仅笔记 JSON 备份文件）。
+  3. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)：在 `#Settings` 的导出/导入个人笔记流程中接入 v2 统一快照与 `savedViewCount` 实时回显，保持既有一切按钮文案与 v1 导入语义向下兼容。
+- **自动化验证**：
+  - 新增 [EvolutionIter41.test.tsx](../../../frontend/src/workspace/EvolutionIter41.test.tsx)（2 passed，覆盖 v2 导出/去重合并、v1 历史快照兼容及 `#Settings` 备份交互；原 `EvolutionIter17` / `EvolutionIter29` 均全绿通过）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`896ms` (`assets/index-CJarxaiA.js` / `assets/workspace-ai-hub-Bo4QxKIS.js` / `assets/index-CVg34vlZ.css`)；Vitest：**99/99 files, 1361/1361 passed**。
+- **Chromium 实机 8 视图全界面 QA 巡检（`127.0.0.1:8799` Demo + `127.0.0.1:8796` Empty Workspace）**：
+  - 确认加载最新构建产物 `index-CJarxaiA.js`、`workspace-ai-hub-Bo4QxKIS.js` 与 `index-CVg34vlZ.css`（HTTP `200`）。
+  - 完整走查 `#Home`、`#Following`（频道搜索 + 信源体检导出）、`#Content`（多选批量打标签 + 阅读包导出）、`#Topics`（自建标签治理）、`#Intelligence`（仅看已批注 + Markdown 导出）、`#Content/vidDemoAgt1`（AI 启发一键 `+ 摘录`）、`#Research`（`摘录进来源批注` + 历史区，`0` live `/research/ask` POST）、`#Settings`（统一快照 `.json` 导出反馈 `已导出本机个人笔记与标签（共 3 条 · 含 1 个常用视图）。` + Dark / Light / `390x844` 移动端 `mobileOverflow: false`）与空白工作台 `8796/#Home`；全程 `0` console/page/network 错误。
+  - 实机截图归档（11 张）位于 `screenshots/iter-41/`：[Settings Dark](./screenshots/iter-41/w7_v8_settings_dark.png)、[Settings Light](./screenshots/iter-41/w7_v8b_settings_light.png)、[Settings Mobile](./screenshots/iter-41/w7_v8c_settings_mobile.png)、[Empty Home](./screenshots/iter-41/w7_v9_empty_home.png) 等。
