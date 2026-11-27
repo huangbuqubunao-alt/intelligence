@@ -1390,6 +1390,7 @@ const chinese: Record<string, string> = {
   "Settings sections": "设置分区导航",
   "Jump · Intelligence": "速跳 · 洞察处理结果",
   "Jump · Transcript": "速跳 · 原始字幕",
+  "Jump · Source text": "速跳 · 文档原文",
   "Jump · Summary": "速跳 · 摘要笔记",
   "Jump · Evidence": "速跳 · 原始证据",
   "Jump · History": "速跳 · 处理记录",

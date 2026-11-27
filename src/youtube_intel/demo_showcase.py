@@ -491,12 +491,25 @@ _DEMO_EN_STOPWORDS: Final[frozenset[str]] = frozenset(
         "skip",
         "difference",
         "differences",
+        "which",
         "ensure",
         "ensuring",
         "keep",
         "keeping",
         "maintain",
         "maintaining",
+        "trade-offs",
+        "tradeoffs",
+        "trade",
+        "offs",
+        "divergence",
+        "sources",
+        "source",
+        "concrete",
+        "single",
+        "only",
+        "need",
+        "come",
     }
 )
 _DEMO_ZH_PARTICLES_RE: Final[re.Pattern[str]] = re.compile(
@@ -584,6 +597,13 @@ _DEMO_CORPUS_META_PHRASES: Final[tuple[str, ...]] = (
     "高频避坑",
     "避坑点",
     "切入机会",
+    "适用边界",
+    "适用场景",
+    "核心分歧",
+    "执行步骤",
+    "单一来源",
+    "需要进一步验证",
+    "对比共识与分歧",
     "总结全部",
     "全部来源",
     "帮我总结",
@@ -594,6 +614,9 @@ _DEMO_CORPUS_META_PHRASES: Final[tuple[str, ...]] = (
     "synthesize",
     "extract the core",
     "compare core",
+    "boundary conditions",
+    "implementation steps",
+    "single source",
     "actionable steps",
     "priority action",
     "practical pitfalls",
@@ -614,10 +637,14 @@ _DEMO_BILINGUAL_EQUIVALENTS: Final[tuple[tuple[str, ...], ...]] = (
     ("约束", "bounded", "schema", "schemas", "fail-closed"),
     ("崩溃", "crash", "crashes", "recovery"),
     ("证据", "evidence", "grounded"),
-    ("验证", "可验证", "verify", "verified", "validation", "auditable"),
+    ("验证", "可验证", "verify", "verified", "validation", "verification", "auditable"),
     ("引用", "citation", "citations", "anchor", "anchors"),
     ("溯源", "追溯", "可追溯", "citation", "citations", "transcript", "verify", "verified", "auditable"),
     ("本地", "local", "local-first"),
+    ("优先", "本地优先", "first", "local-first"),
+    ("边际", "边际成本", "零边际成本", "零成本", "成本", "免费", "zero-marginal-cost", "zero-cost", "marginal", "cost", "free"),
+    ("可信", "可信度", "可靠", "诚实", "可审计", "honest", "auditable", "verified", "reliable", "trust"),
+    ("知识库", "笔记", "知识图谱", "knowledge", "markdown", "obsidian", "notes", "note"),
     ("模型", "model", "models", "ollama"),
     ("一人公司", "solo", "builder", "builders"),
     ("留存", "高留存", "retention"),
@@ -673,7 +700,7 @@ def _demo_extract_concepts(question_text: str) -> tuple[list[str], list[str]]:
     ]
     zh_clean = re.sub(
         r"(?:避免忽略|防止忽略|避免遗漏|防止遗漏|避免跳过|防止跳过|避免|防止|防范|杜绝|以免|有用|重要|价值|意义|优势|必要性|"
-        r"是什么意思|是什么含义|什么含义|什么意思|的意思|指什么|含义是|解释一下|解释下|请帮我|帮我|概括一下|总结一下|讲了什么|说了什么|谈了什么|介绍一下|为什么|怎么|如何|怎样|哪些|有些|什么|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前内容库|当前资料库|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|这些|那些|这\s*\d*\s*篇(?:指定)?|这篇(?:指定)?|指定|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|主要共识|关键共识|核心共识|共识与关键分歧|共识与分歧|核心观点上|核心观点|观点上|观点|核心方法论|核心判断|核心洞察|核心|方法论|分歧|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要|基于|不同|跨来源|各来源|各自|来源|主要|关键|已沉淀|沉淀|梳理|高分|提炼|值得|最值得|优先落地|优先|可落地步骤|可落地结论|可落地|落地建议|落地路径|落地|产品化|产品设计|产品切入点|切入机会|产品机会|切入点|机会|方向|工程落地|工程实践|工程|原话|指出|高频主题|高频|避坑指南|避坑警示|避坑建议|避坑点|避坑|边界条件|边界|条件|前置|假设|要用|这两个专题|两个专题|专题下|专题|综合|可执行|建议|指南|关联|反直觉判断|反直觉结论|反直觉|数据指标|警示|代表性|实战案例|实战避坑|实战|案例|横向|演进脉络|脉络|时间轴原话|时间轴|立即执行|实操动作|揭示|容易踩坑|踩坑|误区|商业化前提|商业化|商业验证|商业判断|商业变现|变现动作|前提|判断变化|判断|创作者|最具确定性|最具|路径|近期|主题|变化|可直接复用|直接复用|可复用|复用|设计|动作|重点强调|强调|我收藏|收藏|高价值|洞察|行动清单|清单|技术路线|路线|互补与碰撞|互补|碰撞|论据|步骤|提出|会不会)",
+        r"是什么意思|是什么含义|什么含义|什么意思|的意思|指什么|含义是|解释一下|解释下|请帮我|帮我|概括一下|总结一下|讲了什么|说了什么|谈了什么|介绍一下|为什么|怎么|如何|怎样|哪些|有些|什么|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|兼顾|并|实测|数值|目前|当前内容库|当前资料库|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|这些|那些|这\s*\d*\s*篇(?:指定)?|这篇(?:指定)?|指定|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|主要共识|关键共识|核心共识|共识与关键分歧|共识与分歧|核心观点上|核心观点|观点上|观点|核心方法论|核心判断|核心洞察|核心|方法论|分歧|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要进一步验证|进一步验证|需要|基于|不同|跨来源|各来源|各自|来源|主要|关键|已沉淀|沉淀|梳理|高分|提炼|值得|最值得|优先落地|优先|可落地步骤|可落地结论|可落地|落地建议|落地路径|落地|产品化|产品设计|产品切入点|切入机会|产品机会|切入点|机会|方向|工程落地|工程实践|工程|原话|指出|高频主题|高频|避坑指南|避坑警示|避坑建议|避坑点|避坑|边界条件|边界|条件|前置|假设|要用|这两个专题|两个专题|专题下|专题|综合|可执行|建议|指南|关联|反直觉判断|反直觉结论|反直觉|数据指标|警示|代表性|实战案例|实战避坑|实战|案例|横向|演进脉络|脉络|时间轴原话|时间轴|立即执行|实操动作|揭示|容易踩坑|踩坑|误区|商业化前提|商业化|商业验证|商业判断|商业变现|变现动作|前提|判断变化|判断|创作者|最具确定性|最具|路径|近期|主题|变化|可直接复用|直接复用|可复用|复用|设计|动作|重点强调|强调|我收藏|收藏|高价值|洞察|行动清单|清单|技术路线|路线|互补与碰撞|互补|碰撞|论据|步骤|提出|会不会|适用边界|适用场景|适用|执行步骤|执行|不同来源|单一来源|单一|仅由|提及|进一步|立即)",
         " ",
         unicodedata.normalize("NFKC", question_text),
     )
@@ -853,38 +880,132 @@ class _DemoShowcaseCompleter:
                     key=lambda item: _demo_score_candidate(item[1], en_toks, zh_phrs),
                     reverse=True,
                 )
-                matched_refs = [
+                positive_refs = [
                     r
                     for r in scored_refs
                     if _demo_score_candidate(r[1], en_toks, zh_phrs) > 0
                 ]
-                if not matched_refs:
-                    matched_refs = scored_refs[:3]
-                else:
-                    matched_refs = matched_refs[:3]
+                pool = positive_refs if positive_refs else scored_refs
+                if positive_refs:
+                    top_score = _demo_score_candidate(positive_refs[0][1], en_toks, zh_phrs)
+                    min_score = max(1, (top_score + 1) // 2)
+                    strong_refs = [
+                        r
+                        for r in positive_refs
+                        if _demo_score_candidate(r[1], en_toks, zh_phrs) >= min_score
+                    ]
+                    if strong_refs:
+                        pool = strong_refs
+
+                def _demo_source_key(desc_text: str) -> str:
+                    m_src = re.search(r"《([^》]+)》", desc_text)
+                    if m_src:
+                        return m_src.group(1).strip().lower()
+                    return desc_text.split("|", 1)[0].strip().lower()[:60]
+
+                def _demo_cue_key(desc_text: str) -> str:
+                    m_ex = re.search(r"原话摘录[：:]\s*(.+)$", desc_text)
+                    raw = (m_ex.group(1) if m_ex else desc_text).strip().lower()
+                    return raw[:72]
+
+                diverse_refs: list[tuple[str, str]] = []
+                seen_src_keys: set[str] = set()
+                seen_cue_keys: set[str] = set()
+                remainder_refs: list[tuple[str, str]] = []
+                for cand in pool:
+                    src_key = _demo_source_key(cand[1])
+                    cue_key = _demo_cue_key(cand[1])
+                    if cue_key in seen_cue_keys:
+                        continue
+                    seen_cue_keys.add(cue_key)
+                    if src_key not in seen_src_keys:
+                        seen_src_keys.add(src_key)
+                        diverse_refs.append(cand)
+                    else:
+                        remainder_refs.append(cand)
+                matched_refs = (diverse_refs + remainder_refs)[:3]
 
                 answer_parts: list[str] = []
                 takeaways: list[str] = []
+                used_clause_keys: set[str] = set()
+
+                def _append_unique(
+                    key: str,
+                    clause_template: str,
+                    takeaway_template: str,
+                    ref_id: str,
+                ) -> bool:
+                    if key in used_clause_keys:
+                        return False
+                    used_clause_keys.add(key)
+                    answer_parts.append(clause_template.format(ref_id=ref_id))
+                    takeaways.append(takeaway_template.format(ref_id=ref_id))
+                    return True
+
                 for ref_id, desc in matched_refs:
                     low_desc = desc.lower()
-                    if any(k in low_desc for k in ("state machine", "deterministic", "状态机")):
-                        answer_parts.append(
-                            f"生产级 AI 工作流应以确定性状态机收敛外部副作用与工具契约 [{ref_id}]"
+                    matched_specific = False
+                    if any(k in low_desc for k in ("zero-marginal-cost", "ollama", "byok")):
+                        matched_specific = _append_unique(
+                            "ollama_byok",
+                            "通过本机免费 Ollama 实现零边际成本冷启动，并按需接入受控 BYOK 云端密钥 [{ref_id}]",
+                            "本机 Ollama 零边际成本启动 + BYOK 密钥隔离 [{ref_id}]",
+                            ref_id,
                         )
-                        takeaways.append(f"以确定性状态机和 SQLite 断点管理外部工具副作用 [{ref_id}]")
-                    elif any(k in low_desc for k in ("ollama", "byok", "solo", "local")):
-                        answer_parts.append(
-                            f"通过本机免费 Ollama 搭配受控 BYOK 与 Obsidian 双链沉淀提升留存 [{ref_id}]"
+                    if not matched_specific and any(
+                        k in low_desc for k in ("obsidian", "wikilink", "retention")
+                    ):
+                        matched_specific = _append_unique(
+                            "obsidian_retention",
+                            "将洞察直接导出为 Obsidian Markdown 双链图谱以提升长期留存 [{ref_id}]",
+                            "原生导出 Obsidian 双链笔记形成长期知识留存 [{ref_id}]",
+                            ref_id,
                         )
-                        takeaways.append(f"本机 Ollama 零边际成本搭配 BYOK 隔离与 Obsidian 导出 [{ref_id}]")
-                    elif any(k in low_desc for k in ("citation", "evidence", "transcript", "证据", "字幕")):
-                        answer_parts.append(
-                            f"将提炼结论与原始字幕哈希、时间轴/偏移证据绑定以防幻觉 [{ref_id}]"
+                    if not matched_specific and any(
+                        k in low_desc for k in ("honest failure", "fabricated", "lacks captions", "missing captions")
+                    ):
+                        matched_specific = _append_unique(
+                            "honest_failure",
+                            "当缺少字幕或离线语音模型时如实报告失败，拒绝编造黑盒摘要 [{ref_id}]",
+                            "缺字幕或无模型时诚实降级，绝不盲目编造结论 [{ref_id}]",
+                            ref_id,
                         )
-                        takeaways.append(f"先持久化原文哈希与证据边界，再输出带引用结论 [{ref_id}]")
-                    else:
+                    if not matched_specific and any(
+                        k in low_desc for k in ("sqlite", "内容哈希", "字幕哈希", "source hashes")
+                    ):
+                        matched_specific = _append_unique(
+                            "sqlite_hash",
+                            "先将原始字幕文本与内容哈希锁定在本地 SQLite 中，再绑定可审计引用编号 [{ref_id}]",
+                            "SQLite 锁定原文哈希与引用锚点，支持零幻觉追溯 [{ref_id}]",
+                            ref_id,
+                        )
+                    if not matched_specific and any(
+                        k in low_desc for k in ("state machine", "deterministic", "状态机")
+                    ):
+                        matched_specific = _append_unique(
+                            "state_machine",
+                            "生产级 AI 工作流应以确定性状态机与有限工具边界收敛外部副作用 [{ref_id}]",
+                            "以确定性状态机和持久化断点收敛外部工具调用 [{ref_id}]",
+                            ref_id,
+                        )
+                    if not matched_specific and any(
+                        k in low_desc for k in ("citation", "evidence", "transcript", "证据", "字幕")
+                    ):
+                        matched_specific = _append_unique(
+                            "citation_anchor",
+                            "每条问答结论均须在渲染前完成真实时间轴或文本段落出处核验 [{ref_id}]",
+                            "输出前逐条核验真实时间戳与文档段落出处 [{ref_id}]",
+                            ref_id,
+                        )
+                    if not matched_specific:
+                        pt_m = re.search(r"中文要点[：:]\s*([^|\n]+)", desc)
                         snippet_m = re.search(r"原话摘录[：:]\s*(.+)$", desc)
-                        clean_snip = (snippet_m.group(1) if snippet_m else desc).strip()[:90]
+                        raw_fallback = (
+                            pt_m.group(1)
+                            if pt_m
+                            else (snippet_m.group(1) if snippet_m else desc)
+                        )
+                        clean_snip = re.sub(r"^#+\s*", "", raw_fallback).strip()[:90]
                         answer_parts.append(f"依据原文记录「{clean_snip}」[{ref_id}]")
                         takeaways.append(f"依据 [{ref_id}] 原文记录核验关键事实")
 
@@ -892,7 +1013,7 @@ class _DemoShowcaseCompleter:
                 lead_ref = matched_refs[0][0]
                 topic_ref = re.sub(r"[。！？!?；;\n]+", "、", question_text).strip("、")
                 answer_zh = (
-                    f"【离线合成样例回放】围绕「{topic_ref}」（{ref_tags}），结合当前资料库已验证证据："
+                    f"【离线合成样例回放】围绕「{topic_ref}」结合资料库已验证证据（{ref_tags}）："
                     + "；".join(answer_parts)
                     + "。"
                 )
@@ -1286,8 +1407,9 @@ def prepare_demo_showcase(
     # Use an advancing clock starting before demo videos during source setup
     # so enrolled observations satisfy published_at > followed_at invariants,
     # then a live UTC clock once interactive queries begin.
+    base_now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
     live_mode = already_seeded and not reset
-    seed_base = _DEMO_BASE_NOW - timedelta(days=3)
+    seed_base = base_now - timedelta(days=3)
     seed_tick = [0]
 
     def runtime_now() -> datetime:
@@ -1333,9 +1455,10 @@ def prepare_demo_showcase(
             url=f"https://www.youtube.com/channel/{lab_ch}",
             processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
         )
-        observed_iso = (_DEMO_BASE_NOW + timedelta(hours=1)).strftime(
+        observed_iso = (base_now + timedelta(hours=1)).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
+        next_check_iso = (base_now + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
         with repo._connect() as conn:
             conn.execute(
                 "UPDATE source_subscriptions SET display_name = ? WHERE source_id = ?",
@@ -1358,10 +1481,10 @@ def prepare_demo_showcase(
                         followed_iso,
                         observed_iso,
                         observed_iso,
-                        (_DEMO_BASE_NOW - timedelta(hours=6)).strftime(
+                        (base_now - timedelta(hours=6)).strftime(
                             "%Y-%m-%dT%H:%M:%SZ"
                         ),
-                        "2026-11-30T00:00:00Z",
+                        next_check_iso,
                     ),
                 )
             conn.commit()
@@ -1378,9 +1501,9 @@ def prepare_demo_showcase(
                 data_root,
                 source_id=sid,
                 spec=spec,
-                base_now=_DEMO_BASE_NOW,
+                base_now=base_now,
             )
-            pub_str = (_DEMO_BASE_NOW - timedelta(hours=spec.published_offset_hours)).strftime(
+            pub_str = (base_now - timedelta(hours=spec.published_offset_hours)).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"
             )
             obs_rows.append(
@@ -1395,15 +1518,15 @@ def prepare_demo_showcase(
             )
             conn.commit()
 
-        seed_base = _DEMO_BASE_NOW
+        seed_base = base_now
         seed_tick[0] = 0
 
         # Import an authentic Bilibili educational video via BilibiliContentProvider
         bili_provider = BilibiliContentProvider(
             repo,
             data_root,
-            adapter=_DemoBilibiliAdapter(now=_DEMO_BASE_NOW - timedelta(hours=16)),
-            now=lambda: _DEMO_BASE_NOW - timedelta(hours=16),
+            adapter=_DemoBilibiliAdapter(now=base_now - timedelta(hours=16)),
+            now=lambda: base_now - timedelta(hours=16),
         )
         bili_res = bili_provider.import_input("https://www.bilibili.com/video/BV1DemoArch3/")
 
