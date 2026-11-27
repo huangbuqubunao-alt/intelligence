@@ -342,7 +342,7 @@ export function consumePendingContentTopic(): string {
 }
 
 export function setPendingContentBucket(
-  bucket: "" | "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS",
+  bucket: "" | "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED",
 ): void {
   pendingContentBucket = bucket;
 }
@@ -354,7 +354,8 @@ export function consumePendingContentBucket():
   | "MUST_WATCH"
   | "STARRED"
   | "TUTORIAL"
-  | "SHORTS" {
+  | "SHORTS"
+  | "NOTED" {
   const next = pendingContentBucket as
     | ""
     | "ALL"
@@ -362,7 +363,8 @@ export function consumePendingContentBucket():
     | "MUST_WATCH"
     | "STARRED"
     | "TUTORIAL"
-    | "SHORTS";
+    | "SHORTS"
+    | "NOTED";
   pendingContentBucket = "";
   return next;
 }

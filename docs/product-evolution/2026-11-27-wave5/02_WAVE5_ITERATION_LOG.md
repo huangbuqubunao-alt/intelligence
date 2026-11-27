@@ -57,3 +57,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoSol2` → `#Content/vidDemoAgt1`）**：
   - 确认加载新资源 `index-jY4qGLSK.js` & `index-D9yleBer.css`（HTTP `200`）；追加 `#实践复盘` 后在 `vidDemoAgt1` 自动推荐 `+ #实践复盘`，点击模板与推荐标签即时生效持久化；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page 错误**。
   - 实机截图归档：[Templates Dark](./screenshots/iter-27/step_1_iter27_templates_dark.png)、[Templates Light](./screenshots/iter-27/step_2_iter27_templates_light.png)、[Templates Mobile](./screenshots/iter-27/step_3_iter27_templates_mobile.png)。
+
+## Iteration 28 (`EVO-W5-05`) — `#Home` Study Momentum Summary & `#Intelligence` Personal Note Badges
+
+- **解决的用户问题**：用户在 `#Home` 首页右栏缺少对自身学习沉淀进度的正向反馈与直达「有笔记内容 / 自建标签」的入口；在 `#Intelligence` 洞察卡片流中，也无法一眼分辨哪些洞察对应着自己已经做过个人批注的源内容。
+- **核心改动**：
+  1. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)：在 `ContentBucket` 与 pending filter 路由中新增 `"NOTED"` 桶位。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：在 `Dashboard` 右栏新增 `.home-momentum-panel`（「知识沉淀进度」：已精读长内容比例进度条、个人批注与自建标签汇总、「查看笔记内容」与「浏览自建标签」快捷入口）；在 `IntelligenceCard` 与 `IntelligenceRow` 元信息行中同步渲染个人批注映射徽标 `.intel-noted-badge`（如 `已批注 · #核心结论`）。
+- **自动化验证**：
+  - 新增 [EvolutionIter28.test.tsx](../../../frontend/src/workspace/EvolutionIter28.test.tsx)（2 passed，覆盖首页 `.home-momentum-panel` 统计与「查看笔记内容」筛选跳转、`#Intelligence` 卡片渲染 `.intel-noted-badge`）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`897ms` (`assets/index-Csrb3fXj.js` / `assets/index-DdHZBTrA.css`)；Vitest：**86/86 files, 1335/1335 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Home` → `#Intelligence`）**：
+  - 确认加载新资源 `index-Csrb3fXj.js` & `index-DdHZBTrA.css`（HTTP `200`）；`#Home` 右栏 `.home-momentum-panel` 清晰显示 `已精读 0 / 5 篇长内容`、`本机已沉淀 2 篇个人批注 · 3 个自建标签`；`#Intelligence` 在深色与暖纸浅色主题下均正确展示 2 个 `.intel-noted-badge`（`已批注 · #核心结论` 与 `已批注 · #实践复盘`）；点击「查看笔记内容」自动激活「有笔记」筛选（2 / 5 篇）；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
+  - 实机截图归档：[Home Momentum Dark](./screenshots/iter-28/step_1_iter28_home_momentum_dark.png)、[Intel Noted Dark](./screenshots/iter-28/step_2_iter28_intel_noted_dark.png)、[Intel Noted Light](./screenshots/iter-28/step_3_iter28_intel_noted_light.png)、[Home Mobile](./screenshots/iter-28/step_4_iter28_home_mobile.png)。

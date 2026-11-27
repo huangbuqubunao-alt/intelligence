@@ -1631,13 +1631,25 @@ function IntelligenceCard(
   }
   const card = item.card;
   const linkedTopics = item.linked_topics ?? [];
+  const sourcePersonalNote = card.video_id ? readPersonalNote(card.video_id) : null;
   return (
     <article className={`panel intelligence-card${saved ? " is-saved-card" : ""}`}>
-      {linkedTopics.length > 0 ? (
+      {linkedTopics.length > 0 || sourcePersonalNote ? (
         <div
           className="intel-card-topics-row"
           aria-label={zh ? "关联专题" : "Linked Topics"}
         >
+          {sourcePersonalNote ? (
+            <span className="intel-noted-badge">
+              {sourcePersonalNote.tags[0]
+                ? zh
+                  ? `已批注 · #${sourcePersonalNote.tags[0]}`
+                  : `Noted · #${sourcePersonalNote.tags[0]}`
+                : zh
+                  ? "原文已批注"
+                  : "Source noted"}
+            </span>
+          ) : null}
           {linkedTopics.map((tp) =>
             onOpenTopic ? (
               <button
@@ -2161,6 +2173,13 @@ function Workspace() {
               navigate={navigate}
               openContent={openContent}
               onOpenTopic={id => openDelta({ kind: "topic", id })}
+              onOpenNotedContent={() => {
+                setPendingContentBucket("NOTED");
+                setPendingContentChannel("ALL");
+                setPendingContentTopic("ALL");
+                setHandoffSeq((value) => value + 1);
+                navigate("Content");
+              }}
               onAddContent={() => setAddProvider("YOUTUBE")}
               onSampleImported={(videoId) => {
                 setRefresh((value) => value + 1);
@@ -2542,6 +2561,7 @@ function Dashboard(
     navigate,
     openContent,
     onOpenTopic,
+    onOpenNotedContent,
     onAddContent,
     onSampleImported,
     onboardingReplayNonce = 0,
@@ -2551,6 +2571,7 @@ function Dashboard(
     navigate: (page: Page) => void;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic: (topicId: string) => void;
+    onOpenNotedContent?: () => void;
     onAddContent?: () => void;
     onSampleImported?: (videoId: string) => void;
     onboardingReplayNonce?: number;
@@ -2585,13 +2606,26 @@ function Dashboard(
   const [recentReading, setRecentReading] = useState<ReadingHistoryEntry[]>(() =>
     readReadingHistory(),
   );
+  const [studyCounts, setStudyCounts] = useState(() => ({
+    noteCount: listPersonalNoteVideoIds().size,
+    tagCount: listPersonalTagCounts().length,
+  }));
   useEffect(() => {
     const syncHistory = () => setRecentReading(readReadingHistory());
+    const syncStudy = () =>
+      setStudyCounts({
+        noteCount: listPersonalNoteVideoIds().size,
+        tagCount: listPersonalTagCounts().length,
+      });
     window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncStudy);
     window.addEventListener("storage", syncHistory);
+    window.addEventListener("storage", syncStudy);
     return () => {
       window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncStudy);
       window.removeEventListener("storage", syncHistory);
+      window.removeEventListener("storage", syncStudy);
     };
   }, []);
   const isDemoMode = Boolean(data?.demo_mode);
@@ -3040,6 +3074,72 @@ function Dashboard(
           );
         })()}
         {continueReadingPanel}
+        {(() => {
+          const allHomeVideos = videosResp.data?.videos ?? [];
+          const longFormVideos = allHomeVideos.filter((v) => {
+            const b = readVideoAiBrief(v.ai_brief, v.duration_seconds);
+            return Boolean(b && !b.is_short_noise);
+          });
+          const readLongFormCount = longFormVideos.filter((v) => {
+            const b = readVideoAiBrief(v.ai_brief, v.duration_seconds);
+            return b?.is_read === true;
+          }).length;
+          if (longFormVideos.length === 0 && studyCounts.noteCount === 0) return null;
+          const pct =
+            longFormVideos.length > 0
+              ? Math.round((readLongFormCount / longFormVideos.length) * 100)
+              : 0;
+          return (
+            <Panel
+              title={zh ? "知识沉淀进度" : "Study Momentum"}
+              icon="check-circle"
+              className="home-momentum-panel"
+            >
+              {longFormVideos.length > 0 ? (
+                <div className="home-momentum-meter tabular-nums">
+                  <div className="home-momentum-meter-head">
+                    <span>
+                      {zh
+                        ? `已精读 ${readLongFormCount} / ${longFormVideos.length} 篇长内容`
+                        : `Read ${readLongFormCount} / ${longFormVideos.length} long-form items`}
+                    </span>
+                    <strong>{pct}%</strong>
+                  </div>
+                  <div className="home-momentum-track" aria-hidden="true">
+                    <div className="home-momentum-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              ) : null}
+              <p className="hint home-momentum-notes tabular-nums">
+                {zh
+                  ? `本机已沉淀 ${studyCounts.noteCount} 篇个人批注 · ${studyCounts.tagCount} 个自建标签`
+                  : `${studyCounts.noteCount} personal note(s) · ${studyCounts.tagCount} custom tag(s) saved locally`}
+              </p>
+              {studyCounts.noteCount > 0 || studyCounts.tagCount > 0 ? (
+                <div className="button-row">
+                  {studyCounts.noteCount > 0 && onOpenNotedContent ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={onOpenNotedContent}
+                    >
+                      {zh ? "查看笔记内容" : "Browse noted items"}
+                    </button>
+                  ) : null}
+                  {studyCounts.tagCount > 0 ? (
+                    <button
+                      type="button"
+                      className="button button-ghost button-small"
+                      onClick={() => navigate("Topics")}
+                    >
+                      {zh ? "浏览自建标签" : "View tags in Topics"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </Panel>
+          );
+        })()}
         <Panel title="Pinned Topics" icon="stack">
           {topics.length
             ? (
@@ -3357,6 +3457,7 @@ function IntelligenceListRow({
     ? t(rawSourceName)
     : card.video_title?.trim() || card.source_id;
   const evidenceCount = card.evidence_links?.length ?? 0;
+  const sourcePersonalNote = card.video_id ? readPersonalNote(card.video_id) : null;
 
   return (
     <article
@@ -3446,6 +3547,17 @@ function IntelligenceListRow({
         >
           <Claim kind={item.claim_kind ?? "SYSTEM_INFERENCE"} />
           <Status value={intelligenceStateLabel(item.state)} />
+          {sourcePersonalNote ? (
+            <span className="intel-noted-badge">
+              {sourcePersonalNote.tags[0]
+                ? zh
+                  ? `已批注 · #${sourcePersonalNote.tags[0]}`
+                  : `Noted · #${sourcePersonalNote.tags[0]}`
+                : zh
+                  ? "已批注"
+                  : "Noted"}
+            </span>
+          ) : null}
         </span>
         {evidenceCount > 0 ? (
           <span className="intel-row-evidence-count tabular-nums">
