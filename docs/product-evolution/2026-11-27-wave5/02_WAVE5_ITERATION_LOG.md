@@ -44,3 +44,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoAgt1`）**：
   - 确认加载新资源 `index-I-0CP-G-.js` & `index-CqqKRhj6.css`（HTTP `200`）；默认收敛态展开后呈现 2 篇同专题关联内容；点击「对比提问 →」精确跳转 `#Research` 锁定 2 篇且 `0` 个 `/research/ask` 请求发出；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Related Dark](./screenshots/iter-26/step_1_iter26_related_dark.png)、[Related Light](./screenshots/iter-26/step_2_iter26_related_light.png)、[Related Mobile](./screenshots/iter-26/step_3_iter26_related_mobile.png)。
+
+## Iteration 27 (`EVO-W5-04`) — Reader Personal Note Reflection Templates & Canonical Tag Suggestions
+
+- **解决的用户问题**：阅读器打开空白思考卡片后用户常不知如何结构化沉淀；同时跨文章手工输入 `#tag` 容易因大小写或近义词差异产生碎片化标签。
+- **核心改动**：
+  1. [ReaderPersonalNoteCard.tsx](../../../frontend/src/workspace/ReaderPersonalNoteCard.tsx)：在文本框上方新增 3 个结构化复盘模板胶囊（`+ 3-2-1 复盘`、`+ 质疑与待核查`、`+ 下一步行动`），点击以追加方式写入且绝不覆盖已有正文；在标签输入框下方同步本机 `listPersonalTagCounts()`（自动排除当前条目已用标签），提供最多 8 个已有标签一键点选复用。
+  2. [styles.css](../../../frontend/src/workspace/styles.css)：新增 `.personal-note-templates-row`、`.personal-note-template-chip`、`.personal-note-suggested-tags` 与 `.personal-note-suggested-tag` 样式。
+- **自动化验证**：
+  - 新增 [EvolutionIter27.test.tsx](../../../frontend/src/workspace/EvolutionIter27.test.tsx)（验证保留原有文本追加 3-2-1 模板、已用标签自动去重不重复推荐、点击推荐标签一键追加持久化）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`851ms` (`assets/index-jY4qGLSK.js` / `assets/index-D9yleBer.css`)；Vitest：**85/85 files, 1333/1333 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoSol2` → `#Content/vidDemoAgt1`）**：
+  - 确认加载新资源 `index-jY4qGLSK.js` & `index-D9yleBer.css`（HTTP `200`）；追加 `#实践复盘` 后在 `vidDemoAgt1` 自动推荐 `+ #实践复盘`，点击模板与推荐标签即时生效持久化；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page 错误**。
+  - 实机截图归档：[Templates Dark](./screenshots/iter-27/step_1_iter27_templates_dark.png)、[Templates Light](./screenshots/iter-27/step_2_iter27_templates_light.png)、[Templates Mobile](./screenshots/iter-27/step_3_iter27_templates_mobile.png)。

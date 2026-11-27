@@ -7564,3 +7564,62 @@ input[type="radio"] {
 .reader-related-compare {
   flex-shrink: 0;
 }
+
+/* Iter 27: Personal note reflection templates & canonical library tag suggestions */
+.personal-note-templates-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.personal-note-template-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.personal-note-template-chip:hover {
+  border-color: var(--accent-border);
+  color: var(--text-strong);
+  background: var(--accent-soft);
+}
+
+.personal-note-suggested-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.personal-note-suggested-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.personal-note-suggested-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.personal-note-suggested-tag:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}

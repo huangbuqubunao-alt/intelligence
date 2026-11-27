@@ -1,14 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import {
   deletePersonalNote,
+  listPersonalTagCounts,
   normalizeNoteTags,
   PERSONAL_NOTES_CHANGED_EVENT,
   PersonalNote,
+  PersonalTagCount,
   readPersonalNote,
   savePersonalNote,
 } from "./personalNotes";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
+
+const NOTE_REFLECTION_TEMPLATES = [
+  {
+    id: "review321",
+    labelZh: "+ 3-2-1 复盘",
+    labelEn: "+ 3-2-1 Review",
+    bodyZh: "### 3 个核心收获\n- \n\n### 2 个延伸思考\n- \n\n### 1 个落地动作\n- ",
+    bodyEn: "### 3 Key Takeaways\n- \n\n### 2 Deeper Questions\n- \n\n### 1 Next Action\n- ",
+  },
+  {
+    id: "openQuestions",
+    labelZh: "+ 质疑与待核查",
+    labelEn: "+ Open questions",
+    bodyZh: "### 质疑与待核查\n- ",
+    bodyEn: "### Open Questions & Assumptions\n- ",
+  },
+  {
+    id: "nextActions",
+    labelZh: "+ 下一步行动",
+    labelEn: "+ Next actions",
+    bodyZh: "### 实践行动项\n- [ ] ",
+    bodyEn: "### Action Checklist\n- [ ] ",
+  },
+] as const;
 
 export function ReaderPersonalNoteCard({
   videoId,
@@ -24,7 +50,11 @@ export function ReaderPersonalNoteCard({
   const [tagDraft, setTagDraft] = useState(initialNote?.tags.join(", ") ?? "");
   const [expanded, setExpanded] = useState(Boolean(initialNote));
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
+  const [libraryTags, setLibraryTags] = useState<PersonalTagCount[]>(() =>
+    listPersonalTagCounts(),
+  );
   const debounceRef = useRef<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const onNoteChangeRef = useRef(onNoteChange);
   onNoteChangeRef.current = onNoteChange;
 
@@ -33,13 +63,17 @@ export function ReaderPersonalNoteCard({
       const latest = readPersonalNote(videoId);
       setText(latest?.text ?? "");
       setTagDraft(latest?.tags.join(", ") ?? "");
+      setLibraryTags(listPersonalTagCounts());
       if (latest) setExpanded(true);
       onNoteChangeRef.current?.(latest);
     };
+    const syncTagsOnly = () => setLibraryTags(listPersonalTagCounts());
     syncFromStore();
     window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncFromStore);
+    window.addEventListener("storage", syncTagsOnly);
     return () => {
       window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncFromStore);
+      window.removeEventListener("storage", syncTagsOnly);
       if (debounceRef.current !== null) {
         window.clearTimeout(debounceRef.current);
       }
@@ -70,7 +104,32 @@ export function ReaderPersonalNoteCard({
   };
 
   const parsedTags = normalizeNoteTags(tagDraft);
+  const parsedTagSet = new Set(parsedTags.map((item) => item.toLowerCase()));
+  const suggestedLibraryTags = libraryTags
+    .filter((entry) => !parsedTagSet.has(entry.tag.toLowerCase()))
+    .slice(0, 8);
   const hasContent = Boolean(text.trim() || parsedTags.length > 0);
+
+  const appendTemplate = (snippet: string) => {
+    const nextText = text.trimEnd() ? `${text.trimEnd()}\n\n${snippet}` : snippet;
+    setText(nextText);
+    flushSave(nextText, tagDraft);
+    queueMicrotask(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const len = nextText.length;
+        el.setSelectionRange?.(len, len);
+      }
+    });
+  };
+
+  const appendSuggestedTag = (tag: string) => {
+    const merged = normalizeNoteTags([...parsedTags, tag].join(", "));
+    const nextDraft = merged.join(", ");
+    setTagDraft(nextDraft);
+    flushSave(text, nextDraft);
+  };
 
   if (!expanded && !hasContent) {
     return (
@@ -147,7 +206,25 @@ export function ReaderPersonalNoteCard({
         </div>
       </div>
 
+      <div
+        className="personal-note-templates-row"
+        role="group"
+        aria-label={zh ? "结构化思考模板" : "Reflection note templates"}
+      >
+        {NOTE_REFLECTION_TEMPLATES.map((tpl) => (
+          <button
+            key={tpl.id}
+            type="button"
+            className="personal-note-template-chip"
+            onClick={() => appendTemplate(zh ? tpl.bodyZh : tpl.bodyEn)}
+          >
+            {zh ? tpl.labelZh : tpl.labelEn}
+          </button>
+        ))}
+      </div>
+
       <textarea
+        ref={textareaRef}
         rows={4}
         className="personal-note-textarea"
         aria-label={zh ? "我的思考与批注内容" : "My personal notes"}
@@ -189,6 +266,27 @@ export function ReaderPersonalNoteCard({
           </div>
         ) : null}
       </div>
+      {suggestedLibraryTags.length > 0 ? (
+        <div
+          className="personal-note-suggested-tags"
+          role="group"
+          aria-label={zh ? "点选已有自建标签" : "Reuse existing library tags"}
+        >
+          <span className="personal-note-suggested-label">
+            {zh ? "已有标签：" : "Library tags:"}
+          </span>
+          {suggestedLibraryTags.map((entry) => (
+            <button
+              key={entry.tag}
+              type="button"
+              className="personal-note-suggested-tag"
+              onClick={() => appendSuggestedTag(entry.tag)}
+            >
+              + #{entry.tag}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
