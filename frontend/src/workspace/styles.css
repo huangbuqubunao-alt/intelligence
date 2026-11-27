@@ -7168,3 +7168,71 @@ input[type="radio"] {
   font-weight: 600;
   color: var(--text-muted);
 }
+
+/* Iteration 20: Personal #Tag Filter Strip in #Content & My Personal Tags Card in #Topics */
+.content-tag-filter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.content-tag-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.content-tag-chip {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.content-tag-chip:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+
+.content-tag-chip.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.topics-personal-tags-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: grid;
+  gap: 10px;
+}
+
+.topics-personal-tags-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.topics-personal-tags-head small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.topics-personal-tags-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

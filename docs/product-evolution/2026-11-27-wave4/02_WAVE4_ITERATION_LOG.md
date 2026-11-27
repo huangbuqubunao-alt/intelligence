@@ -35,3 +35,20 @@
   - 验证加载 `assets/index-DUxlaPKo.js`、`assets/index-CZ-EQaXr.css` & `assets/CommandPalette-DRQm3yhf.js`（均 `200 OK`）；**0 console errors、0 pageerrors、0 HTTP >=400**。
   - 在 `vidDemoAgt1` 保存带 `#核心结论 #状态机` 的个人批注后，在 `#Home` 打开 `⌘K` 输入「核心结论」即呈现「个人笔记与标签」分组（含「按个人标签筛选：#核心结论」与「核心状态机边界复盘：工具校验决定稳定性」片段），点击直达 `#Content/vidDemoAgt1`；Obsidian Dark、Warm Paper Light 及 `390x844` 移动端（`mobileOverflow: false`）清晰无溢出。
   - 实机截图归档：[Cmd+K Notes Dark](./screenshots/iter-19/step_10_iter19_cmdk_notes_dark.png)、[Cmd+K Notes Light](./screenshots/iter-19/step_16_iter19_cmdk_notes_light.png)、[Cmd+K Notes Mobile](./screenshots/iter-19/step_18_iter19_cmdk_notes_mobile.png)。
+
+---
+
+## Iteration 20 (`EVO-W4-03`) — `#Content` 个人笔记 `#tag` 筛选条与 `#Topics` 自建标签直达桥
+
+- **解决的用户问题**：AI 自动专题聚类之外，用户在个人批注里打上的自定义 `#tag`（如 `#核心结论`、`#状态机`）无法在 `#Topics` 专题总览与 `#Content` 内容列表间按标签一键交叉筛选聚合。
+- **核心改动**：
+  1. [App.tsx](../../../frontend/src/workspace/App.tsx)：在 `#Content`（含 `ContentFilterSnapshot` 与Scoped Next-Unread 连续精读）中接入 `tagFilter` 状态并响应 `PERSONAL_NOTES_CHANGED_EVENT` 与 `⌘K` `#tag` 跳转；当本机存在任意标签时在工具栏下方呈现 `.content-tag-filter-strip`（`我的标签：#核心结论 (1) ...`）。
+  2. 在 `#Topics` 顶部新增按需呈现的 `.topics-personal-tags-card`（「我的自建标签」），点击任意 `#tag` 胶囊立即跳进按该标签精准筛选的 `#Content` 视图。
+  3. [styles.css](../../../frontend/src/workspace/styles.css)：新增 `.content-tag-filter-strip`、`.content-tag-chip` 与 `.topics-personal-tags-card` 深浅双主题及移动端样式。
+- **自动化验证**：
+  - 新增 [EvolutionIter20.test.tsx](../../../frontend/src/workspace/EvolutionIter20.test.tsx)（2 passed，覆盖 `#Topics` 自建标签直达 `#Content` 精确筛选与重置，以及 `⌘K` 按个人标签过滤）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`1.04s` (`assets/index-CoCrF203.js` / `assets/index-BhqP1hHm.css`)；Vitest：**78/78 files, 1321/1321 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Topics` → `#Content`）**：
+  - 验证加载 `assets/index-CoCrF203.js` & `assets/index-BhqP1hHm.css`（均 `200 OK`）；**0 console errors、0 pageerrors、0 HTTP >=400**。
+  - `#Topics` 顶部展示「我的自建标签」`#核心结论 (1)`、`#状态机 (1)`；点击 `#核心结论 (1)` 跳转 `#Content` 并高亮激活 `.content-tag-chip.is-active`，精准收敛展示 `1 / 6` 匹配条目（`vidDemoAgt1`）；Obsidian Dark、Warm Paper Light 与 `390x844` 移动端均 `mobileOverflow: false`。
+  - 实机截图归档：[Topics Personal Tags Dark](./screenshots/iter-20/step_4_iter20_topics_tags_dark.png)、[Content Tag Filter Dark](./screenshots/iter-20/step_6_iter20_content_tag_dark.png)、[Content Tag Filter Light](./screenshots/iter-20/step_10_iter20_content_tag_light.png)、[Content Tag Filter Mobile](./screenshots/iter-20/final_step_12_iter20_content_tag_mobile.png)。

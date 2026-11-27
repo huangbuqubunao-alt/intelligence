@@ -14,10 +14,14 @@ import { ReaderDrawerSearchBar, formatSegmentQuote, highlightTextMatches, splitS
 import { ReaderPersonalNoteCard } from "./ReaderPersonalNoteCard";
 import {
   PERSONAL_NOTES_CHANGED_EVENT,
+  type PersonalTagCount,
   appendQuoteToPersonalNote,
+  consumePendingContentTag,
   listPersonalNoteVideoIds,
+  listPersonalTagCounts,
   mergePersonalNoteIntoMarkdown,
   type PersonalNote,
+  readAllPersonalNotes,
   readPersonalNote,
   setPendingContentTag,
 } from "./personalNotes";
@@ -1775,6 +1779,7 @@ type ContentFilterSnapshot = {
   bucketFilter: "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED";
   topicFilter: string;
   channelFilter: string;
+  tagFilter?: string;
 };
 
 type IntelFilterSnapshot = {
@@ -2297,6 +2302,13 @@ function Workspace() {
             onBrowseTopicContent={(topicName, channelKey) => {
               setPendingContentTopic(topicName);
               setPendingContentChannel(channelKey ?? "ALL");
+              setHandoffSeq((value) => value + 1);
+              navigate("Content");
+            }}
+            onBrowsePersonalTag={(tag) => {
+              setPendingContentTag(tag);
+              setPendingContentTopic("ALL");
+              setPendingContentChannel("ALL");
               setHandoffSeq((value) => value + 1);
               navigate("Content");
             }}
@@ -4315,6 +4327,9 @@ function ContentPage(
   const [channelFilter, setChannelFilter] = useState<string>(
     () => consumePendingContentChannel() || restoredContentRef.current?.channelFilter || "ALL",
   );
+  const [tagFilter, setTagFilter] = useState<string>(
+    () => consumePendingContentTag() || restoredContentRef.current?.tagFilter || "ALL",
+  );
   const [contentSortMode, setContentSortMode] = useState<"newest" | "score">("newest");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -4322,8 +4337,18 @@ function ContentPage(
   const [copiedSelectedDigest, setCopiedSelectedDigest] = useState(false);
   const [batchStarBusy, setBatchStarBusy] = useState(false);
   const [notedVideoIds, setNotedVideoIds] = useState<Set<string>>(() => listPersonalNoteVideoIds());
+  const [personalNotesMap, setPersonalNotesMap] = useState<Record<string, PersonalNote>>(() =>
+    readAllPersonalNotes(),
+  );
+  const [personalTagCounts, setPersonalTagCounts] = useState<PersonalTagCount[]>(() =>
+    listPersonalTagCounts(),
+  );
   useEffect(() => {
-    const refreshNoted = () => setNotedVideoIds(listPersonalNoteVideoIds());
+    const refreshNoted = () => {
+      setNotedVideoIds(listPersonalNoteVideoIds());
+      setPersonalNotesMap(readAllPersonalNotes());
+      setPersonalTagCounts(listPersonalTagCounts());
+    };
     refreshNoted();
     window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, refreshNoted);
     return () => window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, refreshNoted);
@@ -4335,6 +4360,7 @@ function ContentPage(
       bucketFilter,
       topicFilter,
       channelFilter,
+      tagFilter,
     };
   }
   useEffect(() => {
@@ -4344,6 +4370,8 @@ function ContentPage(
     if (nextTopic) setTopicFilter(nextTopic);
     const nextBucket = consumePendingContentBucket();
     if (nextBucket) setBucketFilter(nextBucket);
+    const nextTag = consumePendingContentTag();
+    if (nextTag) setTagFilter(nextTag);
   }, [handoffSeq]);
   const [kbActiveId, setKbActiveId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -4691,6 +4719,12 @@ function ContentPage(
   }, []);
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
+  const matchesPersonalTag = (videoId: string): boolean => {
+    if (tagFilter === "ALL") return true;
+    const tags = personalNotesMap[videoId]?.tags ?? [];
+    const targetLower = tagFilter.toLowerCase();
+    return tags.some((tag) => tag.trim().toLowerCase() === targetLower);
+  };
   if (targetVideoId) {
     const rawVideos = mergedLoadedAndSearchVideos;
     const trimmedQuery = searchQuery.trim().toLowerCase();
@@ -4698,6 +4732,7 @@ function ContentPage(
       providerFilter !== "ALL" ||
       channelFilter !== "ALL" ||
       topicFilter !== "ALL" ||
+      tagFilter !== "ALL" ||
       (bucketFilter !== "ALL" && bucketFilter !== "UNREAD" && bucketFilter !== "SHORTS") ||
       trimmedQuery.length > 0;
     const filterParts: string[] = [];
@@ -4739,6 +4774,9 @@ function ContentPage(
     if (searchQuery.trim()) {
       filterParts.push(`“${searchQuery.trim()}”`);
     }
+    if (tagFilter !== "ALL") {
+      filterParts.push(`#${tagFilter}`);
+    }
     const activeFilterSummary = filterParts.length > 0 ? filterParts.join(" · ") : null;
 
     const unreadCandidates = rawVideos
@@ -4768,6 +4806,9 @@ function ContentPage(
           return false;
         }
         if (bucketFilter === "NOTED" && !notedVideoIds.has(item.video_id)) {
+          return false;
+        }
+        if (tagFilter !== "ALL" && !matchesPersonalTag(item.video_id)) {
           return false;
         }
         if (trimmedQuery) {
@@ -5177,6 +5218,9 @@ function ContentPage(
       const b = briefByVideoId.get(item.video_id);
       if (!b || b.topic_cluster_zh.trim() !== topicFilter) return false;
     }
+    if (tagFilter !== "ALL" && !matchesPersonalTag(item.video_id)) {
+      return false;
+    }
     return matchesContentSearch(item, briefByVideoId.get(item.video_id) ?? null);
   });
   const bucketCounts: Record<
@@ -5264,6 +5308,7 @@ function ContentPage(
     trimmedSearch ||
       channelFilter !== "ALL" ||
       topicFilter !== "ALL" ||
+      tagFilter !== "ALL" ||
       providerFilter !== "ALL" ||
       bucketFilter !== "ALL",
   );
@@ -5271,6 +5316,7 @@ function ContentPage(
     trimmedSearch ||
       channelFilter !== "ALL" ||
       topicFilter !== "ALL" ||
+      tagFilter !== "ALL" ||
       providerFilter !== "ALL" ||
       (bucketFilter !== "ALL" && bucketFilter !== "STARRED" && bucketFilter !== "SHORTS"),
   );
@@ -5296,6 +5342,7 @@ function ContentPage(
     setBucketFilter("ALL");
     setChannelFilter("ALL");
     setTopicFilter("ALL");
+    setTagFilter("ALL");
     setProviderFilter("ALL");
   };
   const effectiveKbActiveId =
@@ -5752,6 +5799,44 @@ function ContentPage(
               </div>
             )}
           </div>
+          {(personalTagCounts.length > 0 || tagFilter !== "ALL") ? (
+            <div
+              className="content-tag-filter-strip"
+              role="group"
+              aria-label={language === "zh-CN" ? "个人笔记标签筛选" : "Filter by personal tag"}
+            >
+              <span className="content-tag-filter-label">
+                {language === "zh-CN" ? "我的标签：" : "My tags:"}
+              </span>
+              {personalTagCounts.map((entry) => {
+                const isActive = tagFilter.toLowerCase() === entry.tag.toLowerCase();
+                return (
+                  <button
+                    key={entry.tag}
+                    type="button"
+                    className={`content-tag-chip tabular-nums${isActive ? " is-active" : ""}`}
+                    aria-pressed={isActive}
+                    onClick={() => setTagFilter(isActive ? "ALL" : entry.tag)}
+                  >
+                    #{entry.tag} ({entry.count})
+                  </button>
+                );
+              })}
+              {tagFilter !== "ALL" &&
+              !personalTagCounts.some(
+                (entry) => entry.tag.toLowerCase() === tagFilter.toLowerCase(),
+              ) ? (
+                <button
+                  type="button"
+                  className="content-tag-chip is-active tabular-nums"
+                  aria-pressed="true"
+                  onClick={() => setTagFilter("ALL")}
+                >
+                  #{tagFilter} (0)
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {hasSecondaryControls ? (
             <div className={`library-filter-secondary${mobileFiltersOpen ? " is-mobile-open" : ""}`}>
           {hasAiBriefs && (allChannelKeys.size > 1 || channelFilter !== "ALL") && (
@@ -9063,6 +9148,7 @@ function Topics({
   onCompareTopicSources,
   onBrowseTopicContent,
   onBrowseTopicIntelligence,
+  onBrowsePersonalTag,
   onAddContent,
 }: {
   refresh: number;
@@ -9077,10 +9163,20 @@ function Topics({
   onCompareTopicSources?: (topicName: string, videoIds: string[]) => void;
   onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
   onBrowseTopicIntelligence?: (topicId: string) => void;
+  onBrowsePersonalTag?: (tag: string) => void;
   onAddContent?: () => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
+  const [personalTagCounts, setPersonalTagCounts] = useState<PersonalTagCount[]>(() =>
+    listPersonalTagCounts(),
+  );
+  useEffect(() => {
+    const syncTags = () => setPersonalTagCounts(listPersonalTagCounts());
+    syncTags();
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncTags);
+    return () => window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncTags);
+  }, []);
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh, undefined, true, true);
   const [selected, setSelected] = useState<string | null>(
     () => targetTopicId ?? consumeOriginRestore?.() ?? null,
@@ -9140,9 +9236,38 @@ function Topics({
   if (!list.data) return <Empty>Loading Topics…</Empty>;
   if (!selected) {
     const allTopics = list.data.topics;
+    const personalTagsCard = personalTagCounts.length > 0 ? (
+      <section
+        className="topics-personal-tags-card"
+        role="region"
+        aria-label={zh ? "我的自建标签" : "My Personal Tags"}
+      >
+        <div className="topics-personal-tags-head">
+          <strong>{zh ? "我的自建标签" : "My Personal Tags"}</strong>
+          <small className="tabular-nums">
+            {zh
+              ? `共 ${personalTagCounts.length} 个标签 · 点击按标签聚焦内容`
+              : `${personalTagCounts.length} tag(s) · Click to filter Content`}
+          </small>
+        </div>
+        <div className="topics-personal-tags-chips">
+          {personalTagCounts.map((entry) => (
+            <button
+              key={entry.tag}
+              type="button"
+              className="content-tag-chip tabular-nums"
+              onClick={() => onBrowsePersonalTag?.(entry.tag)}
+            >
+              #{entry.tag} ({entry.count})
+            </button>
+          ))}
+        </div>
+      </section>
+    ) : null;
     if (!allTopics.length) {
       return (
         <div className="empty-state-stack">
+          {personalTagsCard}
           <Empty>No Topics yet.</Empty>
           <p className="hint empty-state-guidance">
             {zh
@@ -9175,6 +9300,7 @@ function Topics({
     });
     return (
       <div className="content-library-shell">
+        {personalTagsCard}
         <div className="library-filter-bar topics-filter-bar">
           <div className="search-field-wrap">
             <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
