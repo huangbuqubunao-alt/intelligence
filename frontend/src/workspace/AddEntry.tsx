@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiRequestError, post } from "../api/client";
 import { LocalImport } from "./LocalImport";
+import { QuickPasteNoteForm } from "./QuickPasteNoteForm";
 import { bilibiliStatus } from "./BilibiliImport";
 import { trackingCopy } from "./CreatorFollowing";
 import { useUiLanguage } from "./uiLanguage";
@@ -60,10 +61,24 @@ const confirmation: Record<RecognizedLink["kind"], string> = {
   YOUTUBE_VIDEO: "YouTube video — process this video only. Its channel will not be followed.",
   BILIBILI_VIDEO: "Bilibili video — import this public video only. Its creator will not be followed.",
 };
-export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }: { onClose: () => void; onSaved: () => void; onImported?: (contentId: string, sourceKind?: "LOCAL" | "YOUTUBE_VIDEO" | "BILIBILI_VIDEO") => void; initialLocal?: boolean }) {
+export function AddEntry({
+  onClose,
+  onSaved,
+  onImported,
+  initialLocal = false,
+  initialMode,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+  onImported?: (contentId: string, sourceKind?: "LOCAL" | "YOUTUBE_VIDEO" | "BILIBILI_VIDEO") => void;
+  initialLocal?: boolean;
+  initialMode?: "YOUTUBE" | "LOCAL" | "PASTE";
+}) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
-  const [local, setLocal] = useState(initialLocal);
+  const [entryMode, setEntryMode] = useState<"YOUTUBE" | "LOCAL" | "PASTE">(
+    initialMode ?? (initialLocal ? "LOCAL" : "YOUTUBE"),
+  );
   const [input, setInput] = useState("");
   const [mode, setMode] = useState("ORGANIZE_CONTENT");
   const [busy, setBusy] = useState(false);
@@ -71,7 +86,7 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
   const [result, setResult] = useState<{ kind: RecognizedLink["kind"]; content_id?: string; status?: string } | null>(null);
   const recognized = recognizeLink(input);
   useEffect(() => {
-    if (local) return;
+    if (entryMode !== "YOUTUBE") return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busy) {
         event.preventDefault();
@@ -81,14 +96,35 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [local, busy, result, onClose, onSaved]);
-  if (local) return <LocalImport onClose={onClose} onSaved={onSaved} onImported={onImported ? id => onImported(id, "LOCAL") : undefined} onYouTube={() => setLocal(false)} />;
+  }, [entryMode, busy, result, onClose, onSaved]);
+  if (entryMode === "LOCAL") {
+    return (
+      <LocalImport
+        onClose={onClose}
+        onSaved={onSaved}
+        onImported={onImported ? id => onImported(id, "LOCAL") : undefined}
+        onYouTube={() => setEntryMode("YOUTUBE")}
+      />
+    );
+  }
+  if (entryMode === "PASTE") {
+    return (
+      <QuickPasteNoteForm
+        onClose={onClose}
+        onSaved={onSaved}
+        onImported={onImported ? id => onImported(id, "LOCAL") : undefined}
+        onYouTube={() => setEntryMode("YOUTUBE")}
+        onLocalFiles={() => setEntryMode("LOCAL")}
+      />
+    );
+  }
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="add-entry-title">
     <div className="modal-head"><h2 id="add-entry-title">{t("Add a Source")}</h2><button className="button button-ghost" aria-label={t("Close")} disabled={busy} onClick={result ? onSaved : onClose}>{t(result ? "Done" : "Close")}</button></div>
     {!result && <>
       <div className="button-row" aria-label={t("Source provider")}>
         <button type="button" className="button button-primary" aria-pressed="true" disabled={busy}>YouTube / Bilibili</button>
-        <button type="button" className="button button-secondary" disabled={busy} onClick={() => setLocal(true)}>{t("Local files")}</button>
+        <button type="button" className="button button-secondary" disabled={busy} onClick={() => setEntryMode("LOCAL")}>{t("Local files")}</button>
+        <button type="button" className="button button-secondary" disabled={busy} onClick={() => setEntryMode("PASTE")}>{zh ? "粘贴文本/笔记" : "Paste text"}</button>
       </div>
       <p>{t("Paste a YouTube or Bilibili link. We will recognize it before you add it.")}</p>
       <form onSubmit={async event => {
@@ -129,7 +165,7 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
         {error && <p className="form-error" role="alert">{t(error)}</p>}
         <div className="button-row">
           <button className="button button-primary" disabled={busy || !input.trim()}>{t(busy ? recognized?.kind === "YOUTUBE_CHANNEL" ? "Establishing tracking…" : "Starting import…" : recognized?.kind === "YOUTUBE_CHANNEL" ? "Follow channel" : "Confirm import")}</button>
-          <button type="button" className="button button-secondary" disabled={busy} onClick={() => setLocal(true)}>{t("Import local file")}</button>
+          <button type="button" className="button button-secondary" disabled={busy} onClick={() => setEntryMode("LOCAL")}>{t("Import local file")}</button>
         </div>
       </form>
       <p className="hint">

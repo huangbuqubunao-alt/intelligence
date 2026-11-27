@@ -6885,3 +6885,21 @@ input[type="radio"] {
   margin: 0;
 }
 
+/* Iteration 13: Quick paste Markdown note */
+.paste-note-textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.paste-note-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+

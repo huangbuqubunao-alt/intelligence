@@ -1815,7 +1815,7 @@ function Workspace() {
   const [topicListResetSeq, setTopicListResetSeq] = useState(0);
   const [sourceListResetSeq, setSourceListResetSeq] = useState(0);
   // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
-  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
+  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | "PASTE" | null>(null);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [imported, setImported] = useState(false);
@@ -2029,6 +2029,7 @@ function Workspace() {
     { id: "act:export-obsidian-zip", group: "actions", label: language === "zh-CN" ? "导出 Obsidian 双链知识库包 (.zip)" : "Export Obsidian Vault bundle (.zip)", icon: "archive", aliases: ["obsidian", "vault", "zip", "wikilinks", "双链", "导出", "知识库"], onSelect: () => { void exportObsidianVaultBundle("must_watch"); } },
     { id: "act:add-video", group: "actions", label: t("Add video or follow channel"), icon: "plus", aliases: ["add", "import", "youtube", "bilibili", "导入", "添加"], onSelect: () => setAddProvider("YOUTUBE") },
     { id: "act:add-local", group: "actions", label: t("Import local file"), icon: "file-text", aliases: ["local", "file", "本地文件", "转写"], onSelect: () => setAddProvider("LOCAL") },
+    { id: "act:paste-note", group: "actions", label: language === "zh-CN" ? "粘贴文本或笔记入库" : "Paste text or Markdown note", icon: "file-text", aliases: ["paste", "markdown", "note", "memo", "粘贴", "笔记", "纪要", "文章"], onSelect: () => setAddProvider("PASTE") },
     {
       id: "act:replay-onboarding",
       group: "actions",
@@ -2400,7 +2401,7 @@ function Workspace() {
           setCmdkOpen(true);
         }}
       />
-      {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={(id, sourceKind) => {
+      {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} initialMode={addProvider} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={(id, sourceKind) => {
         setAddProvider(null); setRefresh(value => value + 1); setImported(!sourceKind || sourceKind === "LOCAL"); openContent(id);
       }} />}
     </div>

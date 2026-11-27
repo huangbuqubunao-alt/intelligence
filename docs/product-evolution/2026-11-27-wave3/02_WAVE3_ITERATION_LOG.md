@@ -21,3 +21,21 @@
   - 在字幕抽屉输入 `SQLite` 准确显示「命中 1 / 3 段」并高亮标记，点击「复制此段」瞬态切换为「已复制」；深浅双主题清晰可读。
   - 在原话证据抽屉输入 `recovery` 自动穿透折叠抽屉，直接呈现包含 `#4`、`#6`、`#9` 在内的全部 4 条命中卡片并高亮匹配词；`390x844` 移动端 `mobileOverflow: false`。
   - 实机截图归档：[Transcript Search Dark](./screenshots/iter-12/step_6_shot_1_iter12_transcript_search_dark.png)、[Transcript Search Light](./screenshots/iter-12/step_22_shot_1_iter12_transcript_search_light.png)、[Evidence Search Dark](./screenshots/iter-12/step_26_shot_1_iter12_evidence_search_dark.png)、[Drawer Search Mobile](./screenshots/iter-12/step_28_shot_1_iter12_drawer_search_mobile.png)。
+
+---
+
+## Iteration 13 (`EVO-W3-02`) — 快速粘贴 Markdown / 文章 / 会议纪要直接入库
+
+- **解决的用户问题**：研究过程中随手复制的长文段落、会议纪要或 Markdown 笔记必须先在本机创建临时 `.md` 文件再走文件上传，打断输入心流。
+- **核心改动**：
+  1. 新增 [QuickPasteNoteForm.tsx](../../../frontend/src/workspace/QuickPasteNoteForm.tsx)：提供可选标题 + Markdown 正文编辑器、自动安全文件名推导（`derivePasteFilename` / `buildPastedMarkdownPayload`）、实时 UTF-8 字节计数器（严格守住 2 MiB 上限）与 `uploadLocal` 直传本地 `/local/imports`。
+  2. [AddEntry.tsx](../../../frontend/src/workspace/AddEntry.tsx) & [App.tsx](../../../frontend/src/workspace/App.tsx)：在导入弹窗顶部切换栏新增「粘贴文本/笔记」（保持默认单行链接框与既有单测 100% 兼容）；在 `⌘K` 命令面板增加「粘贴文本或笔记入库」直达动作。
+  3. [styles.css](../../../frontend/src/workspace/styles.css)：为 `.paste-note-textarea` 与 `.paste-note-meta-row` 适配桌面与 `390x844` 移动端。
+- **自动化验证**：
+  - 新增 [EvolutionIter13.test.tsx](../../../frontend/src/workspace/EvolutionIter13.test.tsx)（2 passed）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`800ms` (`assets/index-ByNkdImW.js` / `assets/index-DtM-lwXU.css`)；Vitest：**71/71 files, 1308/1308 passed**。
+- **Chromium 实机验证（`127.0.0.1:8796` 空库实传 & `127.0.0.1:8799` Demo）**：
+  - 验证加载 `assets/index-ByNkdImW.js` & `assets/index-DtM-lwXU.css`（均为 `200 OK`）；**0 console errors、0 pageerrors、0 HTTP >=400**。
+  - 在 `8796` 打开导入 →「粘贴文本/笔记」，粘贴 Markdown 笔记并提交 `POST /api/v1/local/imports?filename=2026-Agent-Reliability-Notes.md` 返回 **`201`**，自动打开纯文档阅读器展现「原文已就绪 · 待提炼洞察」。
+  - 在 `390x844` Warm Paper Light 下粘贴弹窗与文档阅读器均保持 **`mobileOverflow: false`**。
+  - 实机截图归档：[Paste Modal Dark](./screenshots/iter-13/step_6_shot_1_iter13_paste_modal_dark.png)、[Pasted Reader Dark](./screenshots/iter-13/step_8_shot_1_iter13_pasted_reader_dark.png)、[Pasted Reader Mobile Light](./screenshots/iter-13/step_10_shot_1_iter13_pasted_reader_mobile_light.png)、[Paste Modal Mobile Light](./screenshots/iter-13/step_14_shot_1_iter13_paste_modal_mobile_light.png)。
