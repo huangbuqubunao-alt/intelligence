@@ -7784,3 +7784,38 @@ input[type="radio"] {
   color: var(--text-strong);
   overflow-wrap: anywhere;
 }
+
+/* Iteration 33: Topics detail inline personal notes & augmented MOC toggle */
+.topic-moc-notes-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.topic-entry-note-box {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent-border);
+  background: var(--accent-soft);
+  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+}
+
+.topic-entry-note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topic-entry-note-excerpt {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}

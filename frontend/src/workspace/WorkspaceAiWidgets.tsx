@@ -18,6 +18,7 @@ import {
   listPersonalNoteVideoIds,
   listPersonalTagCounts,
   PERSONAL_NOTES_CHANGED_EVENT,
+  readAllPersonalNotes,
 } from "./personalNotes";
 import {
   clearReadingHistory,
@@ -3225,6 +3226,55 @@ export function formatPlainTextTopicBrief(
   return lines.join("\n\n");
 }
 
+export function buildTopicMarkdownWithPersonalNotes(
+  obsidianMarkdown: string,
+  evolution: TopicAiEvolution | null | undefined,
+  zh: boolean,
+): { markdown: string; matchedNoteCount: number } {
+  const entries = evolution?.entries ?? [];
+  if (!entries.length) {
+    return { markdown: obsidianMarkdown, matchedNoteCount: 0 };
+  }
+  const allNotes = readAllPersonalNotes();
+  const matched: Array<{ title: string; text: string; tags: string[] }> = [];
+  const seenIds = new Set<string>();
+  for (const entry of entries) {
+    const vid = entry.video_id?.trim();
+    if (!vid || seenIds.has(vid)) continue;
+    seenIds.add(vid);
+    const note = allNotes[vid];
+    if (!note || (!note.text.trim() && note.tags.length === 0)) continue;
+    matched.push({
+      title: (entry.title || vid).replace(/[[\]|]/g, "").replace(/\s+/g, " ").trim() || "Untitled",
+      text: note.text.trim(),
+      tags: note.tags,
+    });
+  }
+  if (matched.length === 0) {
+    return { markdown: obsidianMarkdown, matchedNoteCount: 0 };
+  }
+  const sectionLines: string[] = [
+    "",
+    zh
+      ? `## 个人思考与批注 (${matched.length})`
+      : `## Personal Notes (${matched.length})`,
+    "",
+  ];
+  for (const item of matched) {
+    const tagSuffix = item.tags.length > 0 ? ` — ${item.tags.map((tag) => `#${tag}`).join(" ")}` : "";
+    sectionLines.push(`### [[${item.title}]]${tagSuffix}`);
+    if (item.text) {
+      sectionLines.push(item.text);
+    }
+    sectionLines.push("");
+  }
+  const base = obsidianMarkdown.trimEnd();
+  return {
+    markdown: `${base}\n${sectionLines.join("\n")}`,
+    matchedNoteCount: matched.length,
+  };
+}
+
 export function TopicObsidianExportBar({
   topicName,
   obsidianMarkdown,
@@ -3238,13 +3288,29 @@ export function TopicObsidianExportBar({
   const zh = language === "zh-CN";
   const [copied, setCopied] = useState(false);
   const [copiedPlain, setCopiedPlain] = useState(false);
+  const [includePersonalNotes, setIncludePersonalNotes] = useState(true);
+  const [, setNotesRev] = useState(0);
 
   useEffect(() => {
     setCopied(false);
     setCopiedPlain(false);
   }, [topicName]);
 
+  useEffect(() => {
+    const syncNotes = () => setNotesRev((v) => v + 1);
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNotes);
+    window.addEventListener("storage", syncNotes);
+    return () => {
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNotes);
+      window.removeEventListener("storage", syncNotes);
+    };
+  }, []);
+
   if (!obsidianMarkdown.trim() && !evolution) return null;
+
+  const augmented = buildTopicMarkdownWithPersonalNotes(obsidianMarkdown, evolution, zh);
+  const effectiveMarkdown =
+    includePersonalNotes && augmented.matchedNoteCount > 0 ? augmented.markdown : obsidianMarkdown;
 
   return (
     <div className="topic-moc-export-box">
@@ -3277,7 +3343,7 @@ export function TopicObsidianExportBar({
           className="button button-secondary button-small"
           onClick={(event) => {
             pulseCelebration(event.currentTarget);
-            void navigator.clipboard?.writeText(obsidianMarkdown);
+            void navigator.clipboard?.writeText(effectiveMarkdown);
             setCopied(true);
             setTimeout(() => setCopied(false), 2200);
           }}
@@ -3294,18 +3360,32 @@ export function TopicObsidianExportBar({
         <button
           type="button"
           className="button button-ghost button-small"
-          onClick={() => downloadObsidianMarkdown(`专题MOC-${topicName}.md`, obsidianMarkdown)}
+          onClick={() => downloadObsidianMarkdown(`专题MOC-${topicName}.md`, effectiveMarkdown)}
         >
           {zh ? "下载专题 .md" : "Download Topic .md"}
         </button>
       </div>
+      {augmented.matchedNoteCount > 0 ? (
+        <label className="topic-moc-notes-toggle tabular-nums">
+          <input
+            type="checkbox"
+            checked={includePersonalNotes}
+            onChange={(event) => setIncludePersonalNotes(event.target.checked)}
+          />
+          <span>
+            {zh
+              ? `附带本专题个人批注 (${augmented.matchedNoteCount})`
+              : `Include topic personal notes (${augmented.matchedNoteCount})`}
+          </span>
+        </label>
+      ) : null}
       <details className="obsidian-preview-drawer">
         <summary>
           {zh
             ? "预览专题 MOC 双链笔记 ([[wikilinks]])"
             : "Preview Topic MOC [[wikilinks]] Markdown"}
         </summary>
-        <pre className="obsidian-preview-pre">{obsidianMarkdown}</pre>
+        <pre className="obsidian-preview-pre">{effectiveMarkdown}</pre>
       </details>
     </div>
   );

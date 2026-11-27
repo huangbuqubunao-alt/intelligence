@@ -9899,11 +9899,19 @@ function Topics({
   const [personalTagCounts, setPersonalTagCounts] = useState<PersonalTagCount[]>(() =>
     listPersonalTagCounts(),
   );
+  const [, setTopicNotesRev] = useState(0);
   useEffect(() => {
-    const syncTags = () => setPersonalTagCounts(listPersonalTagCounts());
+    const syncTags = () => {
+      setPersonalTagCounts(listPersonalTagCounts());
+      setTopicNotesRev((v) => v + 1);
+    };
     syncTags();
     window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncTags);
-    return () => window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncTags);
+    window.addEventListener("storage", syncTags);
+    return () => {
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncTags);
+      window.removeEventListener("storage", syncTags);
+    };
   }, []);
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh, undefined, true, true);
   const [selected, setSelected] = useState<string | null>(
@@ -10394,7 +10402,16 @@ function Topics({
       {hasEvoEntries && evo ? (
         <Panel title={zh ? "专题核心脉络与时间演进" : "Topic Insight Evolution"} icon="sparkle">
           <div className="topic-evolution-list">
-            {evo.entries.map((entry) => (
+            {evo.entries.map((entry) => {
+              const entryNote = readPersonalNote(entry.video_id);
+              const hasEntryNote = Boolean(
+                entryNote && (entryNote.text.trim().length > 0 || entryNote.tags.length > 0),
+              );
+              const noteExcerpt =
+                entryNote?.text.trim() && entryNote.text.trim().length > 120
+                  ? `${entryNote.text.trim().slice(0, 120)}…`
+                  : entryNote?.text.trim() ?? "";
+              return (
               <article className="topic-evolution-card" key={entry.video_id}>
                 <div className="topic-evolution-head tabular-nums">
                   <button
@@ -10405,6 +10422,11 @@ function Topics({
                     <strong>{entry.title}</strong>
                   </button>
                   <div className="content-row-trailing">
+                    {hasEntryNote ? (
+                      <span className="intel-noted-badge">
+                        {zh ? "已批注" : "Noted"}
+                      </span>
+                    ) : null}
                     {entry.source_basis === "METADATA_ONLY" ? (
                       <span className="ai-basis-pill is-compact">
                         {zh ? "简介速览" : "Metadata"}
@@ -10445,8 +10467,25 @@ function Topics({
                     ))}
                   </ul>
                 ) : null}
+                {hasEntryNote && entryNote ? (
+                  <div className="topic-entry-note-box">
+                    {entryNote.tags.length > 0 ? (
+                      <div className="topic-entry-note-tags">
+                        {entryNote.tags.map((tag) => (
+                          <span key={tag} className="personal-note-tag-pill">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {noteExcerpt ? (
+                      <p className="topic-entry-note-excerpt">{noteExcerpt}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </article>
-            ))}
+              );
+            })}
           </div>
         </Panel>
       ) : null}

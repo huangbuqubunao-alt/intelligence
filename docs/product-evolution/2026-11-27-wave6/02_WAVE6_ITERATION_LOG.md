@@ -43,3 +43,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Home` & `8796/#Home`）**：
   - 确认加载最新构建资源（HTTP `200`）；验证折叠前 `0` 个答案泄露，点击「展开核对」精准显示核心结论与本人批注，点击「记住了 ✓」后进度更新为 `今日已复习 1 / 5` 并自动切至第 2 张；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；空白工作台 `8796/#Home` 下 `.home-recall-panel` 为 `0`；**0 console/page/network 错误**。
   - 实机截图归档：[Recall Dark](./screenshots/iter-32/step_1_iter32_recall_dark.png)、[Recall Light](./screenshots/iter-32/step_2_iter32_recall_light.png)、[Recall Mobile](./screenshots/iter-32/step_3_iter32_recall_mobile.png)。
+
+## Iteration 33 (`EVO-W6-04`) — `#Topics` Detail Personal Notes Integration & Augmented Topic MOC Export
+
+- **解决的用户问题**：此前在 `#Topics` 专题详情中，AI 汇总的「专题核心脉络与时间演进」与专题 MOC 双链导出均忽略了用户在单篇内容下写下的个人思考与 `#tag`，导致深度整理专题时还要回头逐篇翻找个人批注。
+- **核心改动**：
+  1. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx)：新增 `buildTopicMarkdownWithPersonalNotes`，按 `video_id` 自动汇总本专题内全部已批注条目的 `#tags` 与正文；在 `TopicObsidianExportBar` 中新增「附带本专题个人批注 (N)」勾选开关（默认勾选，实时同步复制、下载 `.md` 与预览抽屉；无批注时不改变原 Markdown）。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：`Topics` 详情演进时间轴卡片实时响应 `PERSONAL_NOTES_CHANGED_EVENT`，为已批注条目展示绿色 `已批注` 徽标与内联 `.topic-entry-note-box` 批注摘录与 `#tag` 胶囊。
+- **自动化验证**：
+  - 新增 [EvolutionIter33.test.tsx](../../../frontend/src/workspace/EvolutionIter33.test.tsx)（3 passed，覆盖无批注原样输出、匹配批注合并、`TopicObsidianExportBar` 开关与下载、专题详情内联批注摘录渲染）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`962ms` (`assets/index-ombZtSD5.js` / `assets/workspace-ai-hub-CQMWlTSl.js` / `assets/index-FcfblfLu.css`)；Vitest：**91/91 files, 1346/1346 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Topics` → `AI Agent 工程架构`）**：
+  - 确认加载最新构建资源（HTTP `200`）；「附带本专题个人批注 (1)」默认选中，预览抽屉内精确出现 `## 个人思考与批注 (1)` 与对应视频批注正文；演进卡片展示 `已批注` 徽标与 `#核心结论 #状态机 #实践复盘` 摘录；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
+  - 实机截图归档：[Topics Dark](./screenshots/iter-33/step_1_iter33_topics_dark.png)、[Topics Light](./screenshots/iter-33/step_2_iter33_topics_light.png)、[Topics Mobile](./screenshots/iter-33/step_3_iter33_topics_mobile.png)。
