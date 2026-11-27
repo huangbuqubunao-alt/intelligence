@@ -58,6 +58,7 @@ import {
   listPersonalNoteVideoIds,
   listPersonalTagCounts,
   mergePersonalNoteIntoMarkdown,
+  parseSingleTagRename,
   type PersonalNote,
   readAllPersonalNotes,
   readPersonalNote,
@@ -2766,19 +2767,47 @@ function Dashboard(
         rev: prev.rev + 1,
       }));
     const syncRecall = () => setRecalledTodayIds(readRecalledTodayIds());
+    const syncRecallIfVisible = () => {
+      if (document.visibilityState === "visible") {
+        syncRecall();
+      }
+    };
+    let midnightTimer: number | null = null;
+    const scheduleMidnightRefresh = () => {
+      const now = new Date();
+      const nextMidnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        0,
+        0,
+        1,
+      );
+      const delayMs = Math.max(1000, nextMidnight.getTime() - now.getTime());
+      midnightTimer = window.setTimeout(() => {
+        syncRecall();
+        scheduleMidnightRefresh();
+      }, delayMs);
+    };
+    scheduleMidnightRefresh();
     window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
     window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncStudy);
     window.addEventListener(ACTIVE_RECALL_CHANGED_EVENT, syncRecall);
     window.addEventListener("storage", syncHistory);
     window.addEventListener("storage", syncStudy);
     window.addEventListener("storage", syncRecall);
+    window.addEventListener("focus", syncRecall);
+    document.addEventListener("visibilitychange", syncRecallIfVisible);
     return () => {
+      if (midnightTimer !== null) window.clearTimeout(midnightTimer);
       window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
       window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncStudy);
       window.removeEventListener(ACTIVE_RECALL_CHANGED_EVENT, syncRecall);
       window.removeEventListener("storage", syncHistory);
       window.removeEventListener("storage", syncStudy);
       window.removeEventListener("storage", syncRecall);
+      window.removeEventListener("focus", syncRecall);
+      document.removeEventListener("visibilitychange", syncRecallIfVisible);
     };
   }, []);
   const isDemoMode = Boolean(data?.demo_mode);
@@ -10403,23 +10432,50 @@ function Topics({
           >
             {personalTagCounts.map((entry) => {
               const draft = tagDrafts[entry.tag] ?? entry.tag;
-              const cleanDraft = draft.trim().replace(/^#+/, "");
-              const canRename = cleanDraft.length > 0 && cleanDraft !== entry.tag;
+              const parsedTarget = parseSingleTagRename(draft);
+              const existingMergeTarget = parsedTarget.valid
+                ? personalTagCounts.find(
+                    (other) =>
+                      other.tag.toLowerCase() === parsedTarget.targetTag.toLowerCase() &&
+                      other.tag !== entry.tag,
+                  )
+                : undefined;
+              const canRename =
+                parsedTarget.valid && parsedTarget.targetTag !== entry.tag;
               return (
                 <div className="topics-tag-manage-row" role="listitem" key={entry.tag}>
                   <span className="topics-tag-manage-name tabular-nums">
                     #{entry.tag} ({entry.count})
                   </span>
-                  <input
-                    type="text"
-                    className="topics-tag-manage-input"
-                    aria-label={zh ? `重命名标签 ${entry.tag}` : `Rename tag ${entry.tag}`}
-                    value={draft}
-                    maxLength={32}
-                    onChange={(event) =>
-                      setTagDrafts((prev) => ({ ...prev, [entry.tag]: event.target.value }))
-                    }
-                  />
+                  <div className="topics-tag-manage-input-wrap">
+                    <input
+                      type="text"
+                      className="topics-tag-manage-input"
+                      aria-label={zh ? `重命名标签 ${entry.tag}` : `Rename tag ${entry.tag}`}
+                      value={draft}
+                      maxLength={32}
+                      onChange={(event) =>
+                        setTagDrafts((prev) => ({ ...prev, [entry.tag]: event.target.value }))
+                      }
+                    />
+                    {parsedTarget.error === "MULTI_TOKEN" ? (
+                      <small className="topics-tag-manage-hint form-error">
+                        {zh
+                          ? "单个标签不能包含空格或分隔符，请用连字符（如 new-tag）"
+                          : "A single tag cannot contain spaces or separators; use hyphens (e.g. new-tag)."}
+                      </small>
+                    ) : canRename ? (
+                      <small className="topics-tag-manage-hint tabular-nums">
+                        {existingMergeTarget
+                          ? zh
+                            ? `将把 ${entry.count} 篇并入已有标签 #${existingMergeTarget.tag}（当前 ${existingMergeTarget.count} 篇）`
+                            : `Merges ${entry.count} note(s) into #${existingMergeTarget.tag} (${existingMergeTarget.count} existing)`
+                          : zh
+                            ? `将更新 ${entry.count} 篇 → #${parsedTarget.targetTag}`
+                            : `Renames ${entry.count} note(s) -> #${parsedTarget.targetTag}`}
+                      </small>
+                    ) : null}
+                  </div>
                   <button
                     type="button"
                     className="button button-secondary button-small"

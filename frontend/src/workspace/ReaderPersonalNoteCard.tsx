@@ -4,10 +4,11 @@ import {
   listPersonalTagCounts,
   normalizeNoteTags,
   PERSONAL_NOTES_CHANGED_EVENT,
+  PERSONAL_NOTES_STORAGE_KEY,
   PersonalNote,
   PersonalTagCount,
   readPersonalNote,
-  savePersonalNote,
+  savePersonalNoteChecked,
 } from "./personalNotes";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
@@ -37,6 +38,28 @@ const NOTE_REFLECTION_TEMPLATES = [
   },
 ] as const;
 
+type ConflictRemoteState = {
+  note: PersonalNote | null;
+  updatedAt: string | null;
+};
+
+function mergeConflictDrafts(
+  localText: string,
+  localTagsRaw: string,
+  remoteNote: PersonalNote | null,
+): { text: string; tags: string[] } {
+  const remoteText = remoteNote?.text?.trim() ?? "";
+  const trimmedLocal = localText.trim();
+  const mergedText =
+    remoteText && trimmedLocal && remoteText !== trimmedLocal
+      ? `${remoteText}\n\n---\n${trimmedLocal}`
+      : trimmedLocal || remoteText;
+  const mergedTags = normalizeNoteTags(
+    [...(remoteNote?.tags ?? []), ...normalizeNoteTags(localTagsRaw)].join(", "),
+  );
+  return { text: mergedText, tags: mergedTags };
+}
+
 export function ReaderPersonalNoteCard({
   videoId,
   onNoteChange,
@@ -46,38 +69,86 @@ export function ReaderPersonalNoteCard({
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
-  const initialNote = readPersonalNote(videoId);
-  const [text, setText] = useState(initialNote?.text ?? "");
-  const [tagDraft, setTagDraft] = useState(initialNote?.tags.join(", ") ?? "");
-  const [expanded, setExpanded] = useState(Boolean(initialNote));
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
+  const [initialLoaded] = useState<PersonalNote | null>(() => readPersonalNote(videoId));
+  const [text, setText] = useState(initialLoaded?.text ?? "");
+  const [tagDraft, setTagDraft] = useState(initialLoaded?.tags.join(", ") ?? "");
+  const [expanded, setExpanded] = useState(Boolean(initialLoaded));
+  const [saveStatus, setSaveStatus] = useState<"idle" | "dirty" | "saved" | "error">(
+    initialLoaded ? "saved" : "idle",
+  );
+  const [conflictState, setConflictState] = useState<ConflictRemoteState | null>(null);
   const [libraryTags, setLibraryTags] = useState<PersonalTagCount[]>(() =>
     listPersonalTagCounts(),
   );
   const debounceRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const suppressShortcutCharUntilRef = useRef<number>(0);
+  const isDirtyRef = useRef(false);
+  const baseUpdatedAtRef = useRef<string | null>(initialLoaded?.updatedAt ?? null);
+  const latestDraftRef = useRef({
+    videoId,
+    text: initialLoaded?.text ?? "",
+    tagDraft: initialLoaded?.tags.join(", ") ?? "",
+  });
+  latestDraftRef.current = { videoId, text, tagDraft };
   const onNoteChangeRef = useRef(onNoteChange);
   onNoteChangeRef.current = onNoteChange;
 
   useEffect(() => {
-    const syncFromStore = () => {
-      const latest = readPersonalNote(videoId);
+    const applySyncedNote = (latest: PersonalNote | null) => {
+      isDirtyRef.current = false;
+      baseUpdatedAtRef.current = latest?.updatedAt ?? null;
+      setConflictState(null);
       setText(latest?.text ?? "");
       setTagDraft(latest?.tags.join(", ") ?? "");
-      setLibraryTags(listPersonalTagCounts());
+      setSaveStatus(latest ? "saved" : "idle");
       if (latest) setExpanded(true);
       onNoteChangeRef.current?.(latest);
     };
-    const syncTagsOnly = () => setLibraryTags(listPersonalTagCounts());
-    syncFromStore();
-    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncFromStore);
-    window.addEventListener("storage", syncTagsOnly);
+
+    const syncFromStore = (forceInit = false) => {
+      setLibraryTags(listPersonalTagCounts());
+      const latest = readPersonalNote(videoId);
+      const latestStamp = latest?.updatedAt ?? null;
+      if (forceInit || !isDirtyRef.current) {
+        applySyncedNote(latest);
+        return;
+      }
+      if (latestStamp !== baseUpdatedAtRef.current) {
+        if (debounceRef.current !== null) {
+          window.clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
+        setConflictState({ note: latest, updatedAt: latestStamp });
+      }
+    };
+
+    const onStorageEvent = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== PERSONAL_NOTES_STORAGE_KEY) return;
+      syncFromStore(false);
+    };
+    const onLocalStoreChange = () => syncFromStore(false);
+
+    syncFromStore(true);
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, onLocalStoreChange);
+    window.addEventListener("storage", onStorageEvent);
     return () => {
-      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncFromStore);
-      window.removeEventListener("storage", syncTagsOnly);
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, onLocalStoreChange);
+      window.removeEventListener("storage", onStorageEvent);
       if (debounceRef.current !== null) {
         window.clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      if (isDirtyRef.current) {
+        const draft = latestDraftRef.current;
+        const currentRemote = readPersonalNote(draft.videoId);
+        if ((currentRemote?.updatedAt ?? null) === baseUpdatedAtRef.current) {
+          savePersonalNoteChecked(draft.videoId, {
+            text: draft.text,
+            tags: normalizeNoteTags(draft.tagDraft),
+          });
+        }
+        isDirtyRef.current = false;
       }
     };
   }, [videoId]);
@@ -130,15 +201,30 @@ export function ReaderPersonalNoteCard({
     };
   }, []);
 
-  const flushSave = (nextText: string, nextTagDraft: string) => {
+  const flushSave = (nextText: string, nextTagDraft: string, forceOverwrite = false) => {
     if (debounceRef.current !== null) {
       window.clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
-    const saved = savePersonalNote(videoId, {
+    if (!forceOverwrite) {
+      const currentRemote = readPersonalNote(videoId);
+      const currentStamp = currentRemote?.updatedAt ?? null;
+      if (currentStamp !== baseUpdatedAtRef.current) {
+        setConflictState({ note: currentRemote, updatedAt: currentStamp });
+        return;
+      }
+    }
+    const { note: saved, persisted } = savePersonalNoteChecked(videoId, {
       text: nextText,
       tags: normalizeNoteTags(nextTagDraft),
     });
+    if (!persisted) {
+      setSaveStatus("error");
+      return;
+    }
+    isDirtyRef.current = false;
+    baseUpdatedAtRef.current = saved?.updatedAt ?? null;
+    setConflictState(null);
     onNoteChangeRef.current?.(saved);
     setSaveStatus(saved ? "saved" : "idle");
   };
@@ -149,8 +235,14 @@ export function ReaderPersonalNoteCard({
     }
     debounceRef.current = window.setTimeout(() => {
       debounceRef.current = null;
+      if (!isDirtyRef.current) return;
       flushSave(nextText, nextTagDraft);
     }, 280);
+  };
+
+  const handleBlurSave = () => {
+    if (!isDirtyRef.current) return;
+    flushSave(text, tagDraft);
   };
 
   const parsedTags = normalizeNoteTags(tagDraft);
@@ -162,6 +254,8 @@ export function ReaderPersonalNoteCard({
 
   const appendTemplate = (snippet: string) => {
     const nextText = text.trimEnd() ? `${text.trimEnd()}\n\n${snippet}` : snippet;
+    isDirtyRef.current = true;
+    setSaveStatus("dirty");
     setText(nextText);
     flushSave(nextText, tagDraft);
     queueMicrotask(() => {
@@ -177,6 +271,8 @@ export function ReaderPersonalNoteCard({
   const appendSuggestedTag = (tag: string) => {
     const merged = normalizeNoteTags([...parsedTags, tag].join(", "));
     const nextDraft = merged.join(", ");
+    isDirtyRef.current = true;
+    setSaveStatus("dirty");
     setTagDraft(nextDraft);
     flushSave(text, nextDraft);
   };
@@ -218,13 +314,21 @@ export function ReaderPersonalNoteCard({
         </h2>
         <div className="reader-personal-note-head-actions">
           <span className="hint" role="status">
-            {saveStatus === "saved" || hasContent
+            {saveStatus === "error"
               ? zh
-                ? "已保存在本机（导出 Obsidian 时自动附带）"
-                : "Saved locally (merged on Obsidian export)"
-              : zh
-                ? "纯本机存储"
-                : "Stored locally"}
+                ? "本机存储空间不足，暂未保存"
+                : "Local storage full — save failed"
+              : saveStatus === "dirty"
+                ? zh
+                  ? "正在保存…"
+                  : "Saving…"
+                : saveStatus === "saved"
+                  ? zh
+                    ? "已保存在本机（导出 Obsidian 时自动附带）"
+                    : "Saved locally (merged on Obsidian export)"
+                  : zh
+                    ? "纯本机存储"
+                    : "Stored locally"}
           </span>
           {hasContent ? (
             <button
@@ -235,6 +339,9 @@ export function ReaderPersonalNoteCard({
                   window.clearTimeout(debounceRef.current);
                   debounceRef.current = null;
                 }
+                isDirtyRef.current = false;
+                baseUpdatedAtRef.current = null;
+                setConflictState(null);
                 setText("");
                 setTagDraft("");
                 setSaveStatus("idle");
@@ -255,6 +362,48 @@ export function ReaderPersonalNoteCard({
           )}
         </div>
       </div>
+
+      {conflictState ? (
+        <div className="personal-note-conflict-banner" role="alert">
+          <p>
+            {zh
+              ? "检测到其他标签页已更新此笔记。为防止覆盖新内容，当前已暂停自动覆写。"
+              : "Another tab updated this note. Auto-overwrite is paused to prevent losing newer changes."}
+          </p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={() => {
+                const remote = readPersonalNote(videoId);
+                isDirtyRef.current = false;
+                baseUpdatedAtRef.current = remote?.updatedAt ?? null;
+                setConflictState(null);
+                setText(remote?.text ?? "");
+                setTagDraft(remote?.tags.join(", ") ?? "");
+                setSaveStatus(remote ? "saved" : "idle");
+                onNoteChangeRef.current?.(remote);
+              }}
+            >
+              {zh ? "采用最新内容" : "Load latest"}
+            </button>
+            <button
+              type="button"
+              className="button button-primary button-small"
+              onClick={() => {
+                const remote = readPersonalNote(videoId);
+                const merged = mergeConflictDrafts(text, tagDraft, remote);
+                setText(merged.text);
+                setTagDraft(merged.tags.join(", "));
+                baseUpdatedAtRef.current = remote?.updatedAt ?? null;
+                flushSave(merged.text, merged.tags.join(", "), true);
+              }}
+            >
+              {zh ? "合并并保留两边" : "Merge & keep both"}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div
         className="personal-note-templates-row"
@@ -286,10 +435,12 @@ export function ReaderPersonalNoteCard({
         value={text}
         onChange={(event) => {
           const val = event.target.value;
+          isDirtyRef.current = true;
+          setSaveStatus("dirty");
           setText(val);
           scheduleSave(val, tagDraft);
         }}
-        onBlur={() => flushSave(text, tagDraft)}
+        onBlur={handleBlurSave}
       />
 
       <div className="personal-note-tags-row">
@@ -301,10 +452,12 @@ export function ReaderPersonalNoteCard({
           value={tagDraft}
           onChange={(event) => {
             const val = event.target.value;
+            isDirtyRef.current = true;
+            setSaveStatus("dirty");
             setTagDraft(val);
             scheduleSave(text, val);
           }}
-          onBlur={() => flushSave(text, tagDraft)}
+          onBlur={handleBlurSave}
         />
         {parsedTags.length > 0 ? (
           <div className="personal-note-tag-pills">

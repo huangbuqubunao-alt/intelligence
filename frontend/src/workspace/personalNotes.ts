@@ -4,8 +4,37 @@ export type PersonalNote = {
   updatedAt: string;
 };
 
-const STORAGE_KEY = "yia.personal-notes.v1";
+export const PERSONAL_NOTES_STORAGE_KEY = "yia.personal-notes.v1";
+const STORAGE_KEY = PERSONAL_NOTES_STORAGE_KEY;
 export const PERSONAL_NOTES_CHANGED_EVENT = "yia-personal-notes-changed";
+export const MAX_STUDY_SNAPSHOT_BYTES = 10 * 1024 * 1024;
+export const MAX_PERSONAL_NOTES_IMPORT_COUNT = 10000;
+
+const UNSAFE_NOTE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isSafeNoteKey(rawKey: string): boolean {
+  const clean = rawKey.trim();
+  return clean.length > 0 && !UNSAFE_NOTE_KEYS.has(clean);
+}
+
+function emptyNoteDict(): Record<string, PersonalNote> {
+  return Object.create(null) as Record<string, PersonalNote>;
+}
+
+export function parseSingleTagRename(raw: string): {
+  valid: boolean;
+  targetTag: string;
+  error?: "EMPTY" | "MULTI_TOKEN";
+} {
+  const clean = raw.trim().replace(/^#+/, "");
+  if (!clean) {
+    return { valid: false, targetTag: "", error: "EMPTY" };
+  }
+  if (/[\s,，;；#]/.test(clean)) {
+    return { valid: false, targetTag: "", error: "MULTI_TOKEN" };
+  }
+  return { valid: true, targetTag: clean.slice(0, 32) };
+}
 
 export function normalizeNoteTags(raw: string): string[] {
   const seen = new Set<string>();
@@ -23,15 +52,15 @@ export function normalizeNoteTags(raw: string): string[] {
 }
 
 function readNoteStore(): Record<string, PersonalNote> {
-  if (typeof localStorage === "undefined") return {};
+  if (typeof localStorage === "undefined") return emptyNoteDict();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
+    if (!raw) return emptyNoteDict();
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const out: Record<string, PersonalNote> = {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return emptyNoteDict();
+    const out = emptyNoteDict();
     for (const [key, val] of Object.entries(parsed)) {
-      if (!key || !val || typeof val !== "object" || Array.isArray(val)) continue;
+      if (!isSafeNoteKey(key) || !val || typeof val !== "object" || Array.isArray(val)) continue;
       const candidate = val as Partial<PersonalNote>;
       const text = typeof candidate.text === "string" ? candidate.text : "";
       const tags = Array.isArray(candidate.tags)
@@ -49,17 +78,22 @@ function readNoteStore(): Record<string, PersonalNote> {
     }
     return out;
   } catch {
-    return {};
+    return emptyNoteDict();
   }
 }
 
-function writeNoteStore(store: Record<string, PersonalNote>): void {
-  if (typeof localStorage !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+function writeNoteStore(store: Record<string, PersonalNote>): boolean {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    }
+  } catch {
+    return false;
   }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(PERSONAL_NOTES_CHANGED_EVENT));
   }
+  return true;
 }
 
 export function readPersonalNote(videoId: string): PersonalNote | null {
@@ -119,19 +153,20 @@ export function listPersonalTagCounts(): PersonalTagCount[] {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
-export function savePersonalNote(
+export function savePersonalNoteChecked(
   videoId: string,
   input: { text: string; tags: string[] },
-): PersonalNote | null {
-  if (!videoId) return null;
+): { note: PersonalNote | null; persisted: boolean } {
+  if (!isSafeNoteKey(videoId)) return { note: null, persisted: false };
   const store = readNoteStore();
   const cleanTags = input.tags.map((t) => t.trim()).filter(Boolean).slice(0, 12);
   if (!input.text.trim() && cleanTags.length === 0) {
     if (videoId in store) {
       delete store[videoId];
-      writeNoteStore(store);
+      const persisted = writeNoteStore(store);
+      return { note: null, persisted };
     }
-    return null;
+    return { note: null, persisted: true };
   }
   const saved: PersonalNote = {
     text: input.text,
@@ -139,8 +174,15 @@ export function savePersonalNote(
     updatedAt: new Date().toISOString(),
   };
   store[videoId] = saved;
-  writeNoteStore(store);
-  return saved;
+  const persisted = writeNoteStore(store);
+  return { note: persisted ? saved : null, persisted };
+}
+
+export function savePersonalNote(
+  videoId: string,
+  input: { text: string; tags: string[] },
+): PersonalNote | null {
+  return savePersonalNoteChecked(videoId, input).note;
 }
 
 export function deletePersonalNote(videoId: string): void {
@@ -200,10 +242,14 @@ export function batchAddPersonalTags(
 export function renamePersonalTag(
   oldTag: string,
   newTagRaw: string,
-): { affectedCount: number; targetTag: string } {
+): { affectedCount: number; targetTag: string; error?: "EMPTY" | "MULTI_TOKEN" } {
   const oldClean = oldTag.trim().replace(/^#+/, "");
-  const [targetTag = ""] = normalizeNoteTags(newTagRaw);
-  if (!oldClean || !targetTag || oldClean === targetTag) {
+  const parsedTarget = parseSingleTagRename(newTagRaw);
+  if (!parsedTarget.valid) {
+    return { affectedCount: 0, targetTag: "", error: parsedTarget.error };
+  }
+  const { targetTag } = parsedTarget;
+  if (!oldClean || oldClean === targetTag) {
     return { affectedCount: 0, targetTag };
   }
   const oldLower = oldClean.toLowerCase();
@@ -321,11 +367,122 @@ export function exportPersonalNotesJson(): string {
   )}\n`;
 }
 
-export function importPersonalNotesJson(rawJson: string): {
+export type ImportPersonalNotesResult = {
   importedCount: number;
   totalCount: number;
-} {
-  if (!rawJson || rawJson.length > 2 * 1024 * 1024) {
+  conflictCount: number;
+  skippedOlderCount: number;
+  persisted: boolean;
+};
+
+function tagsEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((item, idx) => item === b[idx]);
+}
+
+function parseStrictUpdatedAtMs(raw: unknown): { valid: boolean; iso: string; ms: number } {
+  if (typeof raw !== "string") {
+    return { valid: false, iso: new Date(0).toISOString(), ms: 0 };
+  }
+  const clean = raw.trim();
+  if (!clean) {
+    return { valid: false, iso: new Date(0).toISOString(), ms: 0 };
+  }
+  const ms = Date.parse(clean);
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return { valid: false, iso: new Date(0).toISOString(), ms: 0 };
+  }
+  return { valid: true, iso: clean, ms };
+}
+
+export function importPersonalNotesObject(
+  parsed: Record<string, unknown>,
+): ImportPersonalNotesResult {
+  const candidateVersion = parsed.version;
+  if (
+    candidateVersion !== undefined &&
+    candidateVersion !== 1 &&
+    candidateVersion !== 2
+  ) {
+    throw new Error("UNSUPPORTED_PERSONAL_NOTES_VERSION");
+  }
+  const candidateNotes = parsed.notes;
+  if (!candidateNotes || typeof candidateNotes !== "object" || Array.isArray(candidateNotes)) {
+    throw new Error("MISSING_NOTES_MAP");
+  }
+  const current = readNoteStore();
+  let importedCount = 0;
+  let conflictCount = 0;
+  let skippedOlderCount = 0;
+  const entries = Object.entries(candidateNotes);
+  if (entries.length > MAX_PERSONAL_NOTES_IMPORT_COUNT) {
+    throw new Error("TOO_MANY_PERSONAL_NOTES");
+  }
+  for (const [videoId, value] of entries) {
+    if (!isSafeNoteKey(videoId) || !value || typeof value !== "object" || Array.isArray(value)) {
+      continue;
+    }
+    const rawEntry = value as Partial<PersonalNote>;
+    const text = typeof rawEntry.text === "string" ? rawEntry.text : "";
+    const tags = Array.isArray(rawEntry.tags)
+      ? rawEntry.tags.filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim()).slice(0, 12)
+      : [];
+    if (!text.trim() && tags.length === 0) continue;
+
+    const incomingTime = parseStrictUpdatedAtMs(rawEntry.updatedAt);
+    const existing = current[videoId];
+    if (!existing) {
+      current[videoId] = { text, tags, updatedAt: incomingTime.iso };
+      importedCount += 1;
+      continue;
+    }
+    if (existing.text === text && tagsEqual(existing.tags, tags)) {
+      continue;
+    }
+    if (!incomingTime.valid) {
+      // Unknown/malformed incoming timestamp never overwrites an existing note.
+      conflictCount += 1;
+      continue;
+    }
+    const existingTime = parseStrictUpdatedAtMs(existing.updatedAt);
+    if (existingTime.valid && incomingTime.ms < existingTime.ms) {
+      skippedOlderCount += 1;
+      continue;
+    }
+    if (existingTime.valid && incomingTime.ms === existingTime.ms) {
+      // Same timestamp with differing content is treated conservatively as a conflict.
+      conflictCount += 1;
+      continue;
+    }
+    current[videoId] = { text, tags, updatedAt: incomingTime.iso };
+    importedCount += 1;
+  }
+
+  let persisted = true;
+  if (importedCount > 0) {
+    persisted = writeNoteStore(current);
+  }
+  const verified = readNoteStore();
+  if (!persisted) {
+    return {
+      importedCount: 0,
+      totalCount: Object.keys(verified).length,
+      conflictCount,
+      skippedOlderCount,
+      persisted: false,
+    };
+  }
+  return {
+    importedCount,
+    totalCount: Object.keys(verified).length,
+    conflictCount,
+    skippedOlderCount,
+    persisted: true,
+  };
+}
+
+export function importPersonalNotesJson(rawJson: string): ImportPersonalNotesResult {
+  if (!rawJson || rawJson.length > MAX_STUDY_SNAPSHOT_BYTES) {
     throw new Error("INVALID_PERSONAL_NOTES_FILE");
   }
   let parsed: unknown;
@@ -337,41 +494,7 @@ export function importPersonalNotesJson(rawJson: string): {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("INVALID_PERSONAL_NOTES_SHAPE");
   }
-  const candidateNotes = (parsed as { notes?: unknown }).notes;
-  if (!candidateNotes || typeof candidateNotes !== "object" || Array.isArray(candidateNotes)) {
-    throw new Error("MISSING_NOTES_MAP");
-  }
-  const current = readNoteStore();
-  let importedCount = 0;
-  const entries = Object.entries(candidateNotes);
-  if (entries.length > 500) {
-    throw new Error("TOO_MANY_PERSONAL_NOTES");
-  }
-  for (const [videoId, value] of entries) {
-    if (!videoId.trim() || !value || typeof value !== "object" || Array.isArray(value)) {
-      continue;
-    }
-    const rawEntry = value as Partial<PersonalNote>;
-    const text = typeof rawEntry.text === "string" ? rawEntry.text : "";
-    const tags = Array.isArray(rawEntry.tags)
-      ? rawEntry.tags.filter((t): t is string => typeof t === "string" && t.trim().length > 0).slice(0, 12)
-      : [];
-    if (!text.trim() && tags.length === 0) continue;
-    const incomingUpdated =
-      typeof rawEntry.updatedAt === "string" && Number.isFinite(Date.parse(rawEntry.updatedAt))
-        ? rawEntry.updatedAt
-        : new Date().toISOString();
-    const existing = current[videoId];
-    if (!existing || Date.parse(incomingUpdated) >= Date.parse(existing.updatedAt || "")) {
-      current[videoId] = { text, tags, updatedAt: incomingUpdated };
-      importedCount += 1;
-    }
-  }
-  writeNoteStore(current);
-  return {
-    importedCount,
-    totalCount: Object.keys(current).length,
-  };
+  return importPersonalNotesObject(parsed as Record<string, unknown>);
 }
 
 function sanitizeWikilinkTitle(rawTitle: string, fallbackId: string): string {

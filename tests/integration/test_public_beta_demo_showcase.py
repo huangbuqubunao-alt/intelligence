@@ -86,18 +86,20 @@ def test_demo_showcase_prepare_is_offline_and_populates_multi_source_hub(
     intel_code, intel_body = app.handle("GET", "/api/v1/intelligence")
     assert intel_code == 200
     intel_items = cast(list[dict[str, object]], intel_body.get("items") or intel_body.get("intelligence") or [])
+    bili_video = next(v for v in videos if v.get("provider") == "BILIBILI")
+    bili_video_id = str(bili_video["video_id"])
     bili_intel = next(
         (
             it
             for it in intel_items
             if isinstance(it.get("card"), dict)
-            and cast(dict[str, object], it["card"]).get("video_id") == "bilibili-BV1DemoBili99"
+            and cast(dict[str, object], it["card"]).get("video_id") == bili_video_id
         ),
         None,
     )
-    if bili_intel is not None:
-        bili_card = cast(dict[str, object], bili_intel["card"])
-        assert bili_card["source_display_name"] == "极客架构演示室（Demo）"
+    assert bili_intel is not None, f"Missing intelligence card for seeded Bilibili video {bili_video_id}"
+    bili_card = cast(dict[str, object], bili_intel["card"])
+    assert bili_card["source_display_name"] == "极客架构演示室（Demo）"
 
     delta_code, delta_body = app.handle("GET", "/api/v1/knowledge-delta")
     assert delta_code == 200

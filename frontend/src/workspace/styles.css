@@ -2470,6 +2470,7 @@ h1, h2 {
   }
   .home-side-rail {
     position: static;
+    order: -1;
   }
 }
 
@@ -8090,6 +8091,38 @@ input[type="radio"] {
   max-width: 100%;
 }
 
-.home-action-source-link:hover {
-  text-decoration: underline;
+/* Remediation: Weekly details toggle, PersonalNote conflict notice, Tag rename preview */
+.weekly-details-toggle-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.personal-note-conflict-banner {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--warning-border, #d97706);
+  background: var(--warning-soft, rgba(217, 119, 6, 0.12));
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-strong);
+}
+
+.personal-note-conflict-banner p {
+  margin: 0;
+}
+
+.topics-tag-manage-input-wrap {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.topics-tag-manage-hint {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
 }

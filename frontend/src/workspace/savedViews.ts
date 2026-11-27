@@ -99,7 +99,7 @@ export function readSavedContentViews(): SavedContentView[] {
   }
 }
 
-function writeSavedViews(views: SavedContentView[]): void {
+function writeSavedViews(views: SavedContentView[]): boolean {
   try {
     if (views.length === 0) {
       window.localStorage.removeItem(SAVED_VIEWS_KEY);
@@ -107,9 +107,10 @@ function writeSavedViews(views: SavedContentView[]): void {
       window.localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views.slice(0, MAX_SAVED_VIEWS)));
     }
   } catch {
-    // Ignore storage quota errors cleanly.
+    return false;
   }
   dispatchSavedViewsChanged();
+  return true;
 }
 
 export function matchesSavedContentView(
@@ -216,13 +217,21 @@ export function clearSavedContentViews(): void {
 export function mergeSavedContentViews(incoming: readonly unknown[]): {
   importedCount: number;
   totalCount: number;
+  persisted: boolean;
+  failedCount: number;
 } {
   const current = readSavedContentViews();
   if (!Array.isArray(incoming) || incoming.length === 0) {
-    return { importedCount: 0, totalCount: current.length };
+    return {
+      importedCount: 0,
+      totalCount: current.length,
+      persisted: true,
+      failedCount: 0,
+    };
   }
+  const beforeIds = new Set(current.map((v) => v.id));
   const next = [...current];
-  let importedCount = 0;
+  let candidateCount = 0;
 
   for (const raw of incoming.slice(0, 32)) {
     if (next.length >= MAX_SAVED_VIEWS) break;
@@ -233,13 +242,30 @@ export function mergeSavedContentViews(incoming: readonly unknown[]): {
     );
     if (duplicate) continue;
     next.push(clean);
-    importedCount += 1;
+    candidateCount += 1;
   }
 
-  if (importedCount > 0) {
-    writeSavedViews(next);
+  if (candidateCount === 0) {
+    return {
+      importedCount: 0,
+      totalCount: current.length,
+      persisted: true,
+      failedCount: 0,
+    };
   }
-  return { importedCount, totalCount: next.length };
+
+  const persisted = writeSavedViews(next);
+  const verified = readSavedContentViews();
+  const actualImported = persisted
+    ? verified.filter((v) => !beforeIds.has(v.id)).length
+    : 0;
+  const failedCount = Math.max(0, candidateCount - actualImported);
+  return {
+    importedCount: actualImported,
+    totalCount: verified.length,
+    persisted: persisted && failedCount === 0,
+    failedCount,
+  };
 }
 
 let pendingContentSavedView: SavedContentView | null = null;

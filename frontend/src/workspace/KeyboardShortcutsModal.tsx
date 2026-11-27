@@ -25,6 +25,7 @@ export function KeyboardShortcutsModal({
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const skipFocusRestoreRef = useRef(false);
   const wasOpenRef = useRef(false);
@@ -57,11 +58,47 @@ export function KeyboardShortcutsModal({
 
   useEffect(() => {
     if (!open) return undefined;
+    const getFocusableElements = (): HTMLElement[] => {
+      const container = modalRef.current;
+      if (!container) return [];
+      return Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => {
+        if (el.closest("[hidden], [inert], [aria-hidden='true']")) return false;
+        const style = window.getComputedStyle(el);
+        return style.display !== "none" && style.visibility !== "hidden";
+      });
+    };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
         onClose();
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusables = getFocusableElements();
+        if (focusables.length === 0) {
+          event.preventDefault();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        if (!active || !modalRef.current?.contains(active)) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus({ preventScroll: true });
+          return;
+        }
+        if (event.shiftKey && active === first) {
+          event.preventDefault();
+          last.focus({ preventScroll: true });
+        } else if (!event.shiftKey && active === last) {
+          event.preventDefault();
+          first.focus({ preventScroll: true });
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -173,6 +210,7 @@ export function KeyboardShortcutsModal({
       }}
     >
       <div
+        ref={modalRef}
         className="shortcuts-modal"
         role="dialog"
         aria-modal="true"

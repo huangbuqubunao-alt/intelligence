@@ -1,4 +1,8 @@
-import { importPersonalNotesJson, readAllPersonalNotes } from "./personalNotes";
+import {
+  importPersonalNotesObject,
+  MAX_STUDY_SNAPSHOT_BYTES,
+  readAllPersonalNotes,
+} from "./personalNotes";
 import { mergeSavedContentViews, readSavedContentViews } from "./savedViews";
 
 export function exportStudyWorkspaceSnapshotJson(): string {
@@ -18,13 +22,20 @@ export function exportStudyWorkspaceSnapshotJson(): string {
   )}\n`;
 }
 
-export function importStudyWorkspaceSnapshotJson(rawJson: string): {
+export type StudyWorkspaceImportResult = {
   importedNotes: number;
   totalNotes: number;
+  noteConflicts: number;
+  skippedOlderNotes: number;
+  notesPersisted: boolean;
   importedViews: number;
   totalViews: number;
-} {
-  if (!rawJson || rawJson.length > 2 * 1024 * 1024) {
+  viewsPersisted: boolean;
+  failedViewsCount: number;
+};
+
+export function importStudyWorkspaceSnapshotJson(rawJson: string): StudyWorkspaceImportResult {
+  if (!rawJson || rawJson.length > MAX_STUDY_SNAPSHOT_BYTES) {
     throw new Error("INVALID_STUDY_SNAPSHOT_FILE");
   }
   let parsed: unknown;
@@ -36,17 +47,31 @@ export function importStudyWorkspaceSnapshotJson(rawJson: string): {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("INVALID_STUDY_SNAPSHOT_SHAPE");
   }
+  const obj = parsed as Record<string, unknown>;
+  if (obj.version !== undefined && obj.version !== 1 && obj.version !== 2) {
+    throw new Error("UNSUPPORTED_STUDY_SNAPSHOT_VERSION");
+  }
 
-  const noteResult = importPersonalNotesJson(rawJson);
-  const candidateViews = (parsed as { saved_views?: unknown }).saved_views;
+  const noteResult = importPersonalNotesObject(obj);
+  const candidateViews = obj.saved_views;
   const viewResult = Array.isArray(candidateViews)
     ? mergeSavedContentViews(candidateViews)
-    : { importedCount: 0, totalCount: readSavedContentViews().length };
+    : {
+        importedCount: 0,
+        totalCount: readSavedContentViews().length,
+        persisted: true,
+        failedCount: 0,
+      };
 
   return {
     importedNotes: noteResult.importedCount,
     totalNotes: noteResult.totalCount,
+    noteConflicts: noteResult.conflictCount,
+    skippedOlderNotes: noteResult.skippedOlderCount,
+    notesPersisted: noteResult.persisted,
     importedViews: viewResult.importedCount,
     totalViews: viewResult.totalCount,
+    viewsPersisted: viewResult.persisted,
+    failedViewsCount: viewResult.failedCount,
   };
 }
