@@ -23,17 +23,20 @@ import {
   type ReadingHistoryEntry,
 } from "./readingHistory";
 import {
+  consumePendingContentSavedView,
   deleteSavedContentView,
   matchesSavedContentView,
   readSavedContentViews,
   saveContentView,
   SAVED_VIEWS_CHANGED_EVENT,
+  setPendingContentSavedView,
   suggestSavedViewName,
   type SavedContentView,
 } from "./savedViews";
 import { findRelatedContentItems } from "./relatedContent";
 import { buildVerifiedIntelligenceMarkdown, downloadMarkdownText } from "./intelligenceExport";
 import { buildSelectedContentMarkdown } from "./contentExport";
+import { exportStudyWorkspaceSnapshotJson } from "./studyWorkspaceSnapshot";
 import { buildFollowingAuditMarkdown } from "./followingAuditExport";
 import {
   collectWorkspaceChecklistItems,
@@ -2177,6 +2180,35 @@ function Workspace() {
     },
     { id: "act:ai-qa", group: "actions", label: language === "zh-CN" ? "AI 跨视频深度问答" : "Ask cross-video AI Q&A", icon: "sparkle", aliases: ["qa", "ask", "ai", "问答", "跨视频", "提问"], onSelect: () => navigate("Research") },
     { id: "act:export-obsidian-zip", group: "actions", label: language === "zh-CN" ? "导出 Obsidian 双链知识库包 (.zip)" : "Export Obsidian Vault bundle (.zip)", icon: "archive", aliases: ["obsidian", "vault", "zip", "wikilinks", "双链", "导出", "知识库"], onSelect: () => { void exportObsidianVaultBundle("must_watch"); } },
+    {
+      id: "act:export-study-snapshot",
+      group: "actions",
+      label: language === "zh-CN" ? "备份学习状态镜像 (.json)" : "Export study workspace snapshot (.json)",
+      icon: "archive",
+      aliases: ["backup", "snapshot", "json", "study", "备份", "学习状态", "镜像", "导出"],
+      onSelect: () => {
+        const stamp = new Date().toISOString().slice(0, 10);
+        const blob = new Blob([exportStudyWorkspaceSnapshotJson()], {
+          type: "application/json;charset=utf-8",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `intelligence-study-snapshot-${stamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+    },
+    {
+      id: "act:manage-tags",
+      group: "actions",
+      label: language === "zh-CN" ? "整理自建标签（重命名 / 合并）" : "Manage personal tags (rename / merge)",
+      icon: "stack",
+      aliases: ["tags", "rename", "merge", "标签", "整理", "重命名", "合并"],
+      onSelect: () => navigate("Topics"),
+    },
     { id: "act:add-video", group: "actions", label: t("Add video or follow channel"), icon: "plus", aliases: ["add", "import", "youtube", "bilibili", "导入", "添加"], onSelect: () => setAddProvider("YOUTUBE") },
     { id: "act:add-local", group: "actions", label: t("Import local file"), icon: "file-text", aliases: ["local", "file", "本地文件", "转写"], onSelect: () => setAddProvider("LOCAL") },
     { id: "act:paste-note", group: "actions", label: language === "zh-CN" ? "粘贴文本或笔记入库" : "Paste text or Markdown note", icon: "file-text", aliases: ["paste", "markdown", "note", "memo", "粘贴", "笔记", "纪要", "文章"], onSelect: () => setAddProvider("PASTE") },
@@ -2572,6 +2604,11 @@ function Workspace() {
               setPendingResearchTopicCluster(topicName);
               setHandoffSeq(value => value + 1);
               navigate("Research");
+            }}
+            onOpenSavedView={view => {
+              setPendingContentSavedView(view);
+              setHandoffSeq(value => value + 1);
+              navigate("Content");
             }}
           />
         </Suspense>
@@ -4925,28 +4962,51 @@ function ContentPage(
   if (restoredContentRef.current === undefined) {
     restoredContentRef.current = consumeOriginRestore?.() ?? null;
   }
+  const restoredSavedViewRef = useRef<SavedContentView | null | undefined>(undefined);
+  if (restoredSavedViewRef.current === undefined) {
+    restoredSavedViewRef.current = consumePendingContentSavedView();
+  }
   const [searchQuery, setSearchQuery] = useState(
-    () => restoredContentRef.current?.searchQuery ?? "",
+    () =>
+      restoredSavedViewRef.current?.searchQuery ??
+      restoredContentRef.current?.searchQuery ??
+      "",
   );
   const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">(
-    () => restoredContentRef.current?.providerFilter ?? "ALL",
+    () =>
+      restoredSavedViewRef.current?.providerFilter ??
+      restoredContentRef.current?.providerFilter ??
+      "ALL",
   );
   const [bucketFilter, setBucketFilter] = useState<
     "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED"
   >(
     () =>
+      restoredSavedViewRef.current?.bucketFilter ||
       consumePendingContentBucket() ||
       restoredContentRef.current?.bucketFilter ||
       "ALL",
   );
   const [topicFilter, setTopicFilter] = useState<string>(
-    () => consumePendingContentTopic() || restoredContentRef.current?.topicFilter || "ALL",
+    () =>
+      restoredSavedViewRef.current?.topicFilter ||
+      consumePendingContentTopic() ||
+      restoredContentRef.current?.topicFilter ||
+      "ALL",
   );
   const [channelFilter, setChannelFilter] = useState<string>(
-    () => consumePendingContentChannel() || restoredContentRef.current?.channelFilter || "ALL",
+    () =>
+      restoredSavedViewRef.current?.channelFilter ||
+      consumePendingContentChannel() ||
+      restoredContentRef.current?.channelFilter ||
+      "ALL",
   );
   const [tagFilter, setTagFilter] = useState<string>(
-    () => consumePendingContentTag() || restoredContentRef.current?.tagFilter || "ALL",
+    () =>
+      restoredSavedViewRef.current?.tagFilter ||
+      consumePendingContentTag() ||
+      restoredContentRef.current?.tagFilter ||
+      "ALL",
   );
   const [contentSortMode, setContentSortMode] = useState<"newest" | "score">("newest");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -4999,6 +5059,17 @@ function ContentPage(
     };
   }
   useEffect(() => {
+    const nextSavedView = consumePendingContentSavedView();
+    if (nextSavedView) {
+      setSearchQuery(nextSavedView.searchQuery);
+      setProviderFilter(nextSavedView.providerFilter);
+      setBucketFilter(nextSavedView.bucketFilter);
+      setTopicFilter(nextSavedView.topicFilter);
+      setChannelFilter(nextSavedView.channelFilter);
+      setTagFilter(nextSavedView.tagFilter);
+      setSaveViewOpen(false);
+      return;
+    }
     const nextChannel = consumePendingContentChannel();
     if (nextChannel) setChannelFilter(nextChannel);
     const nextTopic = consumePendingContentTopic();

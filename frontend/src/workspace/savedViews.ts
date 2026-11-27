@@ -241,3 +241,15 @@ export function mergeSavedContentViews(incoming: readonly unknown[]): {
   }
   return { importedCount, totalCount: next.length };
 }
+
+let pendingContentSavedView: SavedContentView | null = null;
+
+export function setPendingContentSavedView(view: SavedContentView | null): void {
+  pendingContentSavedView = view ? { ...view } : null;
+}
+
+export function consumePendingContentSavedView(): SavedContentView | null {
+  const current = pendingContentSavedView;
+  pendingContentSavedView = null;
+  return current;
+}

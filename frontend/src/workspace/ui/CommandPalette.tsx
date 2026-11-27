@@ -16,6 +16,7 @@ import {
   PersonalTagCount,
   readAllPersonalNotes,
 } from "../personalNotes";
+import { readSavedContentViews, type SavedContentView } from "../savedViews";
 import { useUiLanguage } from "../uiLanguage";
 import { PhosphorIcon, PhosphorIconName } from "./phosphorIcons";
 
@@ -238,6 +239,7 @@ export function CommandPalette({
   onFilterContentByPersonalTag,
   onFilterIntelligenceByTopic,
   onAskTopicResearch,
+  onOpenSavedView,
 }: {
   open: boolean;
   onClose: () => void;
@@ -251,6 +253,7 @@ export function CommandPalette({
   onFilterContentByPersonalTag?: (tag: string) => void;
   onFilterIntelligenceByTopic?: (topicId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
+  onOpenSavedView?: (view: SavedContentView) => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -273,6 +276,7 @@ export function CommandPalette({
   const [channelScopes, setChannelScopes] = useState<PaletteChannelScope[]>([]);
   const [personalNotes, setPersonalNotes] = useState<Record<string, PersonalNote>>({});
   const [personalTagCounts, setPersonalTagCounts] = useState<PersonalTagCount[]>([]);
+  const [savedViews, setSavedViews] = useState<SavedContentView[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
@@ -292,6 +296,7 @@ export function CommandPalette({
     queueMicrotask(() => inputRef.current?.focus());
     setPersonalNotes(readAllPersonalNotes());
     setPersonalTagCounts(listPersonalTagCounts());
+    setSavedViews(readSavedContentViews());
     api<{
       videos?: PaletteVideo[];
       pagination?: { total_count?: number; has_more?: boolean };
@@ -750,6 +755,44 @@ export function CommandPalette({
         }))
       : [];
 
+    const dynamicSavedViewActions: CommandPaletteAction[] = onOpenSavedView
+      ? savedViews.map((view) => {
+          const criteriaParts = [
+            view.bucketFilter !== "ALL" ? view.bucketFilter : "",
+            view.providerFilter !== "ALL" ? view.providerFilter : "",
+            view.topicFilter !== "ALL" ? view.topicFilter : "",
+            view.channelFilter !== "ALL" ? view.channelFilter : "",
+            view.tagFilter !== "ALL" ? `#${view.tagFilter}` : "",
+            view.searchQuery.trim() ? `“${view.searchQuery.trim()}”` : "",
+          ].filter(Boolean);
+          return {
+            id: `act:saved-view:${view.id}`,
+            group: "actions",
+            label: zh ? `打开保存视图：${view.name}` : `Open saved view: ${view.name}`,
+            subtitle: criteriaParts.length
+              ? criteriaParts.join(" · ")
+              : zh
+                ? "内容库自定义视图"
+                : "Saved Content filter view",
+            icon: "funnel",
+            aliases: [
+              view.name,
+              "saved view",
+              "filter",
+              "视图",
+              "筛选",
+              "内容库",
+              view.tagFilter !== "ALL" ? view.tagFilter : "",
+              view.topicFilter !== "ALL" ? view.topicFilter : "",
+              view.channelFilter !== "ALL" ? view.channelFilter : "",
+              view.searchQuery.trim(),
+            ].filter(Boolean),
+            rankBonus: 0.16,
+            onSelect: () => onOpenSavedView(view),
+          };
+        })
+      : [];
+
     const dynamicPersonalNotes: CommandPaletteAction[] = Object.entries(personalNotes).map(
       ([videoId, note]) => {
         const matchedVideo = searchableVideos.find((v) => v.video_id === videoId);
@@ -790,6 +833,7 @@ export function CommandPalette({
 
     return [
       ...staticActions,
+      ...dynamicSavedViewActions,
       ...dynamicChannelActions,
       ...dynamicTopicFilterActions,
       ...dynamicTopicIntelActions,
@@ -803,6 +847,7 @@ export function CommandPalette({
     ];
   }, [
     staticActions,
+    savedViews,
     channelScopes,
     searchableVideos,
     qaSessions,
@@ -821,6 +866,7 @@ export function CommandPalette({
     onFilterContentByPersonalTag,
     onFilterIntelligenceByTopic,
     onAskTopicResearch,
+    onOpenSavedView,
   ]);
 
   const { filteredItems, totalMatchCount } = useMemo(() => {
