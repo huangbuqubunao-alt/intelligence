@@ -3152,7 +3152,11 @@ class LocalApiApplication:
                 }
             )
         source_display_name = None
-        if source is not None and source.display_name:
+        raw_source_type = None if source is None else getattr(source, "source_type", None)
+        source_type_val = getattr(raw_source_type, "value", raw_source_type)
+        if source_type_val == "VIDEO_URL" and video is not None and video.channel_name:
+            source_display_name = video.channel_name
+        elif source is not None and source.display_name:
             source_display_name = source.display_name
         elif video is not None and video.channel_name:
             source_display_name = video.channel_name
