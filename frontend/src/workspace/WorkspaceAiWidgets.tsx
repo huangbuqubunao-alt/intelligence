@@ -2,7 +2,13 @@ import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "
 import { ApiRequestError, api, post, put, uploadLocal } from "../api/client";
 import { pulseCelebration } from "./motion";
 import { OpenResearchSource } from "./ResearchTypes";
-import { buildResearchSynthesisMarkdown, deriveResearchNoteFilename } from "./researchExport";
+import {
+  buildLensPrompt,
+  buildResearchDossierMarkdown,
+  buildResearchSynthesisMarkdown,
+  deriveResearchNoteFilename,
+  RESEARCH_LENSES,
+} from "./researchExport";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
 import {
@@ -3489,6 +3495,7 @@ export function WorkspaceAiResearchPanel({
   const [savingNote, setSavingNote] = useState(false);
   const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
   const [saveNoteError, setSaveNoteError] = useState<string | null>(null);
+  const [dossierExportStatus, setDossierExportStatus] = useState<string | null>(null);
   const questionInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -3507,6 +3514,33 @@ export function WorkspaceAiResearchPanel({
     setSavedNoteId(null);
     setSaveNoteError(null);
   }, [activeSession?.session_id]);
+
+  const exportResearchDossier = (targetSessions: AiResearchSession[]) => {
+    const { markdown, includedCount, skippedCount } = buildResearchDossierMarkdown(targetSessions, zh);
+    if (includedCount === 0) {
+      setDossierExportStatus(
+        zh
+          ? "当前筛选范围内暂无带有效原话引用的问答可供导出。"
+          : "No grounded sessions with citations available to export.",
+      );
+      return;
+    }
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.download = `intelligence-research-dossier-${stamp}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setDossierExportStatus(
+      zh
+        ? `已导出研究汇编 (.md · 含 ${includedCount} 条已核验问答${skippedCount > 0 ? ` · 已跳过 ${skippedCount} 条无引用/拒答记录` : ""})。`
+        : `Exported research dossier (.md · ${includedCount} grounded${skippedCount > 0 ? `, ${skippedCount} ungrounded excluded` : ""}).`,
+    );
+  };
 
   const promoteToLocalNote = async () => {
     if (!activeSession || activeSession.refused || activeSession.citations.length === 0 || savingNote) {
@@ -4212,6 +4246,44 @@ export function WorkspaceAiResearchPanel({
         </p>
       ) : null}
 
+      {!isEmptyLibrary ? (
+        <div
+          className="research-lenses-bar"
+          role="group"
+          aria-label={zh ? "结构化研究分析视角" : "Structured research lenses"}
+        >
+          {RESEARCH_LENSES.map((lens) => (
+            <button
+              key={lens.id}
+              type="button"
+              className="research-lens-chip"
+              disabled={busy}
+              onClick={() => {
+                const scopeLabel =
+                  selectedVideoIds.length > 0
+                    ? zh
+                      ? `已选定 ${selectedVideoIds.length} 篇内容`
+                      : `${selectedVideoIds.length} selected items`
+                    : selectedChannel
+                      ? scopeOptions?.channels.find((c) => c.key === selectedChannel)?.label ??
+                        selectedChannel
+                      : selectedTopic || (zh ? "全库已核验资料" : "the library");
+                const draft = buildLensPrompt(lens.id, scopeLabel, zh);
+                setQuestionInput(draft);
+                setFollowUpNotice(
+                  zh
+                    ? "已填入分析透镜问题模板，可直接按 Enter 发送或补充关键词。"
+                    : "Lens template filled — edit or press Enter to ask.",
+                );
+                queueMicrotask(() => questionInputRef.current?.focus());
+              }}
+            >
+              {zh ? lens.labelZh : lens.labelEn}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <form className="ai-research-ask-form" onSubmit={handleSubmit}>
         <div className="ai-research-input-wrap">
           <textarea
@@ -4898,62 +4970,84 @@ export function WorkspaceAiResearchPanel({
       ) : null}
 
       {sessions.length >= 1 ? (
-        <div className="ai-session-history">
-          <div className="ai-session-history-head">
-            <h4>{zh ? "历史跨视频问答" : "Recent AI Q&A sessions"}</h4>
-            {sessions.length >= 3 ? (
-              <input
-                type="search"
-                className="ai-session-search-input"
-                aria-label={zh ? "筛选历史问答" : "Filter Q&A history"}
-                placeholder={zh ? "筛选历史问题或频道…" : "Filter past Q&A…"}
-                value={sessionSearch}
-                onChange={(e) => setSessionSearch(e.target.value)}
-              />
-            ) : null}
-          </div>
-          {filteredSessions.length > 0 ? (
-            <div className="ai-suggested-pills">
-              {filteredSessions.map((s) => {
-                const vCount =
-                  s.video_count && s.video_count > 0
-                    ? s.video_count
-                    : new Set(s.citations.map((c) => c.video_id)).size;
-                const baseLabel =
-                  vCount > 0
-                    ? zh
-                      ? `${s.question} · ${vCount} 篇`
-                      : `${s.question} · ${vCount} videos`
-                    : s.question;
-                const chipLabel = s.pinned
-                  ? `${zh ? "[置顶] " : "[Pinned] "}${baseLabel}`
-                  : baseLabel;
-                return (
-                  <button
-                    key={s.session_id}
-                    type="button"
-                    className={`ai-question-chip tabular-nums${activeSession?.session_id === s.session_id ? " is-active" : ""}`}
-                    onClick={() => setActiveSession(s)}
-                  >
-                    {s.pinned ? (
-                      <PhosphorIcon
-                        name="push-pin"
-                        weight="fill"
-                        size={11}
-                        className="ai-qa-chip-pin-icon"
-                      />
-                    ) : null}
-                    {chipLabel}
-                  </button>
-                );
-              })}
+        <>
+          <div className="ai-session-history">
+            <div className="ai-session-history-head">
+              <h4>{zh ? "历史跨视频问答" : "Recent AI Q&A sessions"}</h4>
+              {sessions.length >= 3 ? (
+                <input
+                  type="search"
+                  className="ai-session-search-input"
+                  aria-label={zh ? "筛选历史问答" : "Filter Q&A history"}
+                  placeholder={zh ? "筛选历史问题或频道…" : "Filter past Q&A…"}
+                  value={sessionSearch}
+                  onChange={(e) => setSessionSearch(e.target.value)}
+                />
+              ) : null}
             </div>
-          ) : (
-            <p className="hint">
-              {zh ? "没有匹配的历史问答记录。" : "No matching past Q&A sessions."}
-            </p>
-          )}
-        </div>
+            {filteredSessions.length > 0 ? (
+              <div className="ai-suggested-pills">
+                {filteredSessions.map((s) => {
+                  const vCount =
+                    s.video_count && s.video_count > 0
+                      ? s.video_count
+                      : new Set(s.citations.map((c) => c.video_id)).size;
+                  const baseLabel =
+                    vCount > 0
+                      ? zh
+                        ? `${s.question} · ${vCount} 篇`
+                        : `${s.question} · ${vCount} videos`
+                      : s.question;
+                  const chipLabel = s.pinned
+                    ? `${zh ? "[置顶] " : "[Pinned] "}${baseLabel}`
+                    : baseLabel;
+                  return (
+                    <button
+                      key={s.session_id}
+                      type="button"
+                      className={`ai-question-chip tabular-nums${activeSession?.session_id === s.session_id ? " is-active" : ""}`}
+                      onClick={() => setActiveSession(s)}
+                    >
+                      {s.pinned ? (
+                        <PhosphorIcon
+                          name="push-pin"
+                          weight="fill"
+                          size={11}
+                          className="ai-qa-chip-pin-icon"
+                        />
+                      ) : null}
+                      {chipLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="hint">
+                {zh ? "没有匹配的历史问答记录。" : "No matching past Q&A sessions."}
+              </p>
+            )}
+          </div>
+          {filteredSessions.some((s) => !s.refused && s.citations.length > 0) ||
+          dossierExportStatus ? (
+            <div className="ai-session-history-footer">
+              {filteredSessions.some((s) => !s.refused && s.citations.length > 0) ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => exportResearchDossier(filteredSessions)}
+                >
+                  <PhosphorIcon name="file-text" size={13} />
+                  {zh ? "导出研究汇编 (.md)" : "Export Dossier (.md)"}
+                </button>
+              ) : null}
+              {dossierExportStatus ? (
+                <p className="semantic-state state-neutral" role="status">
+                  {dossierExportStatus}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   );

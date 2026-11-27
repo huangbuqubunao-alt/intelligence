@@ -7450,3 +7450,45 @@ input[type="radio"] {
   color: var(--text-strong);
   font-size: 13px;
 }
+
+/* Iter 25: Research structured lenses bar & multi-session dossier controls */
+.research-lenses-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.research-lens-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px dashed var(--accent-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.research-lens-chip:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-style: solid;
+}
+
+.ai-session-history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-session-history-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
