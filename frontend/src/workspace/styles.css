@@ -7819,3 +7819,11 @@ input[type="radio"] {
   color: var(--text-strong);
   overflow-wrap: anywhere;
 }
+
+/* Iteration 34: Quick Paste capture starter templates */
+.quick-paste-templates-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}

@@ -56,3 +56,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Topics` → `AI Agent 工程架构`）**：
   - 确认加载最新构建资源（HTTP `200`）；「附带本专题个人批注 (1)」默认选中，预览抽屉内精确出现 `## 个人思考与批注 (1)` 与对应视频批注正文；演进卡片展示 `已批注` 徽标与 `#核心结论 #状态机 #实践复盘` 摘录；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Topics Dark](./screenshots/iter-33/step_1_iter33_topics_dark.png)、[Topics Light](./screenshots/iter-33/step_2_iter33_topics_light.png)、[Topics Mobile](./screenshots/iter-33/step_3_iter33_topics_mobile.png)。
+
+## Iteration 34 (`EVO-W6-05`) — Quick Paste Capture Templates, Live Reading Metrics & Reader `N` Shortcut
+
+- **解决的用户问题**：快速粘贴外部笔记（`QuickPasteNoteForm`）缺乏即用 Markdown 脚手架与阅读耗时预估；同时长文阅读时缺少单键直达「我的思考与批注」输入框的键盘流体验。
+- **核心改动**：
+  1. [QuickPasteNoteForm.tsx](../../../frontend/src/workspace/QuickPasteNoteForm.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：文本域上方新增 `+ 会议纪要`、`+ 文章精读摘录`、`+ 调研对比备忘` 三枚结构化模板胶囊（安全追加而不覆盖已有内容），底栏元数据区实时复用 `estimateReadingMinutes` 渲染「约 N 分钟精读 · M 字 · KB 占比」。
+  2. [ReaderPersonalNoteCard.tsx](../../../frontend/src/workspace/ReaderPersonalNoteCard.tsx)：捕获阶段监听单键 `N`（输入框与模态框打开时自动静默，含 `beforeinput` 防连带字符输入护栏），自动展开卡片、平滑滚动至思考区并将光标置于文本末尾。
+- **自动化验证**：
+  - 新增 [EvolutionIter34.test.tsx](../../../frontend/src/workspace/EvolutionIter34.test.tsx)（2 passed，覆盖模板追加不覆盖原文本、实时阅读耗时更新、非输入区按 `N` 聚焦且文本零误输入、输入框内按键自动忽略）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`852ms` (`assets/index-Dqx-lcxb.js` / `assets/index-ClFtVfhH.css`)；Vitest：**92/92 files, 1348/1348 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799`）**：
+  - 确认加载最新构建资源（HTTP `200`）；`+ 导入` → `粘贴文本/笔记` 点击 `+ 会议纪要` 即时呈现 `约 1 分钟精读 · 45 字 · 0.1 KB / 2048 KB` 与 `参会背景与目标.md`，移动端 `390x844` `mobileOverflow: false`；在阅读器 `vidDemoAgt1` 按 `N` 精确聚焦 `.personal-note-textarea` 且前后文本完全一致（零误输入 `'n'`）；**0 console/page/network 错误**。
+  - 实机截图归档：[Quick Paste Dark](./screenshots/iter-34/step_1_iter34_quick_paste_dark.png)、[Quick Paste Mobile](./screenshots/iter-34/step_2_iter34_quick_paste_mobile.png)、[Reader Focus Light](./screenshots/iter-34/step_3_iter34_reader_focus_light.png)。

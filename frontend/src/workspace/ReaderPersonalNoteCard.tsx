@@ -11,6 +11,7 @@ import {
 } from "./personalNotes";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
+import { isKeyboardShortcutBlocked } from "./WorkspaceAiWidgets";
 
 const NOTE_REFLECTION_TEMPLATES = [
   {
@@ -55,6 +56,7 @@ export function ReaderPersonalNoteCard({
   );
   const debounceRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const suppressShortcutCharUntilRef = useRef<number>(0);
   const onNoteChangeRef = useRef(onNoteChange);
   onNoteChangeRef.current = onNoteChange;
 
@@ -79,6 +81,54 @@ export function ReaderPersonalNoteCard({
       }
     };
   }, [videoId]);
+
+  useEffect(() => {
+    let focusTimer: number | null = null;
+    const focusNoteTextarea = () => {
+      const target = textareaRef.current;
+      if (!target) return false;
+      target.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      target.focus();
+      const endPos = target.value.length;
+      target.setSelectionRange?.(endPos, endPos);
+      return true;
+    };
+    const onBeforeInputGuard = (event: Event) => {
+      if (Date.now() > suppressShortcutCharUntilRef.current) return;
+      if (event instanceof InputEvent && typeof event.data === "string" && event.data.toLowerCase() === "n") {
+        event.preventDefault();
+      }
+    };
+    const onFocusKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "n") return;
+      if (isKeyboardShortcutBlocked(event)) return;
+      if (typeof document !== "undefined" && document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      suppressShortcutCharUntilRef.current = Date.now() + 80;
+      setExpanded(true);
+      if (focusNoteTextarea()) return;
+      if (focusTimer !== null) {
+        window.clearTimeout(focusTimer);
+      }
+      focusTimer = window.setTimeout(() => {
+        focusTimer = null;
+        focusNoteTextarea();
+      }, 20);
+    };
+    window.addEventListener("keydown", onFocusKeyDown, true);
+    document.addEventListener("beforeinput", onBeforeInputGuard, true);
+    return () => {
+      window.removeEventListener("keydown", onFocusKeyDown, true);
+      document.removeEventListener("beforeinput", onBeforeInputGuard, true);
+      if (focusTimer !== null) {
+        window.clearTimeout(focusTimer);
+      }
+    };
+  }, []);
 
   const flushSave = (nextText: string, nextTagDraft: string) => {
     if (debounceRef.current !== null) {

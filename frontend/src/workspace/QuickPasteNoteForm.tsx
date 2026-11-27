@@ -1,7 +1,32 @@
 import { useEffect, useState } from "react";
 import { ApiRequestError, uploadLocal } from "../api/client";
 import { localImportErrors } from "./LocalImport";
+import { estimateReadingMinutes } from "./readingHistory";
 import { useUiLanguage } from "./uiLanguage";
+
+const QUICK_PASTE_TEMPLATES = [
+  {
+    id: "meeting",
+    labelZh: "+ 会议纪要",
+    labelEn: "+ Meeting notes",
+    bodyZh: "## 参会背景与目标\n- \n\n## 核心结论与分歧\n- \n\n## 后续行动项\n- [ ] ",
+    bodyEn: "## Context & Goal\n- \n\n## Key Decisions\n- \n\n## Next Actions\n- [ ] ",
+  },
+  {
+    id: "reading",
+    labelZh: "+ 文章精读摘录",
+    labelEn: "+ Reading excerpt",
+    bodyZh: "## 原文核心论点\n- \n\n## 关键引用与证据\n> \n\n## 我的思考与质疑\n- ",
+    bodyEn: "## Core Thesis\n- \n\n## Key Quotes\n> \n\n## My Takeaways\n- ",
+  },
+  {
+    id: "research",
+    labelZh: "+ 调研对比备忘",
+    labelEn: "+ Research memo",
+    bodyZh: "## 调研问题\n- \n\n## 方案对比与权衡\n- \n\n## 结论与下一步\n- [ ] ",
+    bodyEn: "## Question\n- \n\n## Trade-offs Compared\n- \n\n## Conclusion\n- [ ] ",
+  },
+] as const;
 
 const MAX_PASTE_BYTES = 2 * 1024 * 1024;
 
@@ -78,6 +103,11 @@ export function QuickPasteNoteForm({
   const byteCount = payload ? new TextEncoder().encode(payload).length : 0;
   const derivedName = payload ? derivePasteFilename(title, body) : "pasted-note.md";
   const tooLarge = byteCount > MAX_PASTE_BYTES;
+  const estimatedMinutes = body.trim() ? estimateReadingMinutes({ text: body }) : null;
+  const appendStarterTemplate = (snippet: string) => {
+    setBody((prev) => (prev.trimEnd() ? `${prev.trimEnd()}\n\n${snippet}` : snippet));
+    if (error) setError(null);
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -193,6 +223,23 @@ export function QuickPasteNoteForm({
               onChange={(event) => setTitle(event.target.value)}
             />
           </label>
+          <div
+            className="quick-paste-templates-row"
+            role="group"
+            aria-label={zh ? "快速结构化模板" : "Quick structure templates"}
+          >
+            {QUICK_PASTE_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                className="personal-note-template-chip"
+                disabled={busy}
+                onClick={() => appendStarterTemplate(zh ? tpl.bodyZh : tpl.bodyEn)}
+              >
+                {zh ? tpl.labelZh : tpl.labelEn}
+              </button>
+            ))}
+          </div>
           <label className="field">
             {zh ? "正文内容（支持 Markdown）" : "Note content (Markdown supported)"}
             <textarea
@@ -218,9 +265,13 @@ export function QuickPasteNoteForm({
               {zh ? `文件名预览：${derivedName}` : `Filename: ${derivedName}`}
             </span>
             <span className={`hint${tooLarge ? " form-error" : ""}`}>
-              {zh
-                ? `${body.length} 字 · ${(byteCount / 1024).toFixed(1)} KB / 2048 KB`
-                : `${body.length} chars · ${(byteCount / 1024).toFixed(1)} KB / 2048 KB`}
+              {estimatedMinutes !== null
+                ? zh
+                  ? `约 ${estimatedMinutes} 分钟精读 · ${body.length} 字 · ${(byteCount / 1024).toFixed(1)} KB / 2048 KB`
+                  : `~${estimatedMinutes} min read · ${body.length} chars · ${(byteCount / 1024).toFixed(1)} KB / 2048 KB`
+                : zh
+                  ? `${body.length} 字 · ${(byteCount / 1024).toFixed(1)} KB / 2048 KB`
+                  : `${body.length} chars · ${(byteCount / 1024).toFixed(1)} KB / 2048 KB`}
             </span>
           </div>
           {error ? (
