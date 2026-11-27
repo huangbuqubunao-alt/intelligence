@@ -19,6 +19,7 @@ import {
   mergePersonalNoteIntoMarkdown,
   type PersonalNote,
   readPersonalNote,
+  setPendingContentTag,
 } from "./personalNotes";
 import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
 import { TranscriptionSetup } from "./TranscriptionSetup";
@@ -2396,6 +2397,13 @@ function Workspace() {
             }}
             onFilterContentByTopic={topicCluster => {
               setPendingContentTopic(topicCluster);
+              setPendingContentChannel("ALL");
+              setHandoffSeq(value => value + 1);
+              navigate("Content");
+            }}
+            onFilterContentByPersonalTag={tag => {
+              setPendingContentTag(tag);
+              setPendingContentTopic("ALL");
               setPendingContentChannel("ALL");
               setHandoffSeq(value => value + 1);
               navigate("Content");

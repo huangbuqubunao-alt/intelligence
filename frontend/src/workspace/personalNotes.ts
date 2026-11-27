@@ -76,6 +76,49 @@ export function listPersonalNoteVideoIds(): Set<string> {
   return new Set(Object.keys(readNoteStore()));
 }
 
+export type PersonalTagCount = {
+  tag: string;
+  count: number;
+  videoIds: string[];
+};
+
+let pendingContentTag = "";
+
+export function setPendingContentTag(tag: string): void {
+  pendingContentTag = tag.trim().replace(/^#+/, "");
+}
+
+export function consumePendingContentTag(): string {
+  const next = pendingContentTag;
+  pendingContentTag = "";
+  return next;
+}
+
+export function listPersonalTagCounts(): PersonalTagCount[] {
+  const store = readNoteStore();
+  const buckets = new Map<string, { tag: string; videoIds: Set<string> }>();
+  for (const [videoId, note] of Object.entries(store)) {
+    for (const rawTag of note.tags) {
+      const clean = rawTag.trim().replace(/^#+/, "");
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.videoIds.add(videoId);
+      } else {
+        buckets.set(key, { tag: clean, videoIds: new Set([videoId]) });
+      }
+    }
+  }
+  return Array.from(buckets.values())
+    .map((entry) => ({
+      tag: entry.tag,
+      count: entry.videoIds.size,
+      videoIds: Array.from(entry.videoIds),
+    }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
 export function savePersonalNote(
   videoId: string,
   input: { text: string; tags: string[] },
