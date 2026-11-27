@@ -17,6 +17,12 @@ export function completeOnboarding(demoMode = false) {
     sessionStorage.removeItem(onboardingReturnStepKey);
   } catch { /* In-memory state still works when browser storage is unavailable. */ }
 }
+export function resetOnboarding(demoMode = false) {
+  try {
+    localStorage.removeItem(resolveOnboardingKey(demoMode));
+    sessionStorage.removeItem(onboardingReturnStepKey);
+  } catch { /* ignore storage errors */ }
+}
 export function getOnboardingReturnStep(): number | null {
   try {
     const raw = sessionStorage.getItem(onboardingReturnStepKey);

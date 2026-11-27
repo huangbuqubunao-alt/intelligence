@@ -4,10 +4,37 @@ import { validFollowingDetailRead, validFollowingSourceRead } from "./CreatorFol
 import { InterestRulesEditor, interestRuleValues, ruleDrafts, validInterestRule, type InterestRuleDraft, CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
+import { importStarterSampleNote } from "./starterSample";
+import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ReaderMediaStage, formatHumanDuration } from "./ReaderMediaStage";
 import { ReaderReferenceDrawer, type ReaderDrawerTab } from "./ReaderReferenceDrawer";
+import { ReaderDrawerSearchBar, formatSegmentQuote, highlightTextMatches, splitSearchableParagraphs } from "./ReaderSearchTools";
+import { ReaderPersonalNoteCard } from "./ReaderPersonalNoteCard";
+import {
+  clearReadingHistory,
+  estimateReadingMinutes,
+  readReaderComfortMode,
+  readReadingHistory,
+  recordReadingVisit,
+  writeReaderComfortMode,
+  READING_HISTORY_CHANGED_EVENT,
+  type ReadingHistoryEntry,
+} from "./readingHistory";
+import {
+  PERSONAL_NOTES_CHANGED_EVENT,
+  type PersonalTagCount,
+  appendQuoteToPersonalNote,
+  consumePendingContentTag,
+  listPersonalNoteVideoIds,
+  listPersonalTagCounts,
+  mergePersonalNoteIntoMarkdown,
+  type PersonalNote,
+  readAllPersonalNotes,
+  readPersonalNote,
+  setPendingContentTag,
+} from "./personalNotes";
 import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
@@ -29,6 +56,7 @@ import {
   completeOnboarding,
   getOnboardingReturnStep,
   onboardingCompleted,
+  resetOnboarding,
   setOnboardingReturnStep,
 } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
@@ -46,6 +74,7 @@ import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 import {
   AiScoreBadge,
+  consumePendingContentBucket,
   consumePendingContentChannel,
   consumePendingContentTopic,
   consumePendingIntelligenceTopicId,
@@ -59,10 +88,12 @@ import {
   readWeeklyAiBrief,
   readWorkspaceAiCapabilities,
   readWorkspaceAiSettings,
+  setPendingContentBucket,
   setPendingContentChannel,
   setPendingContentTopic,
   setPendingIntelligenceTopicId,
   setPendingResearchChannel,
+  setPendingResearchDraftQuestion,
   setPendingResearchSessionId,
   setPendingResearchStarredOnly,
   setPendingResearchTopicCluster,
@@ -78,6 +109,7 @@ import {
   WorkspaceVisualKeyframePanel,
   YouTubeAuthSettingsPanel,
   compareContentNewestFirst,
+  isEffectiveVideoShortNoise,
 } from "./WorkspaceAiWidgets";
 
 type Page =
@@ -1648,13 +1680,15 @@ function IntelligenceCard(
           <span className="tabular-nums">{humanDate(item.effective_published_at)}</span>
         ) : null}
       </div>
-      <section className="intelligence-section">
-        <h3>{t("Validation posture")}</h3>
+      <details className="validation-posture-disclosure">
+        <summary>
+          {zh ? "验证状态说明" : t("Validation posture")} · {t(intelligenceStateLabel(item.state))}
+        </summary>
         <p>{t(intelligenceValidationCopy(item.state ?? ""))}</p>
         <p className="hint">
           {t("This is a validation posture, not a numeric confidence score.")}
         </p>
-      </section>
+      </details>
       <Evidence item={item} onOpenContent={onOpenContent} />
       <div className="button-row">
         <button
@@ -1752,9 +1786,10 @@ export function App() {
 type ContentFilterSnapshot = {
   searchQuery: string;
   providerFilter: "ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL";
-  bucketFilter: "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS";
+  bucketFilter: "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED";
   topicFilter: string;
   channelFilter: string;
+  tagFilter?: string;
 };
 
 type IntelFilterSnapshot = {
@@ -1805,8 +1840,9 @@ function Workspace() {
   const [topicListResetSeq, setTopicListResetSeq] = useState(0);
   const [sourceListResetSeq, setSourceListResetSeq] = useState(0);
   // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
-  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
+  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | "PASTE" | null>(null);
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [imported, setImported] = useState(false);
   const [contentTarget, setContentTarget] = useState<string | null>(initialContentTarget);
   // Tracks the hash produced by in-app navigation so the hashchange listener
@@ -1859,6 +1895,7 @@ function Workspace() {
   }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(initialDeltaTarget);
   const [handoffSeq, setHandoffSeq] = useState(0);
+  const [onboardingReplayNonce, setOnboardingReplayNonce] = useState(0);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
   const [researchOriginPage, setResearchOriginPage] = useState<Exclude<Page, "Research"> | null>(null);
   const latestContentFilterRef = useRef<ContentFilterSnapshot | null>(null);
@@ -1904,6 +1941,9 @@ function Workspace() {
   const navigate = (next: Page) => {
     changeHash(next);
     runViewTransition(() => {
+      if (next !== "Research") {
+        setResearchOriginPage(null);
+      }
       if (next === "Research" && page !== "Research") {
         setResearchOriginPage(page);
         capturedOriginSnapshotRef.current = {
@@ -1931,6 +1971,12 @@ function Workspace() {
       }
       setPage(next);
     });
+  };
+  const replayOnboarding = () => {
+    resetOnboarding(false);
+    resetOnboarding(true);
+    setOnboardingReplayNonce((value) => value + 1);
+    navigate("Home");
   };
   const openContent = (videoId: string, evidenceId?: string) => {
     changeHash(`Content/${encodeURIComponent(videoId)}${evidenceId ? `/Evidence/${encodeURIComponent(evidenceId)}` : ""}`);
@@ -1962,12 +2008,26 @@ function Workspace() {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        setShortcutsOpen(false);
         setCmdkOpen(current => !current);
+        return;
+      }
+      if (
+        event.key === "?" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !cmdkOpen &&
+        addProvider === null &&
+        !isKeyboardShortcutBlocked(event)
+      ) {
+        event.preventDefault();
+        setShortcutsOpen(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [cmdkOpen, addProvider]);
   const staticCommands: CommandPaletteAction[] = [
     { id: "nav:Home", group: "navigation", label: t("Home"), subtitle: t(subtitles.Home), icon: "house", aliases: ["home", "首页"], onSelect: () => navigate("Home") },
     { id: "nav:Following", group: "navigation", label: t("Following"), subtitle: t(subtitles.Following), icon: "rss", aliases: ["following", "sources", "关注"], onSelect: () => navigate("Following") },
@@ -1976,10 +2036,42 @@ function Workspace() {
     { id: "nav:Topics", group: "navigation", label: t("Topics"), subtitle: t(subtitles.Topics), icon: "stack", aliases: ["topics", "主题"], onSelect: () => navigate("Topics") },
     { id: "nav:Research", group: "navigation", label: t("Research"), subtitle: t(subtitles.Research), icon: "quotes", aliases: ["research", "研究", "qa", "问答", "跨视频"], onSelect: () => navigate("Research") },
     { id: "nav:Settings", group: "navigation", label: t("Settings"), subtitle: t(subtitles.Settings), icon: "sliders-horizontal", aliases: ["settings", "设置", "model", "budget"], onSelect: () => navigate("Settings") },
+    {
+      id: "act:unread-content",
+      group: "actions",
+      label: language === "zh-CN" ? "高优未读内容分诊" : "Triage unread content",
+      icon: "funnel",
+      aliases: ["unread", "triage", "inbox", "未读", "分诊", "待读"],
+      onSelect: () => {
+        setPendingContentBucket("UNREAD");
+        setPendingContentChannel("ALL");
+        setPendingContentTopic("ALL");
+        setHandoffSeq(value => value + 1);
+        navigate("Content");
+      },
+    },
     { id: "act:ai-qa", group: "actions", label: language === "zh-CN" ? "AI 跨视频深度问答" : "Ask cross-video AI Q&A", icon: "sparkle", aliases: ["qa", "ask", "ai", "问答", "跨视频", "提问"], onSelect: () => navigate("Research") },
     { id: "act:export-obsidian-zip", group: "actions", label: language === "zh-CN" ? "导出 Obsidian 双链知识库包 (.zip)" : "Export Obsidian Vault bundle (.zip)", icon: "archive", aliases: ["obsidian", "vault", "zip", "wikilinks", "双链", "导出", "知识库"], onSelect: () => { void exportObsidianVaultBundle("must_watch"); } },
     { id: "act:add-video", group: "actions", label: t("Add video or follow channel"), icon: "plus", aliases: ["add", "import", "youtube", "bilibili", "导入", "添加"], onSelect: () => setAddProvider("YOUTUBE") },
     { id: "act:add-local", group: "actions", label: t("Import local file"), icon: "file-text", aliases: ["local", "file", "本地文件", "转写"], onSelect: () => setAddProvider("LOCAL") },
+    { id: "act:paste-note", group: "actions", label: language === "zh-CN" ? "粘贴文本或笔记入库" : "Paste text or Markdown note", icon: "file-text", aliases: ["paste", "markdown", "note", "memo", "粘贴", "笔记", "纪要", "文章"], onSelect: () => setAddProvider("PASTE") },
+    {
+      id: "act:replay-onboarding",
+      group: "actions",
+      label: language === "zh-CN" ? "重新查看新手引导" : "Replay quick-start tour",
+      icon: "lightning",
+      aliases: ["onboarding", "tour", "guide", "引导", "新手"],
+      onSelect: () => replayOnboarding(),
+    },
+    {
+      id: "act:shortcuts",
+      group: "actions",
+      label: language === "zh-CN" ? "查看键盘快捷键指南 (?)" : "Keyboard shortcuts (?)",
+      shortcut: "?",
+      icon: "command",
+      aliases: ["shortcuts", "keyboard", "hotkeys", "help", "快捷键", "帮助"],
+      onSelect: () => setShortcutsOpen(true),
+    },
     { id: "act:theme", group: "actions", label: t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme"), icon: theme === "dark" ? "sun" : "moon", aliases: ["theme", "dark", "light", "主题", "浅色", "深色"], onSelect: toggleTheme },
     { id: "act:lang", group: "actions", label: t(language === "zh-CN" ? "Switch interface to English" : "Switch interface to Chinese"), icon: "translate", aliases: ["language", "english", "chinese", "中文", "语言"], onSelect: () => setLanguage(language === "zh-CN" ? "en" : "zh-CN") },
   ];
@@ -2060,6 +2152,13 @@ function Workspace() {
               openContent={openContent}
               onOpenTopic={id => openDelta({ kind: "topic", id })}
               onAddContent={() => setAddProvider("YOUTUBE")}
+              onSampleImported={(videoId) => {
+                setRefresh((value) => value + 1);
+                setImported(true);
+                openContent(videoId);
+              }}
+              onboardingReplayNonce={onboardingReplayNonce}
+              onReplayOnboarding={replayOnboarding}
             />
             <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
           </div>
@@ -2085,6 +2184,7 @@ function Workspace() {
               setHandoffSeq((value) => value + 1);
               navigate("Research");
             }}
+            onOpenSettings={() => navigate("Settings")}
           />
         )}
         {page === "Content" && (
@@ -2114,6 +2214,17 @@ function Workspace() {
               }}
               onAskFilteredResearch={(videoIds) => {
                 setPendingResearchVideoIds(videoIds);
+                setHandoffSeq((value) => value + 1);
+                navigate("Research");
+              }}
+              onCompareSelectedResearch={(videoIds, titles) => {
+                setPendingResearchVideoIds(videoIds);
+                const previewTitles = titles.slice(0, 3).join(" vs ");
+                const draft =
+                  language === "zh-CN"
+                    ? `横向对比这 ${videoIds.length} 篇指定视频（${previewTitles}${videoIds.length > 3 ? " 等" : ""}）的核心共识、观点分歧与演进脉络`
+                    : `Compare key takeaways, consensus, and differences across these ${videoIds.length} selected sources (${previewTitles}${videoIds.length > 3 ? ", ..." : ""}).`;
+                setPendingResearchDraftQuestion(draft);
                 setHandoffSeq((value) => value + 1);
                 navigate("Research");
               }}
@@ -2156,6 +2267,7 @@ function Workspace() {
                 openContent={openContent}
                 onOpenTopic={id => openDelta({ kind: "topic", id })}
                 openResearch={() => navigate("Research")}
+                onOpenContentTriage={() => navigate("Content")}
                 onAddContent={() => setAddProvider("YOUTUBE")}
                 onAskFilteredResearch={(videoIds) => {
                   setPendingResearchVideoIds(videoIds);
@@ -2188,9 +2300,26 @@ function Workspace() {
               setHandoffSeq((value) => value + 1);
               navigate("Research");
             }}
+            onCompareTopicSources={(topicName, videoIds) => {
+              setPendingResearchVideoIds(videoIds);
+              setPendingResearchDraftQuestion(
+                language === "zh-CN"
+                  ? `横向对比「${topicName}」下这 ${videoIds.length} 篇不同来源的核心共识、关键分歧与适用边界`
+                  : `Compare core consensus, disagreements, and trade-offs across these ${videoIds.length} sources on "${topicName}"`,
+              );
+              setHandoffSeq((value) => value + 1);
+              navigate("Research");
+            }}
             onBrowseTopicContent={(topicName, channelKey) => {
               setPendingContentTopic(topicName);
               setPendingContentChannel(channelKey ?? "ALL");
+              setHandoffSeq((value) => value + 1);
+              navigate("Content");
+            }}
+            onBrowsePersonalTag={(tag) => {
+              setPendingContentTag(tag);
+              setPendingContentTopic("ALL");
+              setPendingContentChannel("ALL");
               setHandoffSeq((value) => value + 1);
               navigate("Content");
             }}
@@ -2202,7 +2331,7 @@ function Workspace() {
             onAddContent={() => setAddProvider("YOUTUBE")}
           />
         )}
-        {page === "Settings" && <Settings refresh={refresh} />}
+        {page === "Settings" && <Settings refresh={refresh} onReplayOnboarding={replayOnboarding} />}
       </main>
       <div className="workspace-utility-dock" role="region" aria-label={t("Quick actions")}>
         <button
@@ -2244,19 +2373,30 @@ function Workspace() {
           <span className="utility-cmdk-label">{t("Search or jump")}</span>
           <kbd className="cmdk-kbd" aria-hidden="true">⌘K</kbd>
         </button>
-        <button
-          type="button"
-          className="utility-theme-btn"
-          aria-label={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
-          title={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
-          onClick={event => {
-            pulseCelebration(event.currentTarget);
-            toggleTheme();
-          }}
-        >
-          <PhosphorIcon name={theme === "dark" ? "sun" : "moon"} size={15} className="theme-toggle-glyph" key={theme} />
-          <span className="utility-theme-label">{t(theme === "dark" ? "Paper Light" : "Obsidian Dark")}</span>
-        </button>
+        <div className="utility-dock-foot-row">
+          <button
+            type="button"
+            className="utility-theme-btn"
+            aria-label={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
+            title={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
+            onClick={event => {
+              pulseCelebration(event.currentTarget);
+              toggleTheme();
+            }}
+          >
+            <PhosphorIcon name={theme === "dark" ? "sun" : "moon"} size={15} className="theme-toggle-glyph" key={theme} />
+            <span className="utility-theme-label">{t(theme === "dark" ? "Paper Light" : "Obsidian Dark")}</span>
+          </button>
+          <button
+            type="button"
+            className="utility-shortcuts-btn"
+            aria-label={language === "zh-CN" ? "键盘快捷键指南 (?)" : "Keyboard shortcuts (?)"}
+            title={language === "zh-CN" ? "键盘快捷键指南 (?)" : "Keyboard shortcuts (?)"}
+            onClick={() => setShortcutsOpen(true)}
+          >
+            <kbd className="cmdk-kbd" aria-hidden="true">?</kbd>
+          </button>
+        </div>
       </div>
       {cmdkOpen ? (
         <Suspense fallback={null}>
@@ -2284,6 +2424,13 @@ function Workspace() {
               setHandoffSeq(value => value + 1);
               navigate("Content");
             }}
+            onFilterContentByPersonalTag={tag => {
+              setPendingContentTag(tag);
+              setPendingContentTopic("ALL");
+              setPendingContentChannel("ALL");
+              setHandoffSeq(value => value + 1);
+              navigate("Content");
+            }}
             onFilterIntelligenceByTopic={topicId => {
               setPendingIntelligenceTopicId(topicId);
               setHandoffSeq(value => value + 1);
@@ -2297,7 +2444,15 @@ function Workspace() {
           />
         </Suspense>
       ) : null}
-      {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={(id, sourceKind) => {
+      <KeyboardShortcutsModal
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+        onOpenCommandPalette={() => {
+          setShortcutsOpen(false);
+          setCmdkOpen(true);
+        }}
+      />
+      {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} initialMode={addProvider} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={(id, sourceKind) => {
         setAddProvider(null); setRefresh(value => value + 1); setImported(!sourceKind || sourceKind === "LOCAL"); openContent(id);
       }} />}
     </div>
@@ -2372,12 +2527,24 @@ function sortTopicsByMode(
 }
 
 function Dashboard(
-  { refresh, navigate, openContent, onOpenTopic, onAddContent }: {
+  {
+    refresh,
+    navigate,
+    openContent,
+    onOpenTopic,
+    onAddContent,
+    onSampleImported,
+    onboardingReplayNonce = 0,
+    onReplayOnboarding,
+  }: {
     refresh: number;
     navigate: (page: Page) => void;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic: (topicId: string) => void;
     onAddContent?: () => void;
+    onSampleImported?: (videoId: string) => void;
+    onboardingReplayNonce?: number;
+    onReplayOnboarding?: () => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -2394,13 +2561,44 @@ function Dashboard(
       demo_mode?: boolean;
     }
   >("/dashboard", refresh, undefined, true, true);
+  const videosResp = useRemote<{ videos?: ContentItem[] }>(
+    "/videos?limit=24",
+    refresh,
+    undefined,
+    true,
+    true,
+  );
+  const [markedReadIds, setMarkedReadIds] = useState<string[]>([]);
+  const [triageBusyId, setTriageBusyId] = useState<string | null>(null);
+  const [sampleImportBusy, setSampleImportBusy] = useState(false);
+  const [sampleImportError, setSampleImportError] = useState<string | null>(null);
+  const [recentReading, setRecentReading] = useState<ReadingHistoryEntry[]>(() =>
+    readReadingHistory(),
+  );
+  useEffect(() => {
+    const syncHistory = () => setRecentReading(readReadingHistory());
+    window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
+    window.addEventListener("storage", syncHistory);
+    return () => {
+      window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
+      window.removeEventListener("storage", syncHistory);
+    };
+  }, []);
   const isDemoMode = Boolean(data?.demo_mode);
   const [onboardingOverride, setOnboardingOverride] = useState<{ mode: boolean; done: boolean } | null>(null);
+  const [replayingOnboarding, setReplayingOnboarding] = useState(false);
+  useEffect(() => {
+    if (onboardingReplayNonce > 0) {
+      setOnboardingOverride({ mode: isDemoMode, done: false });
+      setReplayingOnboarding(true);
+    }
+  }, [onboardingReplayNonce, isDemoMode]);
   const onboardingDone =
     onboardingOverride?.mode === isDemoMode ? onboardingOverride.done : onboardingCompleted(isDemoMode);
   const finishOnboarding = () => {
     completeOnboarding(isDemoMode);
     setOnboardingOverride({ mode: isDemoMode, done: true });
+    setReplayingOnboarding(false);
   };
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Home…</Empty>;
@@ -2414,7 +2612,60 @@ function Dashboard(
     hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0 || weeklyBrief !== null;
   const isFreshLibrary = data.operations?.source_count === 0 &&
     !intelligence.length && !topics.length && !hasWeeklyHistory && !attention.length;
-  if (isFreshLibrary && !onboardingDone) {
+  const continueReadingPanel = recentReading.length > 0 ? (
+    <Panel
+      title={zh ? "最近阅读 · 继续精读" : "Continue Reading"}
+      icon="clock"
+      actions={
+        <button
+          type="button"
+          className="button button-ghost button-small"
+          onClick={() => clearReadingHistory()}
+        >
+          {zh ? "清空" : "Clear"}
+        </button>
+      }
+    >
+      <div className="recent-reading-list">
+        {recentReading.slice(0, 4).map((entry) => (
+          <button
+            type="button"
+            key={entry.videoId}
+            className="recent-reading-item"
+            onClick={() => openContent(entry.videoId)}
+          >
+            <div className="recent-reading-copy">
+              <strong>{entry.title}</strong>
+              <span>
+                {[
+                  entry.channelName ??
+                    (entry.provider === "LOCAL"
+                      ? zh
+                        ? "本地资料"
+                        : "Local"
+                      : null),
+                  entry.estimatedMinutes != null
+                    ? zh
+                      ? `约 ${entry.estimatedMinutes} 分钟`
+                      : `~${entry.estimatedMinutes} min`
+                    : null,
+                  entry.visitCount > 1
+                    ? zh
+                      ? `已读 ${entry.visitCount} 次`
+                      : `${entry.visitCount} visits`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </div>
+            <span className="recent-reading-cta">{zh ? "继续 →" : "Resume →"}</span>
+          </button>
+        ))}
+      </div>
+    </Panel>
+  ) : null;
+  if (replayingOnboarding || (isFreshLibrary && !onboardingDone)) {
     return (
       <FirstRunOnboarding
         initialStep={getOnboardingReturnStep() ?? 0}
@@ -2432,6 +2683,15 @@ function Dashboard(
   }
   if (!intelligence.length && !topics.length && !attention.length && !weeklyBrief) {
     const hasSources = (data.operations?.source_count ?? 0) > 0;
+    const handleReplayClick = () => {
+      if (onReplayOnboarding) {
+        onReplayOnboarding();
+      } else {
+        resetOnboarding(isDemoMode);
+        setOnboardingOverride({ mode: isDemoMode, done: false });
+        setReplayingOnboarding(true);
+      }
+    };
     return (
       <div className="dashboard-stack">
         <Panel title="No important new intelligence yet." icon="sparkle">
@@ -2441,11 +2701,30 @@ function Dashboard(
               : "Paste a YouTube or Bilibili video link, follow a YouTube channel, or import a local file.")}
           </p>
           {!hasSources ? (
-            <p className="hint">
-              {zh
-                ? "支持：YouTube 视频/频道 · Bilibili 公开视频 · 本地 .md / .txt / 音视频"
-                : "Supports: YouTube videos/channels · Bilibili public videos · local .md / .txt / media"}
-            </p>
+            <>
+              <div className="empty-quickstart-grid" role="list" aria-label={zh ? "首次使用 3 步快速开始" : "3-step quick start"}>
+                <div className="empty-quickstart-step" role="listitem">
+                  <span className="empty-quickstart-num">STEP 1</span>
+                  <strong>{zh ? "1. 导入首条内容" : "1. Import first source"}</strong>
+                  <p>{zh ? "粘贴 YouTube / B 站公开链接，或导入本地 .md / .txt / 音视频。" : "Paste a YouTube / Bilibili link or import a local .md / .txt / media file."}</p>
+                </div>
+                <div className="empty-quickstart-step" role="listitem">
+                  <span className="empty-quickstart-num">STEP 2</span>
+                  <strong>{zh ? "2. 本机提炼证据链" : "2. Distill grounded brief"}</strong>
+                  <p>{zh ? "保留原话时间戳与来源哈希，AI 只基于已有材料归纳，绝不编造。" : "Preserve verified timestamps & hashes without fabricating missing facts."}</p>
+                </div>
+                <div className="empty-quickstart-step" role="listitem">
+                  <span className="empty-quickstart-num">STEP 3</span>
+                  <strong>{zh ? "3. 跨视频提问与导出" : "3. Research & export"}</strong>
+                  <p>{zh ? "跨资料带引用追问，一键复制或导出 Obsidian 双链笔记。" : "Ask across sources with citations and export Obsidian wikilink notes."}</p>
+                </div>
+              </div>
+              <p className="hint">
+                {zh
+                  ? "支持：YouTube 视频/频道 · Bilibili 公开视频 · 本地 .md / .txt / 音视频"
+                  : "Supports: YouTube videos/channels · Bilibili public videos · local .md / .txt / media"}
+              </p>
+            </>
           ) : null}
           <div className="button-row">
             {hasSources ? (
@@ -2470,15 +2749,69 @@ function Dashboard(
                 </button>
               </>
             ) : (
-              <button
-                className="button button-primary"
-                onClick={() => onAddContent ? onAddContent() : navigate("Following")}
-              >
-                {zh ? "导入第一个内容" : t("Add Source")}
-              </button>
+              <>
+                <button
+                  className="button button-primary"
+                  disabled={sampleImportBusy}
+                  onClick={() => onAddContent ? onAddContent() : navigate("Following")}
+                >
+                  {zh ? "导入第一个内容" : t("Add Source")}
+                </button>
+                {!isDemoMode ? (
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={sampleImportBusy}
+                    onClick={async (event) => {
+                      pulseCelebration(event.currentTarget);
+                      setSampleImportBusy(true);
+                      setSampleImportError(null);
+                      try {
+                        const contentId = await importStarterSampleNote(zh ? "zh-CN" : "en");
+                        if (onSampleImported) {
+                          onSampleImported(contentId);
+                        } else {
+                          openContent(contentId);
+                        }
+                      } catch {
+                        setSampleImportError(
+                          zh
+                            ? "示例笔记未能导入，请确认本地工作区服务正在运行后重试。"
+                            : "Could not import the built-in starter note. Please ensure the local workspace service is running.",
+                        );
+                      } finally {
+                        setSampleImportBusy(false);
+                      }
+                    }}
+                  >
+                    <PhosphorIcon name="file-text" size={14} />
+                    {sampleImportBusy
+                      ? zh
+                        ? "正在导入示例笔记…"
+                        : "Importing sample note…"
+                      : zh
+                        ? "一键导入示例笔记体验"
+                        : "Try with built-in sample note"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  disabled={sampleImportBusy}
+                  onClick={handleReplayClick}
+                >
+                  {zh ? "重新查看新手引导" : "Replay onboarding"}
+                </button>
+              </>
             )}
           </div>
+          {sampleImportError ? (
+            <p className="form-error" role="alert">
+              {sampleImportError}
+            </p>
+          ) : null}
         </Panel>
+        {continueReadingPanel}
       </div>
     );
   }
@@ -2552,6 +2885,151 @@ function Dashboard(
         </Panel>
       </div>
       <div className="home-side-rail">
+        {(() => {
+          const allVideos = Array.isArray(videosResp.data?.videos) ? videosResp.data.videos : [];
+          if (!allVideos.length) return null;
+          const readableVideos = allVideos.filter((v) => {
+            const brief = readVideoAiBrief(v.ai_brief, v.duration_seconds);
+            return !isEffectiveVideoShortNoise(v, brief);
+          });
+          if (!readableVideos.length) return null;
+          const markedSet = new Set(markedReadIds);
+          const unreadQueue = readableVideos
+            .filter((v) => {
+              if (markedSet.has(v.video_id)) return false;
+              const brief = readVideoAiBrief(v.ai_brief, v.duration_seconds);
+              return !brief?.is_read;
+            })
+            .sort((a, b) => {
+              const scoreA = readVideoAiBrief(a.ai_brief, a.duration_seconds)?.score ?? 0;
+              const scoreB = readVideoAiBrief(b.ai_brief, b.duration_seconds)?.score ?? 0;
+              if (scoreB !== scoreA) return scoreB - scoreA;
+              return compareContentNewestFirst(a, b);
+            });
+          const topQueue = unreadQueue.slice(0, 4);
+          const handleQuickRead = async (videoId: string) => {
+            if (triageBusyId) return;
+            setTriageBusyId(videoId);
+            setMarkedReadIds((prev) => (prev.includes(videoId) ? prev : [...prev, videoId]));
+            try {
+              await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, { is_read: true });
+              videosResp.reload();
+              reload();
+            } catch {
+              setMarkedReadIds((prev) => prev.filter((id) => id !== videoId));
+            } finally {
+              setTriageBusyId(null);
+            }
+          };
+          return (
+            <Panel
+              title={zh ? "高优待读队列" : "Priority Reading Queue"}
+              icon="play-circle"
+              className="home-triage-panel"
+            >
+              <div className="home-triage-summary tabular-nums">
+                <span>
+                  {unreadQueue.length > 0
+                    ? zh
+                      ? `已自动过滤短片噪音 · 还有 ${unreadQueue.length} 篇高信号内容待读`
+                      : `Shorts noise filtered · ${unreadQueue.length} high-signal items unread`
+                    : zh
+                      ? "本周高优内容已全部读完"
+                      : "All priority items caught up"}
+                </span>
+              </div>
+              {topQueue.length > 0 ? (
+                <>
+                  <ul className="home-triage-list">
+                    {topQueue.map((item) => {
+                      const brief = readVideoAiBrief(item.ai_brief, item.duration_seconds);
+                      const displayTitle = brief?.headline_zh || item.title || item.video_id;
+                      const sourceLabel =
+                        item.provider === "LOCAL"
+                          ? zh
+                            ? "本地"
+                            : "Local"
+                          : item.provider === "BILIBILI"
+                            ? `B站 · ${item.channel_name}`
+                            : item.channel_name;
+                      return (
+                        <li key={item.video_id} className="home-triage-row">
+                          <button
+                            type="button"
+                            className="home-triage-open"
+                            onClick={() => openContent(item.video_id)}
+                          >
+                            <div className="home-triage-meta">
+                              {brief ? (
+                                <AiScoreBadge brief={brief} compact />
+                              ) : null}
+                              <span className="home-triage-source">{sourceLabel}</span>
+                              {item.duration_seconds != null ? (
+                                <span className="home-triage-dur tabular-nums">
+                                  {formatHumanDuration(item.duration_seconds)}
+                                </span>
+                              ) : null}
+                            </div>
+                            <strong className="home-triage-title">{displayTitle}</strong>
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost button-small home-triage-done"
+                            disabled={triageBusyId === item.video_id}
+                            aria-label={
+                              zh
+                                ? `标已读：${displayTitle}`
+                                : `Mark read: ${displayTitle}`
+                            }
+                            onClick={() => void handleQuickRead(item.video_id)}
+                          >
+                            {zh ? "标已读" : "Done"}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      className="button button-primary button-small"
+                      onClick={() => openContent(topQueue[0].video_id)}
+                    >
+                      {zh
+                        ? `开始连续速读 (${unreadQueue.length})`
+                        : `Start triage (${unreadQueue.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-ghost button-small"
+                      onClick={() => navigate("Content")}
+                    >
+                      {zh ? "全部内容" : "All Content"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    onClick={() => navigate("Research")}
+                  >
+                    {zh ? "围绕已读跨视频提问" : "Ask across library"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    onClick={() => navigate("Content")}
+                  >
+                    {zh ? "回顾全部内容" : "Review Content"}
+                  </button>
+                </div>
+              )}
+            </Panel>
+          );
+        })()}
+        {continueReadingPanel}
         <Panel title="Pinned Topics" icon="stack">
           {topics.length
             ? (
@@ -3032,6 +3510,7 @@ function IntelligencePage(
     openContent,
     onOpenTopic,
     openResearch,
+    onOpenContentTriage,
     onAddContent,
     onAskFilteredResearch,
   }: {
@@ -3044,6 +3523,7 @@ function IntelligencePage(
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
+    onOpenContentTriage?: () => void;
     onAddContent?: () => void;
     onAskFilteredResearch?: (videoIds: string[]) => void;
   },
@@ -3445,6 +3925,22 @@ function IntelligencePage(
   return (
     <>
       {researchEntry}
+      <div className="intel-role-strip" role="note">
+        <span>
+          {zh
+            ? `可复用判断库 · 共 ${currentAvailable.length} 条已核验洞察 · ${savedEntries.length} 条已收藏 — 原始视频与文档分诊请前往「内容」`
+            : `Reusable insight bank · ${currentAvailable.length} verified · ${savedEntries.length} saved — triage raw videos & docs in Content`}
+        </span>
+        {onOpenContentTriage ? (
+          <button
+            type="button"
+            className="intel-role-strip-link"
+            onClick={onOpenContentTriage}
+          >
+            {zh ? "前往内容分诊 →" : "Open Content triage →"}
+          </button>
+        ) : null}
+      </div>
       <div className="segmented">
         {(["Current", "Saved"] as const).map((item) => (
           <button
@@ -3864,6 +4360,7 @@ function ContentPage(
     onAddLocal,
     onAskStarredResearch,
     onAskFilteredResearch,
+    onCompareSelectedResearch,
     onSelectTopicCluster,
   }: {
     refresh: number;
@@ -3878,6 +4375,7 @@ function ContentPage(
     onAddLocal?: () => void;
     onAskStarredResearch?: () => void;
     onAskFilteredResearch?: (videoIds: string[]) => void;
+    onCompareSelectedResearch?: (videoIds: string[], titles: string[]) => void;
     onSelectTopicCluster?: (clusterName: string) => void;
   },
 ) {
@@ -3894,15 +4392,45 @@ function ContentPage(
     () => restoredContentRef.current?.providerFilter ?? "ALL",
   );
   const [bucketFilter, setBucketFilter] = useState<
-    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
-  >(() => restoredContentRef.current?.bucketFilter ?? "ALL");
+    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED"
+  >(
+    () =>
+      consumePendingContentBucket() ||
+      restoredContentRef.current?.bucketFilter ||
+      "ALL",
+  );
   const [topicFilter, setTopicFilter] = useState<string>(
     () => consumePendingContentTopic() || restoredContentRef.current?.topicFilter || "ALL",
   );
   const [channelFilter, setChannelFilter] = useState<string>(
     () => consumePendingContentChannel() || restoredContentRef.current?.channelFilter || "ALL",
   );
+  const [tagFilter, setTagFilter] = useState<string>(
+    () => consumePendingContentTag() || restoredContentRef.current?.tagFilter || "ALL",
+  );
   const [contentSortMode, setContentSortMode] = useState<"newest" | "score">("newest");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [copiedSelectedDigest, setCopiedSelectedDigest] = useState(false);
+  const [batchStarBusy, setBatchStarBusy] = useState(false);
+  const [notedVideoIds, setNotedVideoIds] = useState<Set<string>>(() => listPersonalNoteVideoIds());
+  const [personalNotesMap, setPersonalNotesMap] = useState<Record<string, PersonalNote>>(() =>
+    readAllPersonalNotes(),
+  );
+  const [personalTagCounts, setPersonalTagCounts] = useState<PersonalTagCount[]>(() =>
+    listPersonalTagCounts(),
+  );
+  useEffect(() => {
+    const refreshNoted = () => {
+      setNotedVideoIds(listPersonalNoteVideoIds());
+      setPersonalNotesMap(readAllPersonalNotes());
+      setPersonalTagCounts(listPersonalTagCounts());
+    };
+    refreshNoted();
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, refreshNoted);
+    return () => window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, refreshNoted);
+  }, []);
   if (latestFilterRef) {
     latestFilterRef.current = {
       searchQuery,
@@ -3910,6 +4438,7 @@ function ContentPage(
       bucketFilter,
       topicFilter,
       channelFilter,
+      tagFilter,
     };
   }
   useEffect(() => {
@@ -3917,6 +4446,10 @@ function ContentPage(
     if (nextChannel) setChannelFilter(nextChannel);
     const nextTopic = consumePendingContentTopic();
     if (nextTopic) setTopicFilter(nextTopic);
+    const nextBucket = consumePendingContentBucket();
+    if (nextBucket) setBucketFilter(nextBucket);
+    const nextTag = consumePendingContentTag();
+    if (nextTag) setTagFilter(nextTag);
   }, [handoffSeq]);
   const [kbActiveId, setKbActiveId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -3942,6 +4475,8 @@ function ContentPage(
   const [batchCurationBusy, setBatchCurationBusy] = useState(false);
   const [lastBatchReadIds, setLastBatchReadIds] = useState<string[]>([]);
   const [copiedContentDigest, setCopiedContentDigest] = useState(false);
+  const [sampleImportBusy, setSampleImportBusy] = useState(false);
+  const [sampleImportError, setSampleImportError] = useState<string | null>(null);
   useEffect(() => {
     setCopiedContentDigest(false);
   }, [searchQuery, providerFilter, bucketFilter, topicFilter, channelFilter]);
@@ -4262,6 +4797,12 @@ function ContentPage(
   }, []);
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
+  const matchesPersonalTag = (videoId: string): boolean => {
+    if (tagFilter === "ALL") return true;
+    const tags = personalNotesMap[videoId]?.tags ?? [];
+    const targetLower = tagFilter.toLowerCase();
+    return tags.some((tag) => tag.trim().toLowerCase() === targetLower);
+  };
   if (targetVideoId) {
     const rawVideos = mergedLoadedAndSearchVideos;
     const trimmedQuery = searchQuery.trim().toLowerCase();
@@ -4269,6 +4810,7 @@ function ContentPage(
       providerFilter !== "ALL" ||
       channelFilter !== "ALL" ||
       topicFilter !== "ALL" ||
+      tagFilter !== "ALL" ||
       (bucketFilter !== "ALL" && bucketFilter !== "UNREAD" && bucketFilter !== "SHORTS") ||
       trimmedQuery.length > 0;
     const filterParts: string[] = [];
@@ -4302,11 +4844,16 @@ function ContentPage(
       filterParts.push(language === "zh-CN" ? "已收藏" : "Starred");
     } else if (bucketFilter === "TUTORIAL") {
       filterParts.push(language === "zh-CN" ? "教程拆解" : "Tutorials");
+    } else if (bucketFilter === "NOTED") {
+      filterParts.push(language === "zh-CN" ? "有笔记" : "Noted");
     } else if (bucketFilter === "UNREAD") {
       filterParts.push(language === "zh-CN" ? "仅未读" : "Unread only");
     }
     if (searchQuery.trim()) {
       filterParts.push(`“${searchQuery.trim()}”`);
+    }
+    if (tagFilter !== "ALL") {
+      filterParts.push(`#${tagFilter}`);
     }
     const activeFilterSummary = filterParts.length > 0 ? filterParts.join(" · ") : null;
 
@@ -4334,6 +4881,12 @@ function ContentPage(
           return false;
         }
         if (bucketFilter === "TUTORIAL" && brief.content_bucket !== "TUTORIAL") {
+          return false;
+        }
+        if (bucketFilter === "NOTED" && !notedVideoIds.has(item.video_id)) {
+          return false;
+        }
+        if (tagFilter !== "ALL" && !matchesPersonalTag(item.video_id)) {
           return false;
         }
         if (trimmedQuery) {
@@ -4623,6 +5176,30 @@ function ContentPage(
       setBatchCurationBusy(false);
     }
   };
+  const toggleSelectedId = (videoId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(videoId)) next.delete(videoId);
+      else next.add(videoId);
+      return next;
+    });
+  };
+  const batchStarSelected = async (targetIds: string[]) => {
+    if (!targetIds.length || batchStarBusy || batchCurationBusy || curationBusyId !== null) return;
+    setBatchStarBusy(true);
+    try {
+      await post("/workspace-ai/curation/batch", {
+        video_ids: targetIds,
+        starred: true,
+      });
+      applyLocalCurationPatch(new Set(targetIds), { starred: true });
+      setRevision((value) => value + 1);
+    } catch {
+      /* Preserve existing view on transient network failure */
+    } finally {
+      setBatchStarBusy(false);
+    }
+  };
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const isAutoFoldedItem = (item: ContentItem) =>
     Boolean(
@@ -4646,6 +5223,8 @@ function ContentPage(
       if (!brief || !brief.starred) return false;
     } else if (bucketFilter === "TUTORIAL") {
       if (!brief || brief.content_bucket !== "TUTORIAL") return false;
+    } else if (bucketFilter === "NOTED") {
+      if (!notedVideoIds.has(item.video_id)) return false;
     } else if (bucketFilter === "SHORTS") {
       const isShort = brief
         ? brief.is_short_noise || brief.content_bucket === "SHORTS_PROMO"
@@ -4717,10 +5296,13 @@ function ContentPage(
       const b = briefByVideoId.get(item.video_id);
       if (!b || b.topic_cluster_zh.trim() !== topicFilter) return false;
     }
+    if (tagFilter !== "ALL" && !matchesPersonalTag(item.video_id)) {
+      return false;
+    }
     return matchesContentSearch(item, briefByVideoId.get(item.video_id) ?? null);
   });
   const bucketCounts: Record<
-    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS",
+    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED",
     number
   > = {
     ALL: providerAndTopicVideos.filter((item) => !isAutoFoldedItem(item)).length,
@@ -4739,6 +5321,7 @@ function ContentPage(
     TUTORIAL: providerAndTopicVideos.filter(
       (item) => briefByVideoId.get(item.video_id)?.content_bucket === "TUTORIAL",
     ).length,
+    NOTED: providerAndTopicVideos.filter((item) => notedVideoIds.has(item.video_id)).length,
     SHORTS: providerAndTopicVideos.filter((item) => {
       const b = briefByVideoId.get(item.video_id);
       const p = item.provider ?? "YOUTUBE";
@@ -4778,6 +5361,17 @@ function ContentPage(
     : sortedFilteredVideos
   ).filter((item) => !manualPendingIds.has(item.video_id));
   const primaryIds = primaryVideos.map((v) => v.video_id);
+  const selectablePrimaryItems = primaryVideos.filter((item) => !item.work_kind);
+  const selectablePrimaryIds = selectablePrimaryItems.map((item) => item.video_id);
+  const selectedPrimaryItems = selectablePrimaryItems.filter((item) =>
+    selectedIds.has(item.video_id),
+  );
+  const selectedUnreadIds = selectedPrimaryItems
+    .filter((item) => {
+      const b = briefByVideoId.get(item.video_id);
+      return Boolean(b && !b.is_short_noise && !b.is_read);
+    })
+    .map((item) => item.video_id);
   const unreadInViewIds = primaryVideos
     .filter((item) => {
       if (item.work_kind) return false;
@@ -4792,6 +5386,7 @@ function ContentPage(
     trimmedSearch ||
       channelFilter !== "ALL" ||
       topicFilter !== "ALL" ||
+      tagFilter !== "ALL" ||
       providerFilter !== "ALL" ||
       bucketFilter !== "ALL",
   );
@@ -4799,6 +5394,7 @@ function ContentPage(
     trimmedSearch ||
       channelFilter !== "ALL" ||
       topicFilter !== "ALL" ||
+      tagFilter !== "ALL" ||
       providerFilter !== "ALL" ||
       (bucketFilter !== "ALL" && bucketFilter !== "STARRED" && bucketFilter !== "SHORTS"),
   );
@@ -4824,6 +5420,7 @@ function ContentPage(
     setBucketFilter("ALL");
     setChannelFilter("ALL");
     setTopicFilter("ALL");
+    setTagFilter("ALL");
     setProviderFilter("ALL");
   };
   const effectiveKbActiveId =
@@ -4861,14 +5458,36 @@ function ContentPage(
         }
       : contentStatus(item.provider, item.processing_status);
     const hasShell = hasAiBriefs && Boolean(brief) && !item.work_kind;
+    const isSelectable = selectMode && !item.work_kind;
+    const isSelected = isSelectable && selectedIds.has(item.video_id);
+    const selectCheckbox = isSelectable ? (
+      <input
+        type="checkbox"
+        className="content-row-checkbox"
+        checked={isSelected}
+        aria-label={
+          language === "zh-CN"
+            ? `选择：${item.title ?? item.video_id}`
+            : `Select: ${item.title ?? item.video_id}`
+        }
+        onClick={(event) => event.stopPropagation()}
+        onChange={() => toggleSelectedId(item.video_id)}
+      />
+    ) : null;
     const rowButton = (
       <button
         type="button"
-        className={`list-row content-media-row${brief?.is_read ? " is-read-row" : ""}${!hasShell && isKbActive ? " is-kb-active" : ""}`}
-        key={hasShell ? undefined : item.video_id}
+        className={`list-row content-media-row${brief?.is_read ? " is-read-row" : ""}${!hasShell && isKbActive ? " is-kb-active" : ""}${!hasShell && isSelected ? " is-selected" : ""}`}
+        key={hasShell || isSelectable ? undefined : item.video_id}
         data-kb-video-id={hasShell ? undefined : item.video_id}
         data-kb-active={!hasShell && isKbActive ? "true" : undefined}
-        onClick={() => onOpen(item.video_id)}
+        onClick={() => {
+          if (isSelectable) {
+            toggleSelectedId(item.video_id);
+            return;
+          }
+          onOpen(item.video_id);
+        }}
       >
         <span className="content-media-lead">
           <span className={`provider-glyph provider-${(item.provider ?? "YOUTUBE").toLowerCase()}`} aria-hidden="true">
@@ -4912,6 +5531,11 @@ function ContentPage(
           </span>
         </span>
         <span className="content-row-trailing">
+          {notedVideoIds.has(item.video_id) ? (
+            <span className="content-note-badge">
+              {language === "zh-CN" ? "有笔记" : "Notes"}
+            </span>
+          ) : null}
           {brief?.source_basis === "METADATA_ONLY" && !brief.is_short_noise ? (
             <span className="ai-basis-pill is-compact">
               {language === "zh-CN" ? "简介速览" : "Metadata"}
@@ -4923,18 +5547,30 @@ function ContentPage(
       </button>
     );
     if (!hasShell || !brief) {
+      if (isSelectable) {
+        return (
+          <div
+            className={`content-row-shell is-plain-selectable${isSelected ? " is-selected" : ""}`}
+            key={item.video_id}
+          >
+            {selectCheckbox}
+            {rowButton}
+          </div>
+        );
+      }
       return rowButton;
     }
     const zh = language === "zh-CN";
     const rowBusy = curationBusyId === item.video_id;
     return (
       <div
-        className={`content-row-shell${brief.is_read ? " is-read-shell" : ""}${isKbActive ? " is-kb-active" : ""}`}
+        className={`content-row-shell${brief.is_read ? " is-read-shell" : ""}${isKbActive ? " is-kb-active" : ""}${isSelected ? " is-selected" : ""}`}
         key={item.video_id}
         data-kb-video-id={item.video_id}
         data-kb-active={isKbActive ? "true" : undefined}
         onMouseEnter={() => setKbActiveId(item.video_id)}
       >
+        {selectCheckbox}
         {rowButton}
         <div
           className="content-curation-inline"
@@ -5167,51 +5803,120 @@ function ContentPage(
             </div>
           </section>
         )}
-        {(videos.length > manualPendingIds.size || hasActiveContentFilter) ? (
+        {(videos.length > manualPendingIds.size || hasActiveContentFilter) ? (() => {
+          const activeSecondaryFilterCount =
+            (channelFilter !== "ALL" ? 1 : 0) +
+            (topicFilter !== "ALL" ? 1 : 0) +
+            (providerFilter !== "ALL" ? 1 : 0) +
+            (contentSortMode !== "newest" ? 1 : 0);
+          const hasSecondaryControls = hasAiBriefs || hasMultiProviders;
+          return (
         <div className="library-filter-bar">
-          <div className="search-field-wrap">
-            <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
-            <input
-              ref={searchInputRef}
-              type="search"
-              aria-label={t("Search Content library")}
-              placeholder={t("Filter by title or channel…")}
-              value={searchQuery}
-              onChange={event => setSearchQuery(event.target.value)}
-            />
-          </div>
-          {hasAiBriefs && (
-            <div
-              className="segmented library-bucket-chips"
-              role="group"
-              aria-label={language === "zh-CN" ? "内容价值分流" : "Value filter"}
-            >
-              {(
-                [
+          <div className="library-filter-primary">
+            <div className="search-field-wrap">
+              <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
+              <input
+                ref={searchInputRef}
+                type="search"
+                aria-label={t("Search Content library")}
+                placeholder={t("Filter by title or channel…")}
+                value={searchQuery}
+                onChange={event => setSearchQuery(event.target.value)}
+              />
+            </div>
+            {hasSecondaryControls ? (
+              <button
+                type="button"
+                className={`button button-secondary button-small mobile-filter-toggle-btn tabular-nums${mobileFiltersOpen ? " is-open" : ""}`}
+                aria-expanded={mobileFiltersOpen}
+                onClick={() => setMobileFiltersOpen((open) => !open)}
+              >
+                <PhosphorIcon name="funnel" size={13} />
+                <span>
+                  {language === "zh-CN"
+                    ? activeSecondaryFilterCount > 0
+                      ? `筛选 (${activeSecondaryFilterCount})`
+                      : "筛选"
+                    : activeSecondaryFilterCount > 0
+                      ? `Filters (${activeSecondaryFilterCount})`
+                      : "Filters"}
+                </span>
+              </button>
+            ) : null}
+            {hasAiBriefs && (
+              <div
+                className="segmented library-bucket-chips"
+                role="group"
+                aria-label={language === "zh-CN" ? "内容价值分流" : "Value filter"}
+              >
+                {([
                   ["ALL", language === "zh-CN" ? "全部" : "All"],
                   ["UNREAD", language === "zh-CN" ? "未读干货" : "Unread"],
                   ["MUST_WATCH", language === "zh-CN" ? "必看长视频" : "Must-watch"],
                   ["STARRED", language === "zh-CN" ? "已收藏" : "Starred"],
                   ["TUTORIAL", language === "zh-CN" ? "实操教程" : "Tutorials"],
                   ["SHORTS", language === "zh-CN" ? "Shorts 短片" : "Shorts"],
-                ] as const
-              ).map(([key, label]) => (
+                  ...(notedVideoIds.size > 0 || bucketFilter === "NOTED"
+                    ? ([["NOTED", language === "zh-CN" ? "有笔记" : "Noted"]] as const)
+                    : []),
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={bucketFilter === key}
+                    className={bucketFilter === key ? "active" : ""}
+                    onClick={() => setBucketFilter(key)}
+                  >
+                    <span>{label}</span>
+                    <span className="bucket-count-badge tabular-nums" aria-hidden="true">
+                      {bucketCounts[key]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {(personalTagCounts.length > 0 || tagFilter !== "ALL") ? (
+            <div
+              className="content-tag-filter-strip"
+              role="group"
+              aria-label={language === "zh-CN" ? "个人笔记标签筛选" : "Filter by personal tag"}
+            >
+              <span className="content-tag-filter-label">
+                {language === "zh-CN" ? "我的标签：" : "My tags:"}
+              </span>
+              {personalTagCounts.map((entry) => {
+                const isActive = tagFilter.toLowerCase() === entry.tag.toLowerCase();
+                return (
+                  <button
+                    key={entry.tag}
+                    type="button"
+                    className={`content-tag-chip tabular-nums${isActive ? " is-active" : ""}`}
+                    aria-pressed={isActive}
+                    onClick={() => setTagFilter(isActive ? "ALL" : entry.tag)}
+                  >
+                    #{entry.tag} ({entry.count})
+                  </button>
+                );
+              })}
+              {tagFilter !== "ALL" &&
+              !personalTagCounts.some(
+                (entry) => entry.tag.toLowerCase() === tagFilter.toLowerCase(),
+              ) ? (
                 <button
-                  key={key}
                   type="button"
-                  aria-label={label}
-                  aria-pressed={bucketFilter === key}
-                  className={bucketFilter === key ? "active" : ""}
-                  onClick={() => setBucketFilter(key)}
+                  className="content-tag-chip is-active tabular-nums"
+                  aria-pressed="true"
+                  onClick={() => setTagFilter("ALL")}
                 >
-                  <span>{label}</span>
-                  <span className="bucket-count-badge tabular-nums" aria-hidden="true">
-                    {bucketCounts[key]}
-                  </span>
+                  #{tagFilter} (0)
                 </button>
-              ))}
+              ) : null}
             </div>
-          )}
+          ) : null}
+          {hasSecondaryControls ? (
+            <div className={`library-filter-secondary${mobileFiltersOpen ? " is-mobile-open" : ""}`}>
           {hasAiBriefs && (allChannelKeys.size > 1 || channelFilter !== "ALL") && (
             <select
               className="content-topic-select tabular-nums"
@@ -5302,14 +6007,41 @@ function ContentPage(
               ))}
             </div>
           )}
-          {hasAiBriefs &&
+          {((hasAiBriefs &&
           ((onAskFilteredResearch &&
             hasCustomResearchScope &&
             filteredQuestionVideoIds.length > 0) ||
             (onAskStarredResearch && totalStarredCount > 0) ||
             (bucketFilter !== "SHORTS" && unreadInViewIds.length > 0) ||
-            (hasActiveContentFilter && filteredVideos.length > 0)) ? (
+            (hasActiveContentFilter && filteredVideos.length > 0))) ||
+            selectablePrimaryIds.length > 0) ? (
             <div className="library-batch-actions tabular-nums">
+              {selectablePrimaryIds.length > 0 ? (
+                <button
+                  type="button"
+                  className={`button button-small ${selectMode ? "button-primary" : "button-secondary"}`}
+                  aria-pressed={selectMode}
+                  onClick={() => {
+                    setSelectMode((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        setSelectedIds(new Set());
+                        setCopiedSelectedDigest(false);
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <PhosphorIcon name="stack" size={13} />
+                  {selectMode
+                    ? language === "zh-CN"
+                      ? "退出多选"
+                      : "Exit select"
+                    : language === "zh-CN"
+                      ? "多选对比"
+                      : "Select & compare"}
+                </button>
+              ) : null}
               {onAskFilteredResearch &&
               hasCustomResearchScope &&
               filteredQuestionVideoIds.length > 0 ? (
@@ -5360,8 +6092,11 @@ function ContentPage(
               ) : null}
             </div>
           ) : null}
+            </div>
+          ) : null}
         </div>
-        ) : null}
+          );
+        })() : null}
         {hasAiBriefs && hasActiveContentFilter && primaryVideos.length > 0 ? (
           <div
             className="content-active-filter-bar tabular-nums"
@@ -5428,6 +6163,124 @@ function ContentPage(
               >
                 {t("Dismiss")}
               </button>
+            </div>
+          </div>
+        ) : null}
+        {selectMode && selectablePrimaryIds.length > 0 ? (
+          <div
+            className="content-selection-bar tabular-nums"
+            role="region"
+            aria-label={language === "zh-CN" ? "多选批量工作台" : "Multi-select workbench"}
+          >
+            <span className="content-selection-count">
+              {language === "zh-CN"
+                ? `已选 ${selectedPrimaryItems.length} 条${selectedPrimaryItems.length > 12 ? "（对比最多带入前 12 条）" : ""}`
+                : `${selectedPrimaryItems.length} selected${selectedPrimaryItems.length > 12 ? " (max 12 for Q&A)" : ""}`}
+            </span>
+            <div className="content-selection-actions">
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => {
+                  const nextIds = selectablePrimaryIds.slice(0, 12);
+                  setSelectedIds(new Set(nextIds));
+                }}
+              >
+                {language === "zh-CN" ? "全选当前页" : "Select all"}
+              </button>
+              {selectedPrimaryItems.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  {language === "zh-CN" ? "清空" : "Clear"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="button button-primary button-small"
+                disabled={selectedPrimaryItems.length === 0 || !onCompareSelectedResearch}
+                onClick={() => {
+                  const scoped = selectedPrimaryItems.slice(0, 12);
+                  onCompareSelectedResearch?.(
+                    scoped.map((item) => item.video_id),
+                    scoped.map((item) => item.title ?? item.video_id),
+                  );
+                }}
+              >
+                <PhosphorIcon name="sparkle" size={13} />
+                {language === "zh-CN"
+                  ? `对比提问 (${Math.min(selectedPrimaryItems.length, 12)}) →`
+                  : `Compare in Q&A (${Math.min(selectedPrimaryItems.length, 12)}) →`}
+              </button>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={selectedPrimaryItems.length === 0}
+                onClick={(event) => {
+                  pulseCelebration(event.currentTarget);
+                  const withBrief = selectedPrimaryItems.flatMap((item) => {
+                    const brief = briefByVideoId.get(item.video_id);
+                    return brief ? [{ item, brief }] : [];
+                  });
+                  const withoutBrief = selectedPrimaryItems.filter(
+                    (item) => !briefByVideoId.has(item.video_id),
+                  );
+                  const parts: string[] = [];
+                  if (withBrief.length > 0) {
+                    parts.push(formatPlainTextContentDigest(withBrief, language));
+                  }
+                  if (withoutBrief.length > 0) {
+                    const extra = withoutBrief
+                      .map((item) => `- ${item.title ?? item.video_id}`)
+                      .join("\n");
+                    parts.push(extra);
+                  }
+                  void navigator.clipboard?.writeText(parts.join("\n\n"));
+                  setCopiedSelectedDigest(true);
+                  setTimeout(() => setCopiedSelectedDigest(false), 2200);
+                }}
+              >
+                <PhosphorIcon name="quotes" size={13} />
+                {copiedSelectedDigest
+                  ? language === "zh-CN"
+                    ? "已复制所选摘要"
+                    : "Copied selected"
+                  : language === "zh-CN"
+                    ? "复制所选摘要"
+                    : "Copy selected"}
+              </button>
+              {hasAiBriefs ? (
+                <>
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    disabled={
+                      selectedPrimaryItems.length === 0 || batchStarBusy || batchCurationBusy
+                    }
+                    onClick={() =>
+                      void batchStarSelected(selectedPrimaryItems.map((item) => item.video_id))
+                    }
+                  >
+                    <PhosphorIcon name="bookmark-simple" size={13} />
+                    {language === "zh-CN" ? "批量收藏" : "Star selected"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    disabled={
+                      selectedUnreadIds.length === 0 || batchCurationBusy || batchStarBusy
+                    }
+                    onClick={() => void markVisibleUnreadAsRead(selectedUnreadIds)}
+                  >
+                    <PhosphorIcon name="check-circle" size={13} />
+                    {language === "zh-CN"
+                      ? `批量标已读${selectedUnreadIds.length > 0 ? ` (${selectedUnreadIds.length})` : ""}`
+                      : `Mark read${selectedUnreadIds.length > 0 ? ` (${selectedUnreadIds.length})` : ""}`}
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -5542,7 +6395,46 @@ function ContentPage(
     : (
       <Empty>
         <p>{t("No Content yet. Add a video link, follow a YouTube channel, or import a local file.")}</p>
-        <button type="button" className="button button-primary" onClick={onAdd}>{t("Add content")}</button>
+        <div className="button-row">
+          <button type="button" className="button button-primary" disabled={sampleImportBusy} onClick={onAdd}>{t("Add content")}</button>
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={sampleImportBusy}
+            onClick={async (event) => {
+              pulseCelebration(event.currentTarget);
+              setSampleImportBusy(true);
+              setSampleImportError(null);
+              try {
+                const contentId = await importStarterSampleNote(language === "zh-CN" ? "zh-CN" : "en");
+                setRevision((value) => value + 1);
+                onOpen(contentId);
+              } catch {
+                setSampleImportError(
+                  language === "zh-CN"
+                    ? "示例笔记未能导入，请确认本地工作区服务正在运行后重试。"
+                    : "Could not import the built-in starter note.",
+                );
+              } finally {
+                setSampleImportBusy(false);
+              }
+            }}
+          >
+            <PhosphorIcon name="file-text" size={14} />
+            {sampleImportBusy
+              ? language === "zh-CN"
+                ? "正在导入示例笔记…"
+                : "Importing sample note…"
+              : language === "zh-CN"
+                ? "一键导入示例笔记体验"
+                : "Try with built-in sample note"}
+          </button>
+        </div>
+        {sampleImportError ? (
+          <p className="form-error" role="alert">
+            {sampleImportError}
+          </p>
+        ) : null}
       </Empty>
     );
 }
@@ -6222,6 +7114,11 @@ function ContentDetailPanel(
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
   const [transcriptVerbatim, setTranscriptVerbatim] = useState(false);
+  const [transcriptSearch, setTranscriptSearch] = useState("");
+  const [copiedSegmentKey, setCopiedSegmentKey] = useState<string | null>(null);
+  const [personalNote, setPersonalNote] = useState<PersonalNote | null>(() => readPersonalNote(id));
+  const [comfortMode, setComfortMode] = useState<boolean>(() => readReaderComfortMode());
+  const recordedVisitVideoIdRef = useRef<string | null>(null);
   const [summaryVerbatim, setSummaryVerbatim] = useState(false);
   const [loadedEvidence, setLoadedEvidence] = useState<ContentEvidence[]>([]);
   const [sharedTranslations, setSharedTranslations] = useState<Record<string, { excerpt: string; language: "zh-CN" | "en" }>>({});
@@ -6247,6 +7144,9 @@ function ContentDetailPanel(
     setWsActionRequest(null);
     setLocalMediaPlaying(false);
     setLocalMediaErrorCode(null);
+    setTranscriptSearch("");
+    setCopiedSegmentKey(null);
+    setPersonalNote(readPersonalNote(id));
     drawerReturnFocusRef.current = null;
   }, [id]);
   useEffect(() => {
@@ -6281,6 +7181,28 @@ function ContentDetailPanel(
     const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [data]);
+  useEffect(() => {
+    if (!data?.video || data.video.video_id !== id || data.video.work_kind) return;
+    if (recordedVisitVideoIdRef.current === id) return;
+    recordedVisitVideoIdRef.current = id;
+    const textSample =
+      data.transcript.text?.trim() ||
+      data.transcript.timed_segments?.map((seg) => seg.text).filter(Boolean).join(" ") ||
+      readVideoAiBrief(data.video.ai_brief, data.video.duration_seconds)?.summary_zh ||
+      data.note.v2?.summary ||
+      "";
+    recordReadingVisit({
+      videoId: data.video.video_id,
+      title: data.video.title ?? data.video.video_id,
+      channelName: data.video.channel_name ?? null,
+      provider: data.video.provider ?? null,
+      mediaKind: data.video.media_kind ?? null,
+      estimatedMinutes: estimateReadingMinutes({
+        text: textSample,
+        durationSeconds: data.video.duration_seconds,
+      }),
+    });
+  }, [data, id]);
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data?.video || data.video.video_id !== id) return <Empty>Loading Content detail…</Empty>;
   if (data.video.work_kind) {
@@ -6359,7 +7281,7 @@ function ContentDetailPanel(
               );
   const visualAnalysisData = readVideoVisualAnalysis(data.visual_analysis);
   const heroPosterUrl = visualAnalysisData?.frames?.[0]?.image_url ?? null;
-  const isTextDocument = isLocalMedia && data.video.media_kind === "TEXT";
+  const isTextDocument = data.video.provider === "LOCAL" && data.video.media_kind === "TEXT";
   const isPlayableLocalVideo = isLocalMedia && data.video.media_kind === "VIDEO";
   const isPlayableLocalAudio = isLocalMedia && data.video.media_kind === "AUDIO";
   const localMediaSrc = `/api/v1/videos/${encodeURIComponent(id)}/media`;
@@ -6371,16 +7293,26 @@ function ContentDetailPanel(
     !aiBrief ||
     (isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE");
   const zhReader = language === "zh-CN";
+  const transcriptTextForEstimate =
+    transcript.text?.trim() ||
+    transcript.timed_segments?.map((seg) => seg.text).filter(Boolean).join(" ") ||
+    aiBrief?.summary_zh ||
+    note?.summary ||
+    "";
+  const estimatedReadingMinutes = estimateReadingMinutes({
+    text: transcriptTextForEstimate,
+    durationSeconds: data.video.duration_seconds,
+  });
   const jumpItems = ([
     ["section-intelligence", "sparkle", "Jump · Intelligence"],
     ...(showSummaryPanel ? ([["section-summary", "file-text", "Jump · Summary"]] as const) : []),
     ["section-evidence", "shield-check", "Jump · Evidence"],
-    ["section-transcript", "quotes", "Jump · Transcript"],
+    ["section-transcript", "quotes", isTextDocument ? "Jump · Source text" : "Jump · Transcript"],
     ["section-history", "clock", "Jump · History"],
   ] as const);
 
   return (
-    <div className="dashboard-stack reader-detail-stack">
+    <div className={`dashboard-stack reader-detail-stack detail-panel${comfortMode ? " is-reading-comfort" : ""}`}>
       <div className="reader-back-row">
         <button className="button button-ghost" onClick={onClose}>
           <PhosphorIcon name="arrow-left" size={14} />
@@ -6394,6 +7326,43 @@ function ContentDetailPanel(
               : `Active filter: ${activeFilterSummary}`}
           </span>
         ) : null}
+        <div className="reader-back-row-tools">
+          {estimatedReadingMinutes != null ? (
+            <span className="reader-read-time-pill tabular-nums">
+              <PhosphorIcon name="clock" size={12} />
+              {zhReader
+                ? `约 ${estimatedReadingMinutes} 分钟精读`
+                : `~${estimatedReadingMinutes} min read`}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className={`button button-ghost button-small reader-comfort-toggle${comfortMode ? " is-active" : ""}`}
+            aria-pressed={comfortMode}
+            aria-label={
+              comfortMode
+                ? zhReader
+                  ? "切回标准阅读排版"
+                  : "Switch to standard reading typography"
+                : zhReader
+                  ? "开启舒朗阅读排版"
+                  : "Enable comfort reading typography"
+            }
+            onClick={() => {
+              const next = !comfortMode;
+              setComfortMode(next);
+              writeReaderComfortMode(next);
+            }}
+          >
+            {comfortMode
+              ? zhReader
+                ? "标准排版"
+                : "Standard type"
+              : zhReader
+                ? "舒朗排版"
+                : "Comfort type"}
+          </button>
+        </div>
       </div>
       <Panel title={data.video.title ?? data.video.video_id} className="reader-hero-panel">
         <div className={!isTextDocument ? "reader-hero-grid" : undefined}>
@@ -6402,7 +7371,7 @@ function ContentDetailPanel(
               <Status {...readingStatus} />
               <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
               {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
-              {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
+              {data.video.source_language && !(isTextDocument && data.video.source_language === "und") && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
               {data.video.duration_seconds != null && <span>{t("Media duration")}: {formatHumanDuration(data.video.duration_seconds)}</span>}
             </div>
             <div className="reader-action-bar">
@@ -6416,7 +7385,11 @@ function ContentDetailPanel(
                 transcriptAvailable={transcript.status === "AVAILABLE"}
                 transcriberReady={wsCapabilities ? wsCapabilities.transcriber_ready : undefined}
                 aiBrief={aiBrief}
-                obsidianMarkdown={data.obsidian_markdown}
+                obsidianMarkdown={
+                  data.obsidian_markdown
+                    ? mergePersonalNoteIntoMarkdown(data.obsidian_markdown, personalNote, zhReader)
+                    : data.obsidian_markdown
+                }
                 initialTranscribeJob={wsCapabilities?.transcribe_job}
                 actionRequest={wsActionRequest}
                 onTranscribeStateChange={(running, stage) =>
@@ -6463,7 +7436,7 @@ function ContentDetailPanel(
                         const cleanedPts = note?.core_points
                           ? dedupeSummaryPoints(cleanedSummary, note.core_points)
                           : [];
-                        const md = buildMarkdownVideoNote({
+                        const rawNoteMd = buildMarkdownVideoNote({
                           title: data.video.title ?? data.video.video_id,
                           channelName: data.video.channel_name,
                           sourceUrl: data.video.source_url,
@@ -6474,6 +7447,7 @@ function ContentDetailPanel(
                           chineseGuide: guideLines,
                           corePoints: cleanedPts,
                         });
+                        const md = mergePersonalNoteIntoMarkdown(rawNoteMd, personalNote, zhReader);
                         void navigator.clipboard?.writeText(md);
                         setCopiedMarkdown(true);
                         setTimeout(() => setCopiedMarkdown(false), 2200);
@@ -6527,6 +7501,9 @@ function ContentDetailPanel(
               onMediaError={(code) => setLocalMediaErrorCode(code)}
               onRetryMedia={() => setLocalMediaErrorCode(null)}
               onOpenTranscriptDrawer={() => openRefDrawer("transcript")}
+              evidenceCount={loadedEvidence.length}
+              transcriptAvailable={transcript.status === "AVAILABLE"}
+              onOpenEvidenceDrawer={() => openRefDrawer("evidence")}
             />
           ) : null}
         </div>
@@ -6837,12 +7814,22 @@ function ContentDetailPanel(
                 ) : transcript.status === "AVAILABLE" ? (
                   <>
                     <span className="status status-neutral">
-                      {language === "zh-CN" ? "字幕已就绪 · 待提炼洞察" : "Transcript ready · Awaiting insight"}
+                      {language === "zh-CN"
+                        ? isTextDocument
+                          ? "原文已就绪 · 待提炼洞察"
+                          : "字幕已就绪 · 待提炼洞察"
+                        : isTextDocument
+                          ? "Document text ready · Awaiting insight"
+                          : "Transcript ready · Awaiting insight"}
                     </span>
                     <p>
                       {language === "zh-CN"
-                        ? "原始字幕已准备完毕。点击下方按钮即可自动提炼中文总结、评分与核心洞察。"
-                        : "Transcript is ready. Click below to distill Chinese summary, score, and insights."}
+                        ? isTextDocument
+                          ? "文档原文已准备完毕。点击下方按钮即可自动提炼中文总结、评分与核心洞察。"
+                          : "原始字幕已准备完毕。点击下方按钮即可自动提炼中文总结、评分与核心洞察。"
+                        : isTextDocument
+                          ? "Source text is ready. Click below to distill Chinese summary, score, and insights."
+                          : "Transcript is ready. Click below to distill Chinese summary, score, and insights."}
                     </p>
                     <div className="button-row">
                       <button
@@ -6857,7 +7844,7 @@ function ContentDetailPanel(
                         }}
                       >
                         <PhosphorIcon name="sparkle" size={13} />
-                        {language === "zh-CN" ? "AI 提炼中文总结与洞察" : "Distill AI Chinese brief"}
+                        {language === "zh-CN" ? "AI 提炼中文总结与洞察" : "Distill AI brief"}
                       </button>
                     </div>
                   </>
@@ -7123,6 +8110,10 @@ function ContentDetailPanel(
           )}
       </Panel>
       ) : null}
+      <ReaderPersonalNoteCard
+        videoId={data.video.video_id}
+        onNoteChange={setPersonalNote}
+      />
       <section
         className="panel reader-drawer-launchers"
         aria-label={zhReader ? "按需查阅原始资料" : "Source transcript, evidence & history"}
@@ -7199,6 +8190,7 @@ function ContentDetailPanel(
         evidencePane={
           <ContentEvidencePanel
             videoId={data.video.video_id}
+            videoTitle={data.video.title ?? data.video.video_id}
             sourceUrl={data.video.source_url}
             refresh={evidenceRefresh}
             highlightedEvidenceId={highlightedEvidenceId}
@@ -7266,6 +8258,21 @@ function ContentDetailPanel(
                 const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
                 const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
                 const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
+                const trimmedTranscriptSearch = transcriptSearch.trim().toLowerCase();
+                const filteredSegments = displaySegments
+                  ? trimmedTranscriptSearch
+                    ? displaySegments.filter((seg) => seg.text.toLowerCase().includes(trimmedTranscriptSearch))
+                    : displaySegments
+                  : null;
+                const rawPlainText = transcriptVerbatim ? transcript.text : plainClean?.text ?? "";
+                const plainParagraphs = !displaySegments ? splitSearchableParagraphs(rawPlainText) : [];
+                const filteredPlainParagraphs = trimmedTranscriptSearch
+                  ? plainParagraphs.filter((para) => para.toLowerCase().includes(trimmedTranscriptSearch))
+                  : plainParagraphs;
+                const showTranscriptSearch = displaySegments
+                  ? displaySegments.length >= 2
+                  : plainParagraphs.length >= 2 || rawPlainText.length >= 80;
+                const segmentBaseTitle = data.video.title ?? data.video.video_id;
                 return (
                   <>
                     <CaptionCleanBar
@@ -7273,10 +8280,94 @@ function ContentDetailPanel(
                       showVerbatim={transcriptVerbatim}
                       onToggle={() => setTranscriptVerbatim(current => !current)}
                     />
+                    {showTranscriptSearch ? (
+                      <ReaderDrawerSearchBar
+                        query={transcriptSearch}
+                        onChange={setTranscriptSearch}
+                        matchCount={displaySegments ? (filteredSegments?.length ?? 0) : filteredPlainParagraphs.length}
+                        totalCount={displaySegments ? displaySegments.length : Math.max(1, plainParagraphs.length)}
+                        ariaLabel={zhReader ? (isTextDocument ? "搜索文档原文" : "搜索字幕正文") : "Search transcript"}
+                        placeholder={zhReader ? (isTextDocument ? "在文档原文中搜索关键词…" : "在字幕时间轴中搜索关键词…") : "Search inside transcript…"}
+                        unitLabel={zhReader ? "段" : undefined}
+                      />
+                    ) : null}
                     <div className="transcript-scroll-box">
-                      {displaySegments
-                        ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{timestampRange(segment.start_ms, segment.end_ms)}</time><span>{segment.text}</span></li>)}</ol>
-                        : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
+                      {displaySegments ? (
+                        filteredSegments && filteredSegments.length > 0 ? (
+                          <ol className="timed-transcript">
+                            {filteredSegments.map((segment, index) => {
+                              const locator = timestampRange(segment.start_ms, segment.end_ms);
+                              const segKey = `${segment.start_ms}:${segment.end_ms}:${index}`;
+                              return (
+                                <li key={segKey}>
+                                  <time className="tabular-nums">{locator}</time>
+                                  <div className="timed-transcript-body">
+                                    <span>{highlightTextMatches(segment.text, transcriptSearch)}</span>
+                                    <div className="timed-transcript-item-actions">
+                                      <button
+                                        type="button"
+                                        className="timed-transcript-copy-btn"
+                                        aria-label={zhReader ? `复制此段：${locator}` : `Copy segment: ${locator}`}
+                                        onClick={() => {
+                                          void navigator.clipboard?.writeText(
+                                            formatSegmentQuote(segment.text, segmentBaseTitle, locator),
+                                          );
+                                          setCopiedSegmentKey(segKey);
+                                          setTimeout(() => {
+                                            setCopiedSegmentKey((cur) => (cur === segKey ? null : cur));
+                                          }, 1800);
+                                        }}
+                                      >
+                                        {copiedSegmentKey === segKey
+                                          ? zhReader
+                                            ? "已复制"
+                                            : "Copied"
+                                          : zhReader
+                                            ? "复制此段"
+                                            : "Copy"}
+                                      </button>
+                                      {data.video.source_url ? (
+                                        <a
+                                          className="timed-transcript-time-link tabular-nums"
+                                          href={videoAt(data.video.source_url, segment.start_ms)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          {`${Math.max(0, Math.floor(segment.start_ms / 1000))}s ↗`}
+                                        </a>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        ) : (
+                          <div className="semantic-state state-neutral">
+                            <p>{zhReader ? "未找到包含该关键词的字幕段落。" : "No matching transcript segments found."}</p>
+                            <button type="button" className="button button-secondary button-small" onClick={() => setTranscriptSearch("")}>
+                              {zhReader ? "清除搜索" : "Clear search"}
+                            </button>
+                          </div>
+                        )
+                      ) : trimmedTranscriptSearch ? (
+                        filteredPlainParagraphs.length > 0 ? (
+                          <div className="transcript-copy transcript-search-paragraphs">
+                            {filteredPlainParagraphs.map((para, idx) => (
+                              <p key={idx}>{highlightTextMatches(para, transcriptSearch)}</p>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="semantic-state state-neutral">
+                            <p>{zhReader ? "未找到匹配的原文段落。" : "No matching source paragraphs found."}</p>
+                            <button type="button" className="button button-secondary button-small" onClick={() => setTranscriptSearch("")}>
+                              {zhReader ? "清除搜索" : "Clear search"}
+                            </button>
+                          </div>
+                        )
+                      ) : (
+                        <div className="transcript-copy">{rawPlainText}</div>
+                      )}
                     </div>
                   </>
                 );
@@ -7728,6 +8819,7 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
 function ContentEvidencePanel(
   {
     videoId,
+    videoTitle,
     sourceUrl,
     refresh,
     highlightedEvidenceId,
@@ -7736,6 +8828,7 @@ function ContentEvidencePanel(
     onEvidenceLoaded,
   }: {
     videoId: string;
+    videoTitle?: string | null;
     sourceUrl: string | null;
     refresh: number;
     highlightedEvidenceId?: string | null;
@@ -7767,7 +8860,14 @@ function ContentEvidencePanel(
   } | null>(null);
   const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
   const [evidenceVerbatim, setEvidenceVerbatim] = useState(false);
+  const [evidenceSearch, setEvidenceSearch] = useState("");
   const [translationBusy, setTranslationBusy] = useState<string | null>(null);
+  const [copiedEvidenceId, setCopiedEvidenceId] = useState<string | null>(null);
+  const [clippedEvidenceId, setClippedEvidenceId] = useState<string | null>(null);
+  useEffect(() => {
+    setEvidenceSearch("");
+    setClippedEvidenceId(null);
+  }, [videoId]);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [createdTranslations, setCreatedTranslations] = useState<Record<
     string,
@@ -7980,7 +9080,7 @@ function ContentEvidencePanel(
                     <div>
                       <strong>{t("Translation")} · {target}</strong>
                       {translationAvailable
-                        ? <blockquote>{evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
+                        ? <blockquote>{highlightTextMatches(evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!), evidenceSearch)}</blockquote>
                         : sourceMatchesTarget
                         ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
                         : (
@@ -8008,7 +9108,7 @@ function ContentEvidencePanel(
                   ? (
                     <div>
                       <strong>{t("Original · authoritative source")} · {item.source_language}</strong>
-                      <blockquote>{evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text}</blockquote>
+                      <blockquote>{highlightTextMatches(evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text, evidenceSearch)}</blockquote>
                     </div>
                   )
                   : null}
@@ -8017,18 +9117,90 @@ function ContentEvidencePanel(
                   : null}
                 {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
                 <div className="evidence-card-footer">
-                  {sourceUrl
-                    ? (
-                      <a
-                        className="button button-ghost button-small evidence-source-link"
-                        href={videoAt(sourceUrl, item.start_ms)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
-                      </a>
-                    )
-                    : <p className="hint">{t("Source URL unavailable.")}</p>}
+                  {(() => {
+                    const locator =
+                      item.locator_type === "TEXT_RANGE"
+                        ? textLineRange(item.start_line, item.end_line, t)
+                        : timestampRange(item.start_ms, item.end_ms);
+                    const verbatimText = (
+                      evidenceVerbatim
+                        ? item.original_excerpt
+                        : cleanCaptionText(item.original_excerpt).text
+                    ).trim();
+                    const formattedQuote = formatSegmentQuote(
+                      verbatimText,
+                      videoTitle || videoId,
+                      locator,
+                    );
+                    return (
+                      <>
+                        {sourceUrl
+                          ? (
+                            <a
+                              className="button button-ghost button-small evidence-source-link"
+                              href={videoAt(sourceUrl, item.start_ms)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
+                            </a>
+                          )
+                          : <p className="hint">{t("Source URL unavailable.")}</p>}
+                        <button
+                          type="button"
+                          className="button button-secondary button-small evidence-copy-quote-btn"
+                          aria-label={
+                            language === "zh-CN"
+                              ? `复制引用：${locator}`
+                              : `Copy quote: ${locator}`
+                          }
+                          onClick={(event) => {
+                            pulseCelebration(event.currentTarget);
+                            void navigator.clipboard?.writeText(formattedQuote);
+                            setCopiedEvidenceId(item.evidence_id);
+                            setTimeout(() => {
+                              setCopiedEvidenceId((cur) => (cur === item.evidence_id ? null : cur));
+                            }, 1800);
+                          }}
+                        >
+                          <PhosphorIcon name="quotes" size={13} />
+                          {copiedEvidenceId === item.evidence_id
+                            ? language === "zh-CN"
+                              ? "已复制"
+                              : "Copied"
+                            : language === "zh-CN"
+                              ? "复制引用"
+                              : "Copy quote"}
+                        </button>
+                        <button
+                          type="button"
+                          className="button button-secondary button-small evidence-clip-note-btn"
+                          aria-label={
+                            language === "zh-CN"
+                              ? `摘录到笔记：${locator}`
+                              : `Clip to notes: ${locator}`
+                          }
+                          onClick={(event) => {
+                            pulseCelebration(event.currentTarget);
+                            appendQuoteToPersonalNote(videoId, formattedQuote);
+                            setClippedEvidenceId(item.evidence_id);
+                            setTimeout(() => {
+                              setClippedEvidenceId((cur) => (cur === item.evidence_id ? null : cur));
+                            }, 1800);
+                          }}
+                        >
+                          <PhosphorIcon name="plus" size={13} />
+                          {clippedEvidenceId === item.evidence_id
+                            ? language === "zh-CN"
+                              ? "已摘录"
+                              : "Clipped"
+                            : language === "zh-CN"
+                              ? "摘录到笔记"
+                              : "Clip to notes"}
+                        </button>
+                      </>
+                    );
+                  })()}
                   <details className="provenance">
                     <summary>{t("Citation details")}</summary>
                     <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
@@ -8039,6 +9211,18 @@ function ContentEvidencePanel(
               </article>
             );
           };
+          const trimmedEvidenceSearch = evidenceSearch.trim().toLowerCase();
+          const matchedEntries = evidence
+            .map((item, idx) => ({ item, idx }))
+            .filter(({ item }) => {
+              if (!trimmedEvidenceSearch) return true;
+              const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
+              const trText = (local?.excerpt ?? item.translated_excerpt ?? "").toLowerCase();
+              return (
+                item.original_excerpt.toLowerCase().includes(trimmedEvidenceSearch) ||
+                trText.includes(trimmedEvidenceSearch)
+              );
+            });
           const overflowItems = evidence.slice(3);
           const hasTargetedOverflow = Boolean(
             highlightedEvidenceId &&
@@ -8046,27 +9230,53 @@ function ContentEvidencePanel(
           );
           return (
             <div className="evidence-trace-list">
+              {evidence.length >= 2 ? (
+                <ReaderDrawerSearchBar
+                  query={evidenceSearch}
+                  onChange={setEvidenceSearch}
+                  matchCount={matchedEntries.length}
+                  totalCount={evidence.length}
+                  ariaLabel={language === "zh-CN" ? "搜索原话证据" : "Search evidence quotes"}
+                  placeholder={language === "zh-CN" ? "搜索原话或译文关键词（自动穿透折叠列表）…" : "Search original or translated evidence…"}
+                  unitLabel={language === "zh-CN" ? "条" : undefined}
+                />
+              ) : null}
               <CaptionCleanBar
                 collapsedCount={collapsedEvidenceLines}
                 showVerbatim={evidenceVerbatim}
                 onToggle={() => setEvidenceVerbatim(current => !current)}
               />
-              {evidence.slice(0, 3).map((item, idx) => renderEvidenceCard(item, idx))}
-              {overflowItems.length > 0 ? (
-                <details
-                  className="evidence-overflow-drawer"
-                  open={hasTargetedOverflow || undefined}
-                >
-                  <summary className="tabular-nums">
-                    {language === "zh-CN"
-                      ? `展开其余 ${overflowItems.length} 条时间轴原话片段`
-                      : `Show ${overflowItems.length} more timeline excerpts`}
-                  </summary>
-                  <div className="evidence-trace-list evidence-overflow-list">
-                    {overflowItems.map((item, idx) => renderEvidenceCard(item, idx + 3))}
+              {trimmedEvidenceSearch ? (
+                matchedEntries.length > 0 ? (
+                  matchedEntries.map(({ item, idx }) => renderEvidenceCard(item, idx))
+                ) : (
+                  <div className="semantic-state state-neutral">
+                    <p>{language === "zh-CN" ? "未找到包含该关键词的原话证据。" : "No matching evidence excerpts found."}</p>
+                    <button type="button" className="button button-secondary button-small" onClick={() => setEvidenceSearch("")}>
+                      {language === "zh-CN" ? "清除搜索" : "Clear search"}
+                    </button>
                   </div>
-                </details>
-              ) : null}
+                )
+              ) : (
+                <>
+                  {evidence.slice(0, 3).map((item, idx) => renderEvidenceCard(item, idx))}
+                  {overflowItems.length > 0 ? (
+                    <details
+                      className="evidence-overflow-drawer"
+                      open={hasTargetedOverflow || undefined}
+                    >
+                      <summary className="tabular-nums">
+                        {language === "zh-CN"
+                          ? `展开其余 ${overflowItems.length} 条时间轴原话片段`
+                          : `Show ${overflowItems.length} more timeline excerpts`}
+                      </summary>
+                      <div className="evidence-trace-list evidence-overflow-list">
+                        {overflowItems.map((item, idx) => renderEvidenceCard(item, idx + 3))}
+                      </div>
+                    </details>
+                  ) : null}
+                </>
+              )}
             </div>
           );
         })()
@@ -8084,8 +9294,10 @@ function Topics({
   onHashTargetChange,
   onOpenContent,
   onAskTopicResearch,
+  onCompareTopicSources,
   onBrowseTopicContent,
   onBrowseTopicIntelligence,
+  onBrowsePersonalTag,
   onAddContent,
 }: {
   refresh: number;
@@ -8097,12 +9309,23 @@ function Topics({
   onHashTargetChange?: (topicId: string | null) => void;
   onOpenContent?: (videoId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
+  onCompareTopicSources?: (topicName: string, videoIds: string[]) => void;
   onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
   onBrowseTopicIntelligence?: (topicId: string) => void;
+  onBrowsePersonalTag?: (tag: string) => void;
   onAddContent?: () => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
+  const [personalTagCounts, setPersonalTagCounts] = useState<PersonalTagCount[]>(() =>
+    listPersonalTagCounts(),
+  );
+  useEffect(() => {
+    const syncTags = () => setPersonalTagCounts(listPersonalTagCounts());
+    syncTags();
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncTags);
+    return () => window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncTags);
+  }, []);
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh, undefined, true, true);
   const [selected, setSelected] = useState<string | null>(
     () => targetTopicId ?? consumeOriginRestore?.() ?? null,
@@ -8162,9 +9385,38 @@ function Topics({
   if (!list.data) return <Empty>Loading Topics…</Empty>;
   if (!selected) {
     const allTopics = list.data.topics;
+    const personalTagsCard = personalTagCounts.length > 0 ? (
+      <section
+        className="topics-personal-tags-card"
+        role="region"
+        aria-label={zh ? "我的自建标签" : "My Personal Tags"}
+      >
+        <div className="topics-personal-tags-head">
+          <strong>{zh ? "我的自建标签" : "My Personal Tags"}</strong>
+          <small className="tabular-nums">
+            {zh
+              ? `共 ${personalTagCounts.length} 个标签 · 点击按标签聚焦内容`
+              : `${personalTagCounts.length} tag(s) · Click to filter Content`}
+          </small>
+        </div>
+        <div className="topics-personal-tags-chips">
+          {personalTagCounts.map((entry) => (
+            <button
+              key={entry.tag}
+              type="button"
+              className="content-tag-chip tabular-nums"
+              onClick={() => onBrowsePersonalTag?.(entry.tag)}
+            >
+              #{entry.tag} ({entry.count})
+            </button>
+          ))}
+        </div>
+      </section>
+    ) : null;
     if (!allTopics.length) {
       return (
         <div className="empty-state-stack">
+          {personalTagsCard}
           <Empty>No Topics yet.</Empty>
           <p className="hint empty-state-guidance">
             {zh
@@ -8197,6 +9449,7 @@ function Topics({
     });
     return (
       <div className="content-library-shell">
+        {personalTagsCard}
         <div className="library-filter-bar topics-filter-bar">
           <div className="search-field-wrap">
             <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
@@ -8372,7 +9625,9 @@ function Topics({
         <h3>{t("Current understanding")}</h3>
         {hasEvoEntries && evo ? (
           <>
-            <p className="summary-copy">{evo.synthesis_zh || evo.latest_headline_zh}</p>
+            <p className="summary-copy topic-synthesis-summary">
+              {evo.synthesis_zh || evo.latest_headline_zh}
+            </p>
             <p className="hint">
               {evo.independence_summary_zh ||
                 (evo.source_channels.length >= 2
@@ -8383,17 +9638,84 @@ function Topics({
                     ? `当前基于 ${evo.video_count} 篇已提炼内容持续追踪。`
                     : `Grounded in ${evo.video_count} distilled items.`)}
             </p>
+            {evo.source_perspectives && evo.source_perspectives.length >= 2 ? (() => {
+              const compareVideoIds = Array.from(
+                new Set(evo.source_perspectives.map((p) => p.video_id).filter(Boolean)),
+              );
+              return (
+              <div className="topic-perspectives-section">
+                <div className="topic-perspectives-head">
+                  <h4 className="topic-section-subhead">
+                    {zh ? "跨来源观点对照" : "Cross-source comparison"}
+                  </h4>
+                  {compareVideoIds.length >= 2 && onCompareTopicSources ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small tabular-nums"
+                      onClick={(event) => {
+                        pulseCelebration(event.currentTarget);
+                        onCompareTopicSources(topic.name, compareVideoIds);
+                      }}
+                    >
+                      <PhosphorIcon name="sparkle" size={13} />
+                      {zh
+                        ? `对比共识与分歧 (${compareVideoIds.length}) →`
+                        : `Compare consensus & divergence (${compareVideoIds.length}) →`}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="topic-perspectives-grid">
+                  {evo.source_perspectives.map((p) => (
+                    <article
+                      className="topic-perspective-card"
+                      key={`persp:${p.video_id}:${p.channel_name}`}
+                    >
+                      <div className="topic-perspective-head tabular-nums">
+                        <span className="topic-perspective-source">{p.channel_name}</span>
+                        <span
+                          className={`ai-score-pill is-compact ${
+                            p.score >= 8
+                              ? "ai-score-high"
+                              : p.score >= 5
+                                ? "ai-score-mid"
+                                : "ai-score-noise"
+                          }`}
+                        >
+                          <strong>{p.score.toFixed(1)}</strong>
+                        </span>
+                      </div>
+                      <p className="topic-perspective-angle">{p.angle_zh || p.headline_zh}</p>
+                      {p.video_id && p.title ? (
+                        <button
+                          type="button"
+                          className="topic-perspective-link"
+                          onClick={() => onOpenContent?.(p.video_id)}
+                        >
+                          {p.title}
+                        </button>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+              );
+            })() : null}
             {evo.top_opportunities_zh.length > 0 ? (
-              <ul
-                className="topic-opp-callout"
-                aria-label={zh ? "重点切入方向" : "Key opportunity angles"}
-              >
-                {evo.top_opportunities_zh.map((opp, idx) => (
-                  <li key={`top-opp:${idx}`} className="topic-opp-callout-item">
-                    {zh ? `高优切口：${opp}` : opp}
-                  </li>
-                ))}
-              </ul>
+              <div className="topic-opps-section">
+                <h4 className="topic-section-subhead">
+                  {zh ? "重点切入方向" : "Key opportunity angles"}
+                </h4>
+                <ul
+                  className="topic-opp-callout"
+                  aria-label={zh ? "重点切入方向" : "Key opportunity angles"}
+                >
+                  {evo.top_opportunities_zh.map((opp, idx) => (
+                    <li key={`top-opp:${idx}`} className="topic-opp-callout-item">
+                      {opp}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
             {evo.channel_breakdown.length > 0 && onBrowseTopicContent ? (
               <div
@@ -8567,7 +9889,13 @@ function Topics({
       </Panel>
       <Panel title="Timeline" icon="clock">
         {hasEvoEntries && evo ? (
-          <div className="timeline">
+          <>
+            <p className="hint topic-timeline-hint">
+              {zh
+                ? "按时间顺序速览核心节点（点击标题直接进入原文与证据）"
+                : "Chronological topic milestones — click any title to open evidence."}
+            </p>
+            <div className="timeline">
             {evo.entries.slice(0, 10).map((entry) => (
               <div className="timeline-item" key={entry.video_id}>
                 <span className="timeline-dot" aria-hidden="true" />
@@ -8594,7 +9922,8 @@ function Topics({
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         ) : topic.timeline.length
           ? (
             <div className="timeline">
@@ -8686,6 +10015,68 @@ function FollowingReadNotice({ reading, error, errorCode, onReload, detail = fal
   </>;
 }
 
+function describeSourceRecoveryGuidance(
+  source: Source,
+  creatorFollowingWithdrawn: boolean,
+  zh: boolean,
+): { message: string; showSettingsCta: boolean } | null {
+  if (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) {
+    return {
+      message: zh
+        ? "B 站创作者连续追踪当前受限，可改用「导入」粘贴单条公开 B 站视频链接。"
+        : "Continuous Bilibili creator tracking is unavailable; you can still import individual public Bilibili video URLs.",
+      showSettingsCta: false,
+    };
+  }
+  const health = source.tracking?.health;
+  const errCode = source.last_error?.code ?? "";
+  if (
+    source.last_error ||
+    health === "OFFLINE" ||
+    health === "NETWORK_UNAVAILABLE" ||
+    health === "PROVIDER_ERROR" ||
+    health === "RATE_LIMITED" ||
+    health === "UPDATE_GAP" ||
+    health === "CHECK_INCOMPLETE"
+  ) {
+    const authIssue =
+      /AUTH|COOKIE|LOGIN|FORBIDDEN|401|403/i.test(errCode) || health === "PROVIDER_ERROR";
+    const rateLimited = health === "RATE_LIMITED" || /429|RATE/i.test(errCode);
+    return {
+      message: rateLimited
+        ? zh
+          ? "来源触发频率限制：请稍后再点击右侧「立即重检」，或改用单个公开链接/本地导入。"
+          : "Source rate-limited: wait before clicking Retry check, or import individual URLs / local files."
+        : authIssue
+          ? zh
+            ? "来源抓取受阻或授权异常：可检查网络并前往设置确认授权与工具配置后重检。"
+            : "Source fetch/auth issue: verify network and Settings authorization/tools before retrying."
+          : zh
+            ? "检查未完成或网络受阻：确认本机网络后可点击右侧「立即重检」（不会后台自动连发请求）。"
+            : "Check incomplete or offline: verify connectivity and click Retry check when ready (no automatic background retries).",
+      showSettingsCta: authIssue,
+    };
+  }
+  if ((source.tracking?.unavailable_count ?? 0) > 0) {
+    const unavailable = source.tracking?.unavailable_count ?? 0;
+    return {
+      message: zh
+        ? `含 ${unavailable} 条暂无可用字幕内容：可在内容页使用离线语音转写或导入本地文本。`
+        : `${unavailable} item(s) lack captions: open in Content for offline transcription or local import.`,
+      showSettingsCta: true,
+    };
+  }
+  if (source.source_type === "CHANNEL" && !source.tracking) {
+    return {
+      message: zh
+        ? "尚未建立追踪基线：请打开详情核对订阅信息或前往设置检查环境配置。"
+        : "Tracking baseline missing: open details or review Settings.",
+      showSettingsCta: true,
+    };
+  }
+  return null;
+}
+
 function Sources(
   {
     refresh,
@@ -8696,6 +10087,7 @@ function Sources(
     onAdd,
     onBrowseChannelContent,
     onAskChannelResearch,
+    onOpenSettings,
   }: {
     refresh: number;
     listResetSeq?: number;
@@ -8705,6 +10097,7 @@ function Sources(
     onAdd: (provider: "YOUTUBE" | "LOCAL") => void;
     onBrowseChannelContent?: (channelKey: string) => void;
     onAskChannelResearch?: (channelKey: string) => void;
+    onOpenSettings?: () => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -8776,22 +10169,70 @@ function Sources(
         { longForm: 0, mustWatch: 0, shorts: 0 },
       )
     : null;
+  const signalDigest = (() => {
+    if (!hasAiSignals || topLevelSources.length === 0) return null;
+    let totalVideos = 0;
+    let totalLong = 0;
+    let totalShorts = 0;
+    let bestSource: Source | null = null;
+    let bestAvg = -1;
+    let bestMustWatch = -1;
+    const noisySources: Source[] = [];
+    for (const src of topLevelSources) {
+      const sig = aiSignals[src.source_id];
+      if (!sig) continue;
+      totalVideos += sig.total_videos;
+      totalLong += sig.long_form_count;
+      totalShorts += sig.shorts_count;
+      if (sig.must_watch_count >= 1 && sig.avg_long_score !== null) {
+        if (
+          sig.avg_long_score > bestAvg ||
+          (sig.avg_long_score === bestAvg && sig.must_watch_count > bestMustWatch)
+        ) {
+          bestAvg = sig.avg_long_score;
+          bestMustWatch = sig.must_watch_count;
+          bestSource = src;
+        }
+      }
+      if (
+        sig.total_videos >= 1 &&
+        (sig.shorts_count > 0 || (sig.signal_rate_pct !== null && sig.signal_rate_pct < 60))
+      ) {
+        noisySources.push(src);
+      }
+    }
+    const overallSignalPct =
+      totalVideos > 0 ? Math.round((totalLong / totalVideos) * 100) : null;
+    return { totalVideos, totalLong, totalShorts, overallSignalPct, bestSource, noisySources };
+  })();
+  const isAttentionSource = (source: Source): boolean =>
+    Boolean(
+      (source.source_type === "CHANNEL" && !source.tracking) ||
+        (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) ||
+        source.last_error ||
+        (source.tracking?.pending_count ?? 0) > 0 ||
+        (source.tracking?.processing_count ?? 0) > 0 ||
+        (source.tracking?.unavailable_count ?? 0) > 0,
+    );
+  const attentionSources = topLevelSources.filter(isAttentionSource);
   const filteredFollowing = topLevelSources.filter(
-    source =>
-      filter === "all" ||
-      (filter === "updates" && (source.tracking?.update_count ?? 0) > 0) ||
-      (filter === "insights" && (source.insight_count ?? 0) > 0) ||
-      (filter === "high_signal" && (aiSignals[source.source_id]?.must_watch_count ?? 0) >= 1) ||
-      (filter === "attention" &&
-        Boolean(
-          (source.source_type === "CHANNEL" && !source.tracking) ||
-            (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) ||
-            source.last_error ||
-            (source.tracking?.pending_count ?? 0) > 0 ||
-            (source.tracking?.processing_count ?? 0) > 0 ||
-            (source.tracking?.unavailable_count ?? 0) > 0,
-        )) ||
-      (filter === "paused" && !source.enabled),
+    source => {
+      const sig = aiSignals[source.source_id];
+      return (
+        filter === "all" ||
+        (filter === "updates" && (source.tracking?.update_count ?? 0) > 0) ||
+        (filter === "insights" && (source.insight_count ?? 0) > 0) ||
+        (filter === "high_signal" && (sig?.must_watch_count ?? 0) >= 1) ||
+        (filter === "low_signal" &&
+          Boolean(
+            sig &&
+              sig.total_videos >= 1 &&
+              (sig.shorts_count > 0 || (sig.signal_rate_pct !== null && sig.signal_rate_pct < 60)),
+          )) ||
+        (filter === "attention" && isAttentionSource(source)) ||
+        (filter === "paused" && !source.enabled)
+      );
+    },
   );
   const orderedFollowing =
     sortMode === "default"
@@ -8811,10 +10252,10 @@ function Sources(
   return (
     <>
       {!selected && <FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} />}
-      {creatorFollowingWithdrawn && <p className="hint" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
+      {creatorFollowingWithdrawn && <p className="hint following-capability-note" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
       <div className="page-actions">
         <button
-          className="button button-primary"
+          className={followingSources.length ? "button button-primary" : "button button-secondary"}
           onClick={() => onAdd("YOUTUBE")}
         >
           {t("Add Source")}
@@ -8830,6 +10271,11 @@ function Sources(
               {hasAiSignals ? (
                 <option value="high_signal">
                   {language === "zh-CN" ? "高干货产出（必看 ≥ 1）" : "High signal (must-watch ≥ 1)"}
+                </option>
+              ) : null}
+              {hasAiSignals ? (
+                <option value="low_signal">
+                  {language === "zh-CN" ? "含 Shorts / 低信噪比待评估" : "Low signal / Shorts noise"}
                 </option>
               ) : null}
               <option value="attention">{t("Needs attention")}</option>
@@ -8870,8 +10316,71 @@ function Sources(
                 </div>
               </div>
             ) : null}
+            {(hasAiSignals && signalDigest && signalDigest.totalVideos > 0) || attentionSources.length > 0 ? (
+              <div
+                className="following-health-digest tabular-nums"
+                role="region"
+                aria-label={language === "zh-CN" ? "频道信噪比健康简报" : "Channel signal-to-noise digest"}
+              >
+                {hasAiSignals && signalDigest && signalDigest.totalVideos > 0 ? (
+                  <>
+                    {signalDigest.overallSignalPct !== null ? (
+                      <span className="following-health-pill">
+                        {language === "zh-CN"
+                          ? `整体干货信噪比 ${signalDigest.overallSignalPct}%`
+                          : `Library signal rate ${signalDigest.overallSignalPct}%`}
+                      </span>
+                    ) : null}
+                    {signalDigest.bestSource ? (() => {
+                      const bestSig = aiSignals[signalDigest.bestSource.source_id];
+                      if (!bestSig || bestSig.avg_long_score === null) return null;
+                      const bestLabel =
+                        signalDigest.bestSource.provider === "LOCAL"
+                          ? t("Local library")
+                          : sourceLabel(signalDigest.bestSource);
+                      return (
+                        <span className="following-health-pill is-best">
+                          {language === "zh-CN"
+                            ? `最高信噪比：${bestLabel} · 均分 ${bestSig.avg_long_score.toFixed(1)}`
+                            : `Top signal: ${bestLabel} · Avg ${bestSig.avg_long_score.toFixed(1)}`}
+                        </span>
+                      );
+                    })() : null}
+                    {signalDigest.noisySources.length > 0 ? (
+                      <button
+                        type="button"
+                        aria-pressed={filter === "low_signal"}
+                        className={`following-health-review-btn${filter === "low_signal" ? " is-active" : ""}`}
+                        onClick={() => setFilter(filter === "low_signal" ? "all" : "low_signal")}
+                      >
+                        {language === "zh-CN"
+                          ? `待评估信源 (${signalDigest.noisySources.length}) · 含 Shorts / 低干货率`
+                          : `Review noisy sources (${signalDigest.noisySources.length})`}
+                      </button>
+                    ) : null}
+                  </>
+                ) : null}
+                {attentionSources.length > 0 ? (
+                  <button
+                    type="button"
+                    aria-pressed={filter === "attention"}
+                    className={`following-health-review-btn is-attention${filter === "attention" ? " is-active" : ""}`}
+                    onClick={() => setFilter(filter === "attention" ? "all" : "attention")}
+                  >
+                    {language === "zh-CN"
+                      ? `需处理异常信源 (${attentionSources.length})`
+                      : `Needs attention (${attentionSources.length})`}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {orderedFollowing.map((source) => {
               const sig = aiSignals[source.source_id] ?? null;
+              const recoveryHint = describeSourceRecoveryGuidance(
+                source,
+                creatorFollowingWithdrawn,
+                language === "zh-CN",
+              );
               const signalCopy =
                 sig && sig.distilled_count > 0
                   ? language === "zh-CN"
@@ -9005,6 +10514,23 @@ function Sources(
                     {t("Open Source")}
                   </a>}
                 </div>
+                {recoveryHint ? (
+                  <div className="source-recovery-hint" role="note">
+                    <span className="source-recovery-copy">
+                      <PhosphorIcon name="warning-circle" size={14} />
+                      <span>{recoveryHint.message}</span>
+                    </span>
+                    {recoveryHint.showSettingsCta && onOpenSettings ? (
+                      <button
+                        type="button"
+                        className="button button-ghost button-small"
+                        onClick={onOpenSettings}
+                      >
+                        {language === "zh-CN" ? "前往设置" : "Open Settings"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               );
             })}
@@ -10282,7 +11808,13 @@ function GlobalInterests({
   </Panel>;
 }
 
-function Settings({ refresh }: { refresh: number }) {
+function Settings({
+  refresh,
+  onReplayOnboarding,
+}: {
+  refresh: number;
+  onReplayOnboarding?: () => void;
+}) {
   const [modelMessage, setModelMessage] = useState("");
   const { language, setLanguage, t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
@@ -10418,7 +11950,18 @@ function Settings({ refresh }: { refresh: number }) {
       <Panel id="settings-language" icon="translate" title="Language">
         {!editingLanguage ? <>
           <p>{t("Interface language")}: {language === "zh-CN" ? "中文" : "English"} · {t("Generated output")}: {settings.data.general.output_language === "zh-CN" ? "中文" : "English"}</p>
-          <button className="button button-secondary" onClick={() => { setInterfaceDraft(language); setOutputDraft(settings.data!.general.output_language); setEditingLanguage(true); }}>{t("Edit language")}</button>
+          <div className="button-row">
+            <button className="button button-secondary" onClick={() => { setInterfaceDraft(language); setOutputDraft(settings.data!.general.output_language); setEditingLanguage(true); }}>{t("Edit language")}</button>
+            {onReplayOnboarding ? (
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={onReplayOnboarding}
+              >
+                {zhBanner ? "重新查看新手引导" : "Replay onboarding"}
+              </button>
+            ) : null}
+          </div>
         </> : <>
           <label className="field">{t("Interface language")}<select aria-label={t("Interface language")} value={interfaceDraft} disabled={savingLanguage} onChange={event => setInterfaceDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
           <label className="field">{t("Preferred output language")}<select aria-label={t("Preferred output language")} value={outputDraft} disabled={savingLanguage} onChange={event => setOutputDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
@@ -10613,19 +12156,26 @@ function Settings({ refresh }: { refresh: number }) {
       </Panel>
       <Panel title="Models and cost (read-only)">
         <div className="capability-grid">
-          {localFoundation && (
-            <article className="capability-card">
-              <div className="capability-heading">
-                <h3>{t("Scoring and Summary")}</h3>
-                <Status value={localFoundation.adapter_available ? "AVAILABLE" : "UNAVAILABLE"} />
-              </div>
-              <p>{localFoundation.adapter_available
-                ? language === "zh-CN"
-                  ? `使用本地模型 ${localFoundation.model} 运行；原始证据保留在这台 Mac 上。`
-                  : `Runs locally with ${localFoundation.model}. Original Evidence remains on this Mac.`
-                : t("The local model is unavailable; existing Content and Evidence remain readable.")}</p>
-            </article>
-          )}
+          {localFoundation && (() => {
+            const diagWsAi = liveWorkspaceAi ?? readWorkspaceAiSettings(settings.data.workspace_ai);
+            return (
+              <article className="capability-card">
+                <div className="capability-heading">
+                  <h3>{t("Scoring and Summary")}</h3>
+                  <Status value={localFoundation.adapter_available ? "AVAILABLE" : "UNAVAILABLE"} />
+                </div>
+                <p>{localFoundation.adapter_available
+                  ? language === "zh-CN"
+                    ? `使用本地模型 ${localFoundation.model} 运行；原始证据保留在这台 Mac 上。`
+                    : `Runs locally with ${localFoundation.model}. Original Evidence remains on this Mac.`
+                  : diagWsAi?.ollama_reachable
+                    ? language === "zh-CN"
+                      ? `日常工作台总结与问答已通过本机 Ollama（${diagWsAi.ollama_model || "Local"}）正常运行；此处仅表示旧版严格本地资格校验流水线尚未单独配置，已有内容与证据仍可阅读。`
+                      : `Daily workspace summaries & Q&A are running via local Ollama (${diagWsAi.ollama_model || "Local"}); this legacy qualification pipeline is not separately configured.`
+                    : t("The local model is unavailable; existing Content and Evidence remain readable.")}</p>
+              </article>
+            );
+          })()}
           <article className="capability-card">
             <div className="capability-heading">
               <h3>{t("Intelligence")}</h3>
