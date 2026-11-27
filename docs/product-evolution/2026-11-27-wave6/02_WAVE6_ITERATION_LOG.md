@@ -30,3 +30,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Intelligence`）**：
   - 确认加载最新构建资源（HTTP `200`）；激活「仅看已批注 (2)」精准筛选 2 / 4 张已批注洞察，点击「导出 Markdown (.md)」下载 `verified-insights-2026-11-27.md`（2915 bytes）并显示 `已导出 Markdown (.md · 2 条)。`；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Intel Dark](./screenshots/iter-31/step_1_iter31_intel_dark.png)、[Intel Light](./screenshots/iter-31/step_2_iter31_intel_light.png)、[Intel Mobile](./screenshots/iter-31/step_3_iter31_intel_mobile.png)。
+
+## Iteration 32 (`EVO-W6-03`) — `#Home` "温故知新 · 主动回忆" Active Recall Card
+
+- **解决的用户问题**：对照 Readwise「高亮墓地效应」与遗忘曲线痛点，已看过的视频和已记下的个人批注容易在几周后彻底淡忘，用户在 `#Home` 缺少低摩擦的「先主动回忆、再核对原结论与个人思考」记忆巩固机制。
+- **核心改动**：
+  1. 新增 [activeRecall.ts](../../../frontend/src/workspace/activeRecall.ts)：实现 `buildActiveRecallDeck`（优先排序本机已有个人批注的内容，其次补充高分/已核验长期内容，自动剔除短片噪音），并提供按本地自然日自动跨天重置的 `readRecalledTodayIds` / `markRecalledToday` 与 `ACTIVE_RECALL_CHANGED_EVENT`。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：在 `Dashboard` 右栏新增 `.home-recall-panel`（「温故知新 · 主动回忆」），默认仅显示标题、来源标签与提示「先在脑中回顾这篇的核心判断或批注，再展开核对」，点击「展开核对」后才揭示核心结论、关键要点与个人批注摘要，点「记住了 ✓」计入今日巩固进度并平滑切换下一张；空白工作台下自动隐藏。
+- **自动化验证**：
+  - 新增 [EvolutionIter32.test.tsx](../../../frontend/src/workspace/EvolutionIter32.test.tsx)（2 passed，覆盖有批注条目优先排序、跨日期自动清空当日计数、默认隐藏答案→展开核对→点击「记住了 ✓」递增进度与切换卡片）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`981ms` (`assets/index-C2ifoPRI.js` / `assets/index-CU1QQPbU.css`)；Vitest：**90/90 files, 1343/1343 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Home` & `8796/#Home`）**：
+  - 确认加载最新构建资源（HTTP `200`）；验证折叠前 `0` 个答案泄露，点击「展开核对」精准显示核心结论与本人批注，点击「记住了 ✓」后进度更新为 `今日已复习 1 / 5` 并自动切至第 2 张；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；空白工作台 `8796/#Home` 下 `.home-recall-panel` 为 `0`；**0 console/page/network 错误**。
+  - 实机截图归档：[Recall Dark](./screenshots/iter-32/step_1_iter32_recall_dark.png)、[Recall Light](./screenshots/iter-32/step_2_iter32_recall_light.png)、[Recall Mobile](./screenshots/iter-32/step_3_iter32_recall_mobile.png)。

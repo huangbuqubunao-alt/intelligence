@@ -34,6 +34,12 @@ import {
 import { findRelatedContentItems } from "./relatedContent";
 import { buildVerifiedIntelligenceMarkdown, downloadMarkdownText } from "./intelligenceExport";
 import {
+  ACTIVE_RECALL_CHANGED_EVENT,
+  buildActiveRecallDeck,
+  markRecalledToday,
+  readRecalledTodayIds,
+} from "./activeRecall";
+import {
   PERSONAL_NOTES_CHANGED_EVENT,
   type PersonalTagCount,
   appendQuoteToPersonalNote,
@@ -2610,23 +2616,35 @@ function Dashboard(
   const [studyCounts, setStudyCounts] = useState(() => ({
     noteCount: listPersonalNoteVideoIds().size,
     tagCount: listPersonalTagCounts().length,
+    rev: 0,
   }));
+  const [recallIndex, setRecallIndex] = useState(0);
+  const [recallRevealed, setRecallRevealed] = useState(false);
+  const [recalledTodayIds, setRecalledTodayIds] = useState<Set<string>>(() =>
+    readRecalledTodayIds(),
+  );
   useEffect(() => {
     const syncHistory = () => setRecentReading(readReadingHistory());
     const syncStudy = () =>
-      setStudyCounts({
+      setStudyCounts((prev) => ({
         noteCount: listPersonalNoteVideoIds().size,
         tagCount: listPersonalTagCounts().length,
-      });
+        rev: prev.rev + 1,
+      }));
+    const syncRecall = () => setRecalledTodayIds(readRecalledTodayIds());
     window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
     window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncStudy);
+    window.addEventListener(ACTIVE_RECALL_CHANGED_EVENT, syncRecall);
     window.addEventListener("storage", syncHistory);
     window.addEventListener("storage", syncStudy);
+    window.addEventListener("storage", syncRecall);
     return () => {
       window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncHistory);
       window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncStudy);
+      window.removeEventListener(ACTIVE_RECALL_CHANGED_EVENT, syncRecall);
       window.removeEventListener("storage", syncHistory);
       window.removeEventListener("storage", syncStudy);
+      window.removeEventListener("storage", syncRecall);
     };
   }, []);
   const isDemoMode = Boolean(data?.demo_mode);
@@ -3138,6 +3156,123 @@ function Dashboard(
                   ) : null}
                 </div>
               ) : null}
+            </Panel>
+          );
+        })()}
+        {(() => {
+          const allRecallVideos = videosResp.data?.videos ?? [];
+          const recallDeck = buildActiveRecallDeck(allRecallVideos, intelligence, zh);
+          if (recallDeck.length === 0) return null;
+          const safeIndex = ((recallIndex % recallDeck.length) + recallDeck.length) % recallDeck.length;
+          const card = recallDeck[safeIndex];
+          const recalledCount = recallDeck.filter((c) => recalledTodayIds.has(c.videoId)).length;
+          const isCurrentRecalled = recalledTodayIds.has(card.videoId);
+          return (
+            <Panel
+              title={zh ? "温故知新 · 主动回忆" : "Active Recall"}
+              icon="lightning"
+              className="home-recall-panel"
+            >
+              <div className="home-recall-head-meta tabular-nums">
+                <span>
+                  {zh
+                    ? `今日已复习 ${recalledCount} / ${recallDeck.length}`
+                    : `Reviewed ${recalledCount} / ${recallDeck.length} today`}
+                </span>
+                <span>
+                  {safeIndex + 1} / {recallDeck.length}
+                </span>
+              </div>
+              <article className="home-recall-card">
+                <div className="home-recall-meta">
+                  {card.hasPersonalNote ? (
+                    <span className="intel-noted-badge">
+                      {card.personalTags.length > 0
+                        ? zh
+                          ? `个人批注 · #${card.personalTags[0]}`
+                          : `Note · #${card.personalTags[0]}`
+                        : zh
+                          ? "个人批注优先"
+                          : "Annotated"}
+                    </span>
+                  ) : null}
+                  {card.channelName ? <span>{t(card.channelName)}</span> : null}
+                  {card.topicName ? <span>· {card.topicName}</span> : null}
+                  {isCurrentRecalled ? (
+                    <span>· {zh ? "今日已巩固" : "Reviewed today"}</span>
+                  ) : null}
+                </div>
+                <h3 className="home-recall-title">{card.title}</h3>
+                {!recallRevealed ? (
+                  <>
+                    <p className="home-recall-prompt">
+                      {zh
+                        ? "先在脑中回顾这篇的核心判断或批注，再展开核对"
+                        : "Recall the core takeaway or your note first, then reveal to check."}
+                    </p>
+                    <div className="button-row">
+                      <button
+                        type="button"
+                        className="button button-secondary button-small"
+                        onClick={() => setRecallRevealed(true)}
+                      >
+                        {zh ? "展开核对" : "Reveal answer"}
+                      </button>
+                      {recallDeck.length > 1 ? (
+                        <button
+                          type="button"
+                          className="button button-ghost button-small"
+                          onClick={() => {
+                            setRecallIndex((prev) => (prev + 1) % recallDeck.length);
+                            setRecallRevealed(false);
+                          }}
+                        >
+                          {zh ? "换一条" : "Next card"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <div className="home-recall-answer">
+                    <p className="home-recall-conclusion">{card.coreConclusion}</p>
+                    {card.keyPoints.length > 0 ? (
+                      <ul className="home-recall-points">
+                        {card.keyPoints.map((pt, idx) => (
+                          <li key={`recall-pt:${idx}`}>{pt}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {card.personalNoteText ? (
+                      <p className="home-recall-note">
+                        {zh ? "个人批注：" : "Personal note: "}
+                        {card.personalNoteText.length > 140
+                          ? `${card.personalNoteText.slice(0, 140)}…`
+                          : card.personalNoteText}
+                      </p>
+                    ) : null}
+                    <div className="button-row">
+                      <button
+                        type="button"
+                        className="button button-primary button-small"
+                        onClick={() => {
+                          setRecalledTodayIds(markRecalledToday(card.videoId));
+                          setRecallIndex((prev) => (prev + 1) % recallDeck.length);
+                          setRecallRevealed(false);
+                        }}
+                      >
+                        {zh ? "记住了 ✓" : "Got it ✓"}
+                      </button>
+                      <button
+                        type="button"
+                        className="button button-ghost button-small"
+                        onClick={() => openContent(card.videoId)}
+                      >
+                        {zh ? "打开精读 →" : "Open reader →"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </article>
             </Panel>
           );
         })()}
