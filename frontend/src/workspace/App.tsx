@@ -32,6 +32,7 @@ import {
   type SavedContentView,
 } from "./savedViews";
 import { findRelatedContentItems } from "./relatedContent";
+import { buildVerifiedIntelligenceMarkdown, downloadMarkdownText } from "./intelligenceExport";
 import {
   PERSONAL_NOTES_CHANGED_EVENT,
   type PersonalTagCount,
@@ -3681,6 +3682,17 @@ function IntelligencePage(
   const [savedPage, setSavedPage] = useState<number>(
     () => restoredIntelRef.current?.savedPage ?? 1,
   );
+  const [intelNotedOnly, setIntelNotedOnly] = useState<boolean>(false);
+  const [notedVideoIds, setNotedVideoIds] = useState<Set<string>>(() => listPersonalNoteVideoIds());
+  useEffect(() => {
+    const syncNotes = () => setNotedVideoIds(listPersonalNoteVideoIds());
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNotes);
+    window.addEventListener("storage", syncNotes);
+    return () => {
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNotes);
+      window.removeEventListener("storage", syncNotes);
+    };
+  }, []);
   const [selectedDetail, setSelectedDetail] = useState<{
     key: string;
     item: Intelligence;
@@ -3705,6 +3717,12 @@ function IntelligencePage(
   }
   const [copiedFilteredDigest, setCopiedFilteredDigest] = useState(false);
   const [copiedSavedDigest, setCopiedSavedDigest] = useState(false);
+  const [exportedIntelNotice, setExportedIntelNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!exportedIntelNotice) return undefined;
+    const timer = window.setTimeout(() => setExportedIntelNotice(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [exportedIntelNotice]);
   useEffect(() => {
     const nextTopicId = consumePendingIntelligenceTopicId();
     if (nextTopicId) {
@@ -3793,9 +3811,22 @@ function IntelligencePage(
     },
     [t],
   );
+  const notedAvailableCount = useMemo(
+    () =>
+      currentAvailable.filter((item) => {
+        const vid = item.card?.video_id?.trim();
+        return Boolean(vid && notedVideoIds.has(vid));
+      }).length,
+    [currentAvailable, notedVideoIds],
+  );
+  const effectiveNotedOnly = intelNotedOnly && notedAvailableCount > 0;
   const sourceBaseAvailable = useMemo(() => {
     const q = intelSearch.trim().toLowerCase();
     return currentAvailable.filter((item) => {
+      if (effectiveNotedOnly) {
+        const vid = item.card?.video_id?.trim();
+        if (!vid || !notedVideoIds.has(vid)) return false;
+      }
       if (
         effectiveIntelTopic !== "ALL" &&
         !(item.linked_topics ?? []).some((tp) => tp.topic_id === effectiveIntelTopic)
@@ -3804,10 +3835,14 @@ function IntelligencePage(
       }
       return matchesIntelQuery(item, q);
     });
-  }, [currentAvailable, effectiveIntelTopic, intelSearch, matchesIntelQuery]);
+  }, [currentAvailable, effectiveNotedOnly, notedVideoIds, effectiveIntelTopic, intelSearch, matchesIntelQuery]);
   const topicBaseAvailable = useMemo(() => {
     const q = intelSearch.trim().toLowerCase();
     return currentAvailable.filter((item) => {
+      if (effectiveNotedOnly) {
+        const vid = item.card?.video_id?.trim();
+        if (!vid || !notedVideoIds.has(vid)) return false;
+      }
       if (
         effectiveIntelSource !== "ALL" &&
         (item.card?.source_display_name?.trim() ?? "") !== effectiveIntelSource
@@ -3816,7 +3851,7 @@ function IntelligencePage(
       }
       return matchesIntelQuery(item, q);
     });
-  }, [currentAvailable, effectiveIntelSource, intelSearch, matchesIntelQuery]);
+  }, [currentAvailable, effectiveNotedOnly, notedVideoIds, effectiveIntelSource, intelSearch, matchesIntelQuery]);
   const intelSources = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of sourceBaseAvailable) {
@@ -3874,6 +3909,7 @@ function IntelligencePage(
   const hasActiveIntelFilter =
     effectiveIntelTopic !== "ALL" ||
     effectiveIntelSource !== "ALL" ||
+    effectiveNotedOnly ||
     intelSearch.trim().length > 0;
   const savedIdSet = useMemo(
     () => new Set((saved.data?.saved ?? []).map((entry) => entry.intelligence_id)),
@@ -4080,7 +4116,7 @@ function IntelligencePage(
           </button>
         ))}
       </div>
-      {view === "Current" && (currentAvailable.length >= 4 || allKnownTopics.size > 0) ? (
+      {view === "Current" && (currentAvailable.length >= 4 || allKnownTopics.size > 0 || notedAvailableCount > 0) ? (
         <div className="intel-filter-toolbar">
           <div className="intel-filter-top-row">
             <input
@@ -4102,6 +4138,19 @@ function IntelligencePage(
                 setCurrentPage(1);
               }}
             />
+            {notedAvailableCount > 0 ? (
+              <button
+                type="button"
+                className={`ai-question-chip intel-noted-filter-chip tabular-nums${effectiveNotedOnly ? " is-active" : ""}`}
+                aria-pressed={effectiveNotedOnly}
+                onClick={() => {
+                  setIntelNotedOnly((prev) => !prev);
+                  setCurrentPage(1);
+                }}
+              >
+                {zh ? `仅看已批注 (${notedAvailableCount})` : `Noted only (${notedAvailableCount})`}
+              </button>
+            ) : null}
             {allKnownTopics.size > 0 ? (
               <select
                 className="content-topic-select tabular-nums"
@@ -4207,11 +4256,33 @@ function IntelligencePage(
                 </button>
                 <button
                   type="button"
+                  className="button button-secondary button-small"
+                  onClick={(event) => {
+                    pulseCelebration(event.currentTarget);
+                    const result = buildVerifiedIntelligenceMarkdown(
+                      filteredAvailable,
+                      zh,
+                      effectiveNotedOnly ? (zh ? "仅看已批注" : "Noted only") : undefined,
+                    );
+                    downloadMarkdownText(result.filename, result.markdown);
+                    setExportedIntelNotice(
+                      zh
+                        ? `已导出 Markdown (.md · ${result.itemCount} 条)。`
+                        : `Exported Markdown (.md · ${result.itemCount} items).`,
+                    );
+                  }}
+                >
+                  <PhosphorIcon name="file-text" size={13} />
+                  {zh ? "导出 Markdown (.md)" : "Export Markdown (.md)"}
+                </button>
+                <button
+                  type="button"
                   className="button button-ghost button-small"
                   onClick={() => {
                     setIntelSearch("");
                     setIntelSourceFilter("ALL");
                     setIntelTopicFilter("ALL");
+                    setIntelNotedOnly(false);
                     setCurrentPage(1);
                   }}
                 >
@@ -4219,6 +4290,11 @@ function IntelligencePage(
                 </button>
               </div>
             </div>
+          ) : null}
+          {exportedIntelNotice ? (
+            <p className="semantic-state state-neutral" role="status">
+              {exportedIntelNotice}
+            </p>
           ) : null}
         </div>
       ) : null}
@@ -4291,6 +4367,7 @@ function IntelligencePage(
                   setIntelSearch("");
                   setIntelSourceFilter("ALL");
                   setIntelTopicFilter("ALL");
+                  setIntelNotedOnly(false);
                   setCurrentPage(1);
                 }}
               >
@@ -4372,8 +4449,34 @@ function IntelligencePage(
                           ? `复制已收藏洞察合集 (${availableSavedItems.length})`
                           : `Copy saved digest (${availableSavedItems.length})`}
                     </button>
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={(event) => {
+                        pulseCelebration(event.currentTarget);
+                        const result = buildVerifiedIntelligenceMarkdown(
+                          availableSavedItems,
+                          zh,
+                          zh ? "已收藏洞察" : "Saved insights",
+                        );
+                        downloadMarkdownText(result.filename, result.markdown);
+                        setExportedIntelNotice(
+                          zh
+                            ? `已导出 Markdown (.md · ${result.itemCount} 条)。`
+                            : `Exported Markdown (.md · ${result.itemCount} items).`,
+                        );
+                      }}
+                    >
+                      <PhosphorIcon name="file-text" size={13} />
+                      {zh ? "导出 Markdown (.md)" : "Export Markdown (.md)"}
+                    </button>
                   </div>
                 </div>
+              ) : null}
+              {exportedIntelNotice ? (
+                <p className="semantic-state state-neutral" role="status">
+                  {exportedIntelNotice}
+                </p>
               ) : null}
               <div className="intel-list-surface">
                 {pagedSavedEntries.map((entry, localIdx) => {

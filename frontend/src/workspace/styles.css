@@ -7692,3 +7692,9 @@ input[type="radio"] {
 .delta-export-btn {
   flex-shrink: 0;
 }
+
+/* Iteration 31: Intelligence noted-only filter chip */
+.intel-noted-filter-chip {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
