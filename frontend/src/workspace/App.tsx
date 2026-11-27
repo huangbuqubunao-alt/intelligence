@@ -33,6 +33,7 @@ import {
 } from "./savedViews";
 import { findRelatedContentItems } from "./relatedContent";
 import { buildVerifiedIntelligenceMarkdown, downloadMarkdownText } from "./intelligenceExport";
+import { buildSelectedContentMarkdown } from "./contentExport";
 import {
   ACTIVE_RECALL_CHANGED_EVENT,
   buildActiveRecallDeck,
@@ -43,6 +44,7 @@ import {
   PERSONAL_NOTES_CHANGED_EVENT,
   type PersonalTagCount,
   appendQuoteToPersonalNote,
+  batchAddPersonalTags,
   consumePendingContentTag,
   listPersonalNoteVideoIds,
   listPersonalTagCounts,
@@ -4861,6 +4863,9 @@ function ContentPage(
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [copiedSelectedDigest, setCopiedSelectedDigest] = useState(false);
   const [batchStarBusy, setBatchStarBusy] = useState(false);
+  const [batchTagOpen, setBatchTagOpen] = useState(false);
+  const [batchTagDraft, setBatchTagDraft] = useState("");
+  const [batchActionFeedback, setBatchActionFeedback] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedContentView[]>(() =>
     readSavedContentViews(),
   );
@@ -6551,6 +6556,8 @@ function ContentPage(
                       if (!next) {
                         setSelectedIds(new Set());
                         setCopiedSelectedDigest(false);
+                        setBatchTagOpen(false);
+                        setBatchActionFeedback(null);
                       }
                       return next;
                     });
@@ -6864,7 +6871,122 @@ function ContentPage(
                   </button>
                 </>
               ) : null}
+              <button
+                type="button"
+                className={`button button-secondary button-small${batchTagOpen ? " is-active" : ""}`}
+                disabled={selectedPrimaryItems.length === 0}
+                aria-expanded={batchTagOpen}
+                onClick={() => {
+                  setBatchTagOpen((prev) => !prev);
+                  setBatchActionFeedback(null);
+                }}
+              >
+                <PhosphorIcon name="plus" size={13} />
+                {language === "zh-CN" ? "批量打标签" : "Batch tag"}
+              </button>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={selectedPrimaryItems.length === 0}
+                onClick={(event) => {
+                  pulseCelebration(event.currentTarget);
+                  const pack = buildSelectedContentMarkdown(
+                    selectedPrimaryItems.map((item) => ({
+                      item,
+                      brief: briefByVideoId.get(item.video_id) ?? null,
+                      note: personalNotesMap[item.video_id] ?? null,
+                    })),
+                    language === "zh-CN",
+                  );
+                  downloadMarkdownText(pack.filename, pack.markdown);
+                  setBatchActionFeedback(
+                    language === "zh-CN"
+                      ? `已导出精选阅读包 (.md · ${pack.count} 篇)。`
+                      : `Exported reading pack (.md · ${pack.count} item(s)).`,
+                  );
+                }}
+              >
+                <PhosphorIcon name="file-text" size={13} />
+                {language === "zh-CN" ? "导出精选 (.md)" : "Export pack (.md)"}
+              </button>
             </div>
+            {batchTagOpen && selectedPrimaryItems.length > 0 ? (
+              <form
+                className="content-batch-tag-popover"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const result = batchAddPersonalTags(
+                    selectedPrimaryItems.map((item) => item.video_id),
+                    batchTagDraft,
+                  );
+                  if (result.tagsAdded.length > 0) {
+                    setBatchActionFeedback(
+                      language === "zh-CN"
+                        ? `已为 ${selectedPrimaryItems.length} 篇内容应用标签：${result.tagsAdded.map((tag) => `#${tag}`).join(" ")}`
+                        : `Applied ${result.tagsAdded.map((tag) => `#${tag}`).join(" ")} to ${selectedPrimaryItems.length} item(s).`,
+                    );
+                    setBatchTagDraft("");
+                    setBatchTagOpen(false);
+                  }
+                }}
+              >
+                <input
+                  type="text"
+                  className="content-batch-tag-input"
+                  aria-label={language === "zh-CN" ? "输入批量个人标签" : "Batch personal tags"}
+                  placeholder={
+                    language === "zh-CN"
+                      ? "输入标签，空格分隔（如 #Agent #必复盘）…"
+                      : "Tags separated by spaces (e.g. #agent #review)…"
+                  }
+                  value={batchTagDraft}
+                  onChange={(event) => setBatchTagDraft(event.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="button button-primary button-small"
+                  disabled={!batchTagDraft.trim()}
+                >
+                  {language === "zh-CN" ? "应用标签" : "Apply tags"}
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => setBatchTagOpen(false)}
+                >
+                  {language === "zh-CN" ? "取消" : "Cancel"}
+                </button>
+                {personalTagCounts.length > 0 ? (
+                  <div
+                    className="content-batch-tag-suggestions"
+                    role="group"
+                    aria-label={language === "zh-CN" ? "复用已有标签" : "Existing tags"}
+                  >
+                    {personalTagCounts.slice(0, 6).map((entry) => (
+                      <button
+                        key={entry.tag}
+                        type="button"
+                        className="content-tag-chip tabular-nums"
+                        onClick={() =>
+                          setBatchTagDraft((prev) =>
+                            prev.toLowerCase().includes(entry.tag.toLowerCase())
+                              ? prev
+                              : `${prev.trim()} #${entry.tag}`.trim(),
+                          )
+                        }
+                      >
+                        +#{entry.tag}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </form>
+            ) : null}
+            {batchActionFeedback ? (
+              <p className="content-selection-feedback" role="status" aria-live="polite">
+                {batchActionFeedback}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {filteredVideos.length ? (

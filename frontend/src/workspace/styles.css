@@ -7144,6 +7144,42 @@ input[type="radio"] {
   background: var(--accent-soft);
 }
 
+.content-batch-tag-popover {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--accent-border);
+}
+
+.content-batch-tag-input {
+  flex: 1 1 200px;
+  min-width: 160px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.content-batch-tag-suggestions {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.content-selection-feedback {
+  flex: 1 0 100%;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--accent-ink);
+}
+
 @media (max-width: 640px) {
   .content-selection-bar {
     padding: 10px;

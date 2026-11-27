@@ -152,6 +152,51 @@ export function deletePersonalNote(videoId: string): void {
   }
 }
 
+export function batchAddPersonalTags(
+  videoIds: readonly string[],
+  rawTags: string,
+): { updatedCount: number; tagsAdded: string[] } {
+  const tagsAdded = normalizeNoteTags(rawTags);
+  const cleanIds = Array.from(
+    new Set(videoIds.map((id) => id.trim()).filter(Boolean)),
+  );
+  if (tagsAdded.length === 0 || cleanIds.length === 0) {
+    return { updatedCount: 0, tagsAdded: [] };
+  }
+  const store = readNoteStore();
+  const nowIso = new Date().toISOString();
+  let updatedCount = 0;
+
+  for (const videoId of cleanIds) {
+    const existing = store[videoId];
+    const baseTags = existing?.tags ?? [];
+    const seen = new Set(baseTags.map((tag) => tag.trim().toLowerCase()));
+    const mergedTags = [...baseTags];
+    let addedForNote = false;
+    for (const nextTag of tagsAdded) {
+      if (mergedTags.length >= 12) break;
+      const lower = nextTag.toLowerCase();
+      if (seen.has(lower)) continue;
+      seen.add(lower);
+      mergedTags.push(nextTag);
+      addedForNote = true;
+    }
+    if (!existing || addedForNote) {
+      store[videoId] = {
+        text: existing?.text ?? "",
+        tags: mergedTags,
+        updatedAt: nowIso,
+      };
+      updatedCount += 1;
+    }
+  }
+
+  if (updatedCount > 0) {
+    writeNoteStore(store);
+  }
+  return { updatedCount, tagsAdded };
+}
+
 export function appendQuoteToPersonalNote(videoId: string, formattedQuote: string): PersonalNote | null {
   const quote = formattedQuote.trim();
   if (!videoId || !quote) return readPersonalNote(videoId);
