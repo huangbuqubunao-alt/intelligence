@@ -2033,6 +2033,79 @@ function Workspace() {
       setPage(destinations[target.kind]);
     });
   };
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const gChordStateRef = useRef<{ cmdkOpen: boolean; shortcutsOpen: boolean; addOpen: boolean }>({
+    cmdkOpen: false,
+    shortcutsOpen: false,
+    addOpen: false,
+  });
+  gChordStateRef.current = {
+    cmdkOpen,
+    shortcutsOpen,
+    addOpen: addProvider !== null,
+  };
+  useEffect(() => {
+    const chordDestinations: Record<string, Page> = {
+      h: "Home",
+      f: "Following",
+      c: "Content",
+      i: "Intelligence",
+      t: "Topics",
+      r: "Research",
+      s: "Settings",
+    };
+    let armed = false;
+    let timer: number | null = null;
+    const clearChord = () => {
+      armed = false;
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+    };
+    const onGoToKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        clearChord();
+        return;
+      }
+      const { cmdkOpen: isCmdk, shortcutsOpen: isShortcuts, addOpen: isAdd } = gChordStateRef.current;
+      if (
+        isCmdk ||
+        isShortcuts ||
+        isAdd ||
+        isKeyboardShortcutBlocked(event) ||
+        (typeof document !== "undefined" && document.querySelector('[role="dialog"][aria-modal="true"]'))
+      ) {
+        clearChord();
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (armed) {
+        const dest = chordDestinations[key];
+        clearChord();
+        if (dest) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          navigateRef.current(dest);
+        }
+        return;
+      }
+      if (key === "g") {
+        armed = true;
+        if (timer !== null) window.clearTimeout(timer);
+        timer = window.setTimeout(() => {
+          armed = false;
+          timer = null;
+        }, 800);
+      }
+    };
+    window.addEventListener("keydown", onGoToKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onGoToKeyDown, true);
+      clearChord();
+    };
+  }, []);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -2073,6 +2146,20 @@ function Workspace() {
       aliases: ["unread", "triage", "inbox", "未读", "分诊", "待读"],
       onSelect: () => {
         setPendingContentBucket("UNREAD");
+        setPendingContentChannel("ALL");
+        setPendingContentTopic("ALL");
+        setHandoffSeq(value => value + 1);
+        navigate("Content");
+      },
+    },
+    {
+      id: "act:noted-content",
+      group: "actions",
+      label: language === "zh-CN" ? "查看有批注的内容" : "Browse noted content",
+      icon: "file-text",
+      aliases: ["noted", "notes", "annotated", "批注", "笔记"],
+      onSelect: () => {
+        setPendingContentBucket("NOTED");
         setPendingContentChannel("ALL");
         setPendingContentTopic("ALL");
         setHandoffSeq(value => value + 1);

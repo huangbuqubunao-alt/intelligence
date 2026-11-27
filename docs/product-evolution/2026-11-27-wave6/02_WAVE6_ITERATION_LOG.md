@@ -69,3 +69,18 @@
 - **Chromium 实机验证（`127.0.0.1:8799`）**：
   - 确认加载最新构建资源（HTTP `200`）；`+ 导入` → `粘贴文本/笔记` 点击 `+ 会议纪要` 即时呈现 `约 1 分钟精读 · 45 字 · 0.1 KB / 2048 KB` 与 `参会背景与目标.md`，移动端 `390x844` `mobileOverflow: false`；在阅读器 `vidDemoAgt1` 按 `N` 精确聚焦 `.personal-note-textarea` 且前后文本完全一致（零误输入 `'n'`）；**0 console/page/network 错误**。
   - 实机截图归档：[Quick Paste Dark](./screenshots/iter-34/step_1_iter34_quick_paste_dark.png)、[Quick Paste Mobile](./screenshots/iter-34/step_2_iter34_quick_paste_mobile.png)、[Reader Focus Light](./screenshots/iter-34/step_3_iter34_reader_focus_light.png)。
+
+## Iteration 35 (`EVO-W6-06`) — Power-User Go-To Keyboard Chords (`G+key`), Shortcuts Guide Sync & Wave 6 8-View QA
+
+- **解决的用户问题**：重度知识工作者在「首页 → 关注 → 内容 → 洞察 → 主题 → 研究 → 设置」之间高频切换仍需移动鼠标或按 `⌘K` 多次回车；需要全局极速双键和弦 `G + H/F/C/I/T/R/S`，同时绝不与 `#Content` / 阅读器里的单键 `S`（收藏）冲突。
+- **核心改动**：
+  1. [App.tsx](../../../frontend/src/workspace/App.tsx)：在捕获阶段注册全局 `G + 键` 极速跳转和弦监听（`800ms` 时间窗，命中后 `stopImmediatePropagation()` 阻断单键 `S` 误触收藏；输入框与模态框开启时自动静默）；并在 `⌘K` 命令面板中补充「查看有批注的内容」快捷入口。
+  2. [KeyboardShortcutsModal.tsx](../../../frontend/src/workspace/KeyboardShortcutsModal.tsx)：同步补全「页面直达（G + 键）」7 组跳转和弦与阅读器 `N` 键聚焦思考框说明。
+- **自动化验证**：
+  - 新增 [EvolutionIter35.test.tsx](../../../frontend/src/workspace/EvolutionIter35.test.tsx)（1 passed，端到端验证 `G+T` 跳转、搜索输入框内 `gs` 不误触发、`⌘K` 启动「有笔记」筛选、`#Content` 下按 `G+S` 跳转设置且 `curation` POST 为 `0`，以及 `?` 快捷键弹窗全量展示）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`902ms` (`assets/index-DoDpLJli.js` / `assets/index-ClFtVfhH.css`)；Vitest：**93/93 files, 1349/1349 passed**。
+- **Chromium 实机 8 视图全界面 QA 巡检（`127.0.0.1:8799` Demo + `127.0.0.1:8796` Empty Workspace）**：
+  - 确认加载最新构建产物 `index-DoDpLJli.js` 与 `index-ClFtVfhH.css`（HTTP `200`）。
+  - 完整走查 8 个核心视图：`#Home`（周报导出 + 主动回忆）、`#Following`、`#Content`（实机按 `G+S` 精确跳至 `#Settings` 且 `/curation` 请求为 `0`，再 `G+T` 跳至 `#Topics`）、`#Topics` 专题详情（`已批注` + 内联批注 + MOC 合并开关）、`#Intelligence`（`仅看已批注 (2)` + `.md` 导出）、`#Content/vidDemoAgt1`（按 `N` 精确聚焦批注且 `strictlyIdentical: true`）、`#Research`（`G+R` 直达）+ `?` 快捷键弹窗（Dark / Light / Mobile `390x844` `mobileOverflow: false`）、空白工作台 `8796/#Home`（`.home-recall-panel` 为 `0`）。
+  - 全程 `0` console error、`0` page error、`0` 失败网络请求、`0` live `/research/ask` 与 `/curation` 误触发。
+  - 实机截图归档（11 张）位于 `screenshots/iter-35/`：[Shortcuts Dark](./screenshots/iter-35/w6_v7b_shortcuts_dark.png)、[Shortcuts Mobile](./screenshots/iter-35/w6_v7d_shortcuts_mobile.png)、[Empty Home](./screenshots/iter-35/w6_v8_empty_home.png) 等。

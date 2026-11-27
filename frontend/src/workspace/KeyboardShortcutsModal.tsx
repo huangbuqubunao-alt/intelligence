@@ -82,6 +82,19 @@ export function KeyboardShortcutsModal({
           ],
         },
         {
+          id: "goto-chords",
+          title: "页面直达（G + 键）",
+          rows: [
+            { keys: ["G", "H"], label: "前往首页（Home）" },
+            { keys: ["G", "F"], label: "前往关注与信源（Following）" },
+            { keys: ["G", "C"], label: "前往内容库（Content）" },
+            { keys: ["G", "I"], label: "前往洞察（Intelligence）" },
+            { keys: ["G", "T"], label: "前往主题（Topics）" },
+            { keys: ["G", "R"], label: "前往跨视频研究（Research）" },
+            { keys: ["G", "S"], label: "前往设置（Settings）" },
+          ],
+        },
+        {
           id: "content-list",
           title: "内容分诊列表（#Content）",
           rows: [
@@ -96,6 +109,7 @@ export function KeyboardShortcutsModal({
           id: "content-reader",
           title: "内容阅读器（#Content/:id）",
           rows: [
+            { keys: ["N"], label: "聚焦「我的思考与批注」输入框" },
             { keys: ["S"], label: "收藏待看" },
             { keys: ["E"], label: "标为已读并跳至下一篇" },
             { keys: ["U"], label: "返回内容分诊列表" },
@@ -114,6 +128,19 @@ export function KeyboardShortcutsModal({
           ],
         },
         {
+          id: "goto-chords",
+          title: "Go-to navigation (G + key)",
+          rows: [
+            { keys: ["G", "H"], label: "Go to Home" },
+            { keys: ["G", "F"], label: "Go to Following" },
+            { keys: ["G", "C"], label: "Go to Content" },
+            { keys: ["G", "I"], label: "Go to Intelligence" },
+            { keys: ["G", "T"], label: "Go to Topics" },
+            { keys: ["G", "R"], label: "Go to Research" },
+            { keys: ["G", "S"], label: "Go to Settings" },
+          ],
+        },
+        {
           id: "content-list",
           title: "Content triage list (#Content)",
           rows: [
@@ -128,6 +155,7 @@ export function KeyboardShortcutsModal({
           id: "content-reader",
           title: "Content Reader (#Content/:id)",
           rows: [
+            { keys: ["N"], label: "Focus Personal Note editor" },
             { keys: ["S"], label: "Toggle Starred" },
             { keys: ["E"], label: "Mark read and open next unread" },
             { keys: ["U"], label: "Return to Content list" },
