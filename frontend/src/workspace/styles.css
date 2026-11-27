@@ -4705,6 +4705,41 @@ input[type="radio"] {
   color: var(--accent-text);
 }
 
+.following-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+
+.following-toolbar .search-field-wrap {
+  flex: 1 1 240px;
+}
+
+.following-toolbar .field {
+  margin: 0;
+  min-width: 170px;
+}
+
+.following-audit-feedback {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--accent-ink);
+}
+
+.following-search-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 /* High-density Intelligence L1 ledger list, pagination, and Plan A L2 detail view */
 .intel-list-surface {
   display: flex;

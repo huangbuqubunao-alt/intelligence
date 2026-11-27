@@ -34,6 +34,7 @@ import {
 import { findRelatedContentItems } from "./relatedContent";
 import { buildVerifiedIntelligenceMarkdown, downloadMarkdownText } from "./intelligenceExport";
 import { buildSelectedContentMarkdown } from "./contentExport";
+import { buildFollowingAuditMarkdown } from "./followingAuditExport";
 import {
   ACTIVE_RECALL_CHANGED_EVENT,
   buildActiveRecallDeck,
@@ -11039,6 +11040,8 @@ function Sources(
     }
   }, [listResetSeq]);
   const [filter, setFilter] = useState("all");
+  const [sourceSearch, setSourceSearch] = useState("");
+  const [auditExportFeedback, setAuditExportFeedback] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<"default" | "must_watch" | "avg_score">("default");
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [rowMessage, setRowMessage] = useState<string | null>(null);
@@ -11133,10 +11136,11 @@ function Sources(
         (source.tracking?.unavailable_count ?? 0) > 0,
     );
   const attentionSources = topLevelSources.filter(isAttentionSource);
+  const trimmedSourceQuery = sourceSearch.trim().toLowerCase();
   const filteredFollowing = topLevelSources.filter(
     source => {
       const sig = aiSignals[source.source_id];
-      return (
+      const matchesFilter =
         filter === "all" ||
         (filter === "updates" && (source.tracking?.update_count ?? 0) > 0) ||
         (filter === "insights" && (source.insight_count ?? 0) > 0) ||
@@ -11148,8 +11152,20 @@ function Sources(
               (sig.shorts_count > 0 || (sig.signal_rate_pct !== null && sig.signal_rate_pct < 60)),
           )) ||
         (filter === "attention" && isAttentionSource(source)) ||
-        (filter === "paused" && !source.enabled)
-      );
+        (filter === "paused" && !source.enabled);
+      if (!matchesFilter) return false;
+      if (!trimmedSourceQuery) return true;
+      const haystack = [
+        source.friendly_name ?? "",
+        source.display_name ?? "",
+        source.canonical_url ?? "",
+        source.provider ?? "",
+        source.provider === "LOCAL" ? "本地资料库 local library" : "",
+        sig?.channel_label ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(trimmedSourceQuery);
     },
   );
   const orderedFollowing =
@@ -11183,22 +11199,38 @@ function Sources(
       {followingSources.length
         ? (
           <div className="source-list">
-            <label className="field">{t("Following filter")}<select value={filter} onChange={event => setFilter(event.target.value)}>
-              <option value="all">{t("All Following")}</option><option value="updates">{t("Has updates")}</option>
-              <option value="insights">{t("Produces new insights")}</option>
-              {hasAiSignals ? (
-                <option value="high_signal">
-                  {language === "zh-CN" ? "高干货产出（必看 ≥ 1）" : "High signal (must-watch ≥ 1)"}
-                </option>
-              ) : null}
-              {hasAiSignals ? (
-                <option value="low_signal">
-                  {language === "zh-CN" ? "含 Shorts / 低信噪比待评估" : "Low signal / Shorts noise"}
-                </option>
-              ) : null}
-              <option value="attention">{t("Needs attention")}</option>
-              <option value="paused">{t("Paused")}</option>
-            </select></label>
+            <div className="following-toolbar">
+              <div className="search-field-wrap">
+                <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
+                <input
+                  type="search"
+                  aria-label={language === "zh-CN" ? "搜索订阅信源" : "Search Following sources"}
+                  placeholder={
+                    language === "zh-CN"
+                      ? "按频道名、链接或来源类型筛选…"
+                      : "Filter by channel, URL, or provider…"
+                  }
+                  value={sourceSearch}
+                  onChange={(event) => setSourceSearch(event.target.value)}
+                />
+              </div>
+              <label className="field">{t("Following filter")}<select value={filter} onChange={event => setFilter(event.target.value)}>
+                <option value="all">{t("All Following")}</option><option value="updates">{t("Has updates")}</option>
+                <option value="insights">{t("Produces new insights")}</option>
+                {hasAiSignals ? (
+                  <option value="high_signal">
+                    {language === "zh-CN" ? "高干货产出（必看 ≥ 1）" : "High signal (must-watch ≥ 1)"}
+                  </option>
+                ) : null}
+                {hasAiSignals ? (
+                  <option value="low_signal">
+                    {language === "zh-CN" ? "含 Shorts / 低信噪比待评估" : "Low signal / Shorts noise"}
+                  </option>
+                ) : null}
+                <option value="attention">{t("Needs attention")}</option>
+                <option value="paused">{t("Paused")}</option>
+              </select></label>
+            </div>
             {hasAiSignals &&
             topLevelSources.length > 1 &&
             totalSignalSummary &&
@@ -11234,7 +11266,7 @@ function Sources(
                 </div>
               </div>
             ) : null}
-            {(hasAiSignals && signalDigest && signalDigest.totalVideos > 0) || attentionSources.length > 0 ? (
+            {(hasAiSignals && signalDigest && signalDigest.totalVideos > 0) || attentionSources.length > 0 || topLevelSources.length > 0 ? (
               <div
                 className="following-health-digest tabular-nums"
                 role="region"
@@ -11290,6 +11322,52 @@ function Sources(
                       : `Needs attention (${attentionSources.length})`}
                   </button>
                 ) : null}
+                {topLevelSources.length > 0 ? (
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    onClick={() => {
+                      const audit = buildFollowingAuditMarkdown(
+                        topLevelSources,
+                        aiSignals,
+                        language === "zh-CN",
+                      );
+                      downloadMarkdownText(audit.filename, audit.markdown);
+                      setAuditExportFeedback(
+                        language === "zh-CN"
+                          ? `已导出信源体检 (.md · ${audit.sourceCount} 个信源)。`
+                          : `Exported signal audit (.md · ${audit.sourceCount} source(s)).`,
+                      );
+                    }}
+                  >
+                    <PhosphorIcon name="file-text" size={13} />
+                    {language === "zh-CN" ? "导出信源体检 (.md)" : "Export signal audit (.md)"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {auditExportFeedback ? (
+              <p className="following-audit-feedback" role="status" aria-live="polite">
+                {auditExportFeedback}
+              </p>
+            ) : null}
+            {trimmedSourceQuery && orderedFollowing.length === 0 ? (
+              <div className="following-search-empty" role="status">
+                <span>
+                  {language === "zh-CN"
+                    ? `未找到匹配「${sourceSearch.trim()}」的订阅信源。`
+                    : `No sources matched "${sourceSearch.trim()}".`}
+                </span>
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={() => {
+                    setSourceSearch("");
+                    setFilter("all");
+                  }}
+                >
+                  {language === "zh-CN" ? "清空搜索" : "Clear search"}
+                </button>
               </div>
             ) : null}
             {orderedFollowing.map((source) => {
