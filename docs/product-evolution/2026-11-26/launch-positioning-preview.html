@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Intelligence — Local-First Verifiable Research Workbench | Product Positioning Preview</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --surface: #121722;
+      --surface-subtle: #181f2c;
+      --border: #252f42;
+      --text-strong: #f3f6fc;
+      --text: #c8d2e3;
+      --text-muted: #8a98b0;
+      --accent: #34d399;
+      --accent-soft: rgba(52, 211, 153, 0.14);
+      --accent-border: rgba(52, 211, 153, 0.35);
+      --warn: #fbbf24;
+      --radius: 14px;
+      --radius-sm: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 20% 0%, rgba(52, 211, 153, 0.08), transparent 45%), var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 36px 20px 64px; }
+    .notice-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--accent-border);
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0 0 14px;
+      font-size: clamp(28px, 4.4vw, 44px);
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      color: var(--text-strong);
+      max-width: 24ch;
+    }
+    .hero-sub {
+      font-size: 17px;
+      color: var(--text);
+      max-width: 66ch;
+      margin: 0 0 26px;
+    }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 42px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 650;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-strong);
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #062116;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .card h2, .card h3 {
+      margin: 0 0 10px;
+      color: var(--text-strong);
+      font-size: 17px;
+    }
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+      display: block;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th { color: var(--text-strong); font-weight: 650; background: var(--surface-subtle); }
+    .calc-box {
+      display: grid;
+      gap: 14px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+    }
+    .calc-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    input[type="range"] { width: 220px; accent-color: var(--accent); }
+    .metric-big {
+      font-size: 26px;
+      font-weight: 750;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    .price-val {
+      font-size: 28px;
+      font-weight: 750;
+      color: var(--text-strong);
+      margin: 6px 0 10px;
+      font-variant-numeric: tabular-nums;
+    }
+    .tag-hypothesis {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(251, 191, 36, 0.14);
+      color: var(--warn);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    ul { margin: 8px 0 0; padding-left: 18px; }
+    li + li { margin-top: 6px; }
+    footer {
+      margin-top: 32px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12.5px;
+    }
+    @media (max-width: 780px) {
+      .grid-3, .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <span class="notice-bar">EVO-09 · 本地策略评审静态预览页（非线上商业投放页面）</span>
+    <h1>把长视频与零散笔记，沉淀成句句可核验的 Obsidian 研究资产库</h1>
+    <p class="hero-sub">
+      <strong>Intelligence</strong> 是专为 AI 研究者、技术架构师与独立构建者打造的<strong>本地优先（Local-First）多源研究工作台</strong>：自动过滤频道 Shorts 噪音、按三态证据链（原文直撑 / 启发式推断 / 证据不足拒答）溯源每一句结论，并完整归档为你的 Obsidian 双链笔记。
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#positioning-pillars">查看三大核心差异化</a>
+      <a class="btn" href="#cost-calculator">测算本地 Ollama vs SaaS 成本差</a>
+      <a class="btn" href="#packaging">查看开源与 Pro 方案设计</a>
+    </div>
+
+    <section id="positioning-pillars" class="grid-3" aria-label="核心价值支柱">
+      <article class="card">
+        <span class="eyebrow">01 · 高信噪比订阅去噪</span>
+        <h3>先滤噪音，再看高优必看清单</h3>
+        <p>自动折叠关注频道里的 Shorts 与宣传短片，计算每个订阅源的长期干货信噪比，并在首页生成每日待读分诊队列（1 键标已读、连续速读）。</p>
+      </article>
+      <article class="card">
+        <span class="eyebrow">02 · 防御性反幻觉核验</span>
+        <h3>句句绑定原片秒数与文本行号</h3>
+        <p>拒绝把未验证推断伪装成既定事实：严格区分原文支撑与扩展建议，证据不足时诚实拒答；支持跨 YouTube、B 站与本地 <code>.md</code> 混排研究。</p>
+      </article>
+      <article class="card">
+        <span class="eyebrow">03 · 彻底数据与成本主权</span>
+        <h3>本地 SQLite + Ollama，告别删源焦虑</h3>
+        <p>即使原视频转私密或某款云端笔记停服，你的原文哈希、引用锚点与双链 Markdown 笔记仍在自己硬盘；日常初筛走本机 Ollama，API 支出近乎为零。</p>
+      </article>
+    </section>
+
+    <section class="card" style="margin-bottom: 36px;" aria-label="与主流替代方案对比">
+      <h2>为什么严肃研究者从单点摘要插件 / 纯云端工具迁移？</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>单点摘要插件（Eightify / Glasp）</th>
+            <th>NotebookLM / 纯云端套壳（BibiGPT）</th>
+            <th>Intelligence（本工作台）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>频道持续追踪与去噪</strong></td>
+            <td>✗ 仅手工看单条视频</td>
+            <td>✗ 无自动频道信噪比过滤</td>
+            <td>✓ 自动增量追踪 + Shorts 折叠 + 频道健康简报</td>
+          </tr>
+          <tr>
+            <td><strong>原片被删 / 停服风险</strong></td>
+            <td>依赖浏览器 DOM 与厂商服务器</td>
+            <td>NotebookLM 约 30 天清掉已删/私密源</td>
+            <td>✓ 本机 SQLite 永久持久化 + 一键全量导出 Obsidian</td>
+          </tr>
+          <tr>
+            <td><strong>防幻觉与推断隔离</strong></td>
+            <td>无核验护栏</td>
+            <td>算力动态限流 / 偶发缝合幻觉</td>
+            <td>✓ 三态证据验证 + 原话抽屉精准定位 + 诚实拒答</td>
+          </tr>
+          <tr>
+            <td><strong>成本与隐私可控性</strong></td>
+            <td>$4–$15/月（月费堆积）</td>
+            <td>$19.8–$34.8/月 或算力池上限</td>
+            <td>✓ 本机 Ollama $0 起步 + 钥匙串隔离 BYOK 按需调用</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="cost-calculator" class="card" style="margin-bottom: 36px;" aria-label="本地优先成本对比测算器">
+      <h2>混合成本对比测算器 <span class="tag-hypothesis">基于竞品公开定价与模型测算 [待验证]</span></h2>
+      <div class="calc-box">
+        <div class="calc-row">
+          <label for="video-slider"><strong>每月追踪长视频 / 文档处理量：</strong> <span id="video-count-label">80</span> 篇/月</label>
+          <input id="video-slider" type="range" min="20" max="200" step="10" value="80" />
+        </div>
+        <div class="grid-2" style="margin-bottom: 0;">
+          <div>
+            <small style="color: var(--text-muted);">典型纯云端按量/分钟订阅（参考 BibiGPT Pro / Recall Max）</small>
+            <div class="metric-big" id="cloud-cost" style="color: #f87171;">~$24 / 月</div>
+          </div>
+          <div>
+            <small style="color: var(--text-muted);">Intelligence（80% 本机 Ollama + 20% BYOK 按需深读估算）</small>
+            <div class="metric-big" id="local-cost">~$2.4 / 月</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="packaging" class="grid-2" aria-label="商业方案规划">
+      <article class="card">
+        <span class="eyebrow">Open Core · 永久本地自由</span>
+        <h3>开发者 / 研究者自由版</h3>
+        <div class="price-val">$0 <small style="font-size: 13px; color: var(--text-muted);">Open Core 永不锁死数据</small></div>
+        <ul>
+          <li>完整 YouTube / B 站 / 本地 <code>.md</code> 音视频导入与本地离线转写</li>
+          <li>本机 Ollama（$0 推理）与自带 BYOK Key（零平台抽水）</li>
+          <li>跨视频可信问答、专题跨源对比与 Obsidian <code>.md</code> / <code>.zip</code> 导出</li>
+        </ul>
+      </article>
+      <article class="card" style="border-color: var(--accent-border);">
+        <span class="eyebrow">Solo Researcher Pro · 省时买断授权</span>
+        <h3>桌面免运维专业版 <span class="tag-hypothesis">[假设 / 待项目所有者定夺]</span></h3>
+        <div class="price-val">$59 <small style="font-size: 13px; color: var(--text-muted);">早鸟买断（或 $39/年更新）</small></div>
+        <ul>
+          <li>包含自由版全部能力，加送签名公证桌面一键安装包（免折腾 Python/ffmpeg 环境）</li>
+          <li>定时后台频道信噪比健康简报与静默高优筛选通知</li>
+          <li>严格目录白名单下的 Obsidian Vault 安全增量直写（待后续 L3 安全审批）</li>
+        </ul>
+      </article>
+    </section>
+
+    <footer>
+      <p>说明：本页面仅作为 Intelligence 产品自主进化（2026-11-26）本地策略评审交付物，用于向项目所有者可视化展示商业定位与分层思路，不连接任何外部网络资源或支付渠道。</p>
+    </footer>
+  </main>
+  <script>
+    (function () {
+      var slider = document.getElementById("video-slider");
+      var label = document.getElementById("video-count-label");
+      var cloudEl = document.getElementById("cloud-cost");
+      var localEl = document.getElementById("local-cost");
+      if (!slider || !label || !cloudEl || !localEl) return;
+      function update() {
+        var n = Number(slider.value) || 80;
+        label.textContent = String(n);
+        var cloudEst = Math.max(12, Math.round(n * 0.3));
+        var localEst = (n * 0.03).toFixed(1);
+        cloudEl.textContent = "~$" + cloudEst + " / 月";
+        localEl.textContent = "~$" + localEst + " / 月";
+      }
+      slider.addEventListener("input", update);
+      update();
+    })();
+  </script>
+</body>
+</html>
