@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  extractNoteChecklistItems,
+  toggleChecklistLineInMarkdown,
+} from "./actionChecklists";
+import {
   deletePersonalNote,
   listPersonalTagCounts,
   normalizeNoteTags,
@@ -51,10 +55,12 @@ export function ReaderPersonalNoteCard({
   const [tagDraft, setTagDraft] = useState(initialNote?.tags.join(", ") ?? "");
   const [expanded, setExpanded] = useState(Boolean(initialNote));
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
+  const [copiedNote, setCopiedNote] = useState(false);
   const [libraryTags, setLibraryTags] = useState<PersonalTagCount[]>(() =>
     listPersonalTagCounts(),
   );
   const debounceRef = useRef<number | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const suppressShortcutCharUntilRef = useRef<number>(0);
   const onNoteChangeRef = useRef(onNoteChange);
@@ -78,6 +84,9 @@ export function ReaderPersonalNoteCard({
       window.removeEventListener("storage", syncTagsOnly);
       if (debounceRef.current !== null) {
         window.clearTimeout(debounceRef.current);
+      }
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
       }
     };
   }, [videoId]);
@@ -159,6 +168,54 @@ export function ReaderPersonalNoteCard({
     .filter((entry) => !parsedTagSet.has(entry.tag.toLowerCase()))
     .slice(0, 8);
   const hasContent = Boolean(text.trim() || parsedTags.length > 0);
+  const checklistItems = extractNoteChecklistItems(videoId, text);
+  const completedTaskCount = checklistItems.filter((item) => item.checked).length;
+  const trimmedBody = text.trim();
+  const cjkCount = (trimmedBody.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) ?? []).length;
+  const latinWords = trimmedBody
+    .replace(/[\u4e00-\u9fff\u3400-\u4dbf]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const noteWordCount = cjkCount + latinWords;
+
+  const handleCopyNote = async () => {
+    const tagHeader = parsedTags.map((tag) => `#${tag}`).join(" ");
+    const payload = [tagHeader, trimmedBody].filter(Boolean).join("\n\n");
+    if (!payload) return;
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+        copied = true;
+      }
+    } catch {
+      copied = false;
+    }
+    if (!copied && typeof document !== "undefined") {
+      try {
+        const helper = document.createElement("textarea");
+        helper.value = payload;
+        helper.setAttribute("readonly", "");
+        helper.style.position = "fixed";
+        helper.style.opacity = "0";
+        document.body.appendChild(helper);
+        helper.select();
+        copied = document.execCommand?.("copy") ?? false;
+        helper.remove();
+      } catch {
+        copied = false;
+      }
+    }
+    setCopiedNote(true);
+    if (copyTimerRef.current !== null) {
+      window.clearTimeout(copyTimerRef.current);
+    }
+    copyTimerRef.current = window.setTimeout(() => {
+      copyTimerRef.current = null;
+      setCopiedNote(false);
+    }, 2000);
+  };
 
   const appendTemplate = (snippet: string) => {
     const nextText = text.trimEnd() ? `${text.trimEnd()}\n\n${snippet}` : snippet;
@@ -227,23 +284,33 @@ export function ReaderPersonalNoteCard({
                 : "Stored locally"}
           </span>
           {hasContent ? (
-            <button
-              type="button"
-              className="button button-ghost button-small"
-              onClick={() => {
-                if (debounceRef.current !== null) {
-                  window.clearTimeout(debounceRef.current);
-                  debounceRef.current = null;
-                }
-                setText("");
-                setTagDraft("");
-                setSaveStatus("idle");
-                deletePersonalNote(videoId);
-                onNoteChangeRef.current?.(null);
-              }}
-            >
-              {zh ? "清空" : "Clear"}
-            </button>
+            <>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => void handleCopyNote()}
+              >
+                {copiedNote ? (zh ? "已复制 ✓" : "Copied ✓") : zh ? "复制笔记" : "Copy note"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => {
+                  if (debounceRef.current !== null) {
+                    window.clearTimeout(debounceRef.current);
+                    debounceRef.current = null;
+                  }
+                  setText("");
+                  setTagDraft("");
+                  setSaveStatus("idle");
+                  setCopiedNote(false);
+                  deletePersonalNote(videoId);
+                  onNoteChangeRef.current?.(null);
+                }}
+              >
+                {zh ? "清空" : "Clear"}
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -292,6 +359,36 @@ export function ReaderPersonalNoteCard({
         onBlur={() => flushSave(text, tagDraft)}
       />
 
+      {checklistItems.length > 0 ? (
+        <div
+          className="personal-note-checklist-strip"
+          role="group"
+          aria-label={zh ? "行动项快速勾选" : "Action checklist"}
+        >
+          {checklistItems.map((item) => (
+            <button
+              key={`${item.lineIndex}:${item.text}`}
+              type="button"
+              role="checkbox"
+              aria-checked={item.checked}
+              className={`personal-note-checklist-row${item.checked ? " is-checked" : ""}`}
+              onClick={() => {
+                const nextText = toggleChecklistLineInMarkdown(text, item.lineIndex);
+                if (nextText !== null) {
+                  setText(nextText);
+                  flushSave(nextText, tagDraft);
+                }
+              }}
+            >
+              <span className="personal-note-check-mark" aria-hidden="true">
+                {item.checked ? "✓" : ""}
+              </span>
+              <span className="personal-note-check-label">{item.text}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className="personal-note-tags-row">
         <input
           type="text"
@@ -335,6 +432,22 @@ export function ReaderPersonalNoteCard({
               + #{entry.tag}
             </button>
           ))}
+        </div>
+      ) : null}
+      {hasContent ? (
+        <div className="personal-note-stats tabular-nums">
+          <span>
+            {zh
+              ? `${noteWordCount} 字/词 · ${parsedTags.length} 个标签`
+              : `${noteWordCount} words · ${parsedTags.length} tags`}
+          </span>
+          {checklistItems.length > 0 ? (
+            <span>
+              {zh
+                ? ` · 行动项 ${completedTaskCount}/${checklistItems.length} 已完成`
+                : ` · ${completedTaskCount}/${checklistItems.length} actions done`}
+            </span>
+          ) : null}
         </div>
       ) : null}
     </section>
