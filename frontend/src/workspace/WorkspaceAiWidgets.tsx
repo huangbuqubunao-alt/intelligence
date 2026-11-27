@@ -16,8 +16,19 @@ import {
   exportPersonalNotesMarkdown,
   importPersonalNotesJson,
   listPersonalNoteVideoIds,
+  listPersonalTagCounts,
   PERSONAL_NOTES_CHANGED_EVENT,
 } from "./personalNotes";
+import {
+  clearReadingHistory,
+  READING_HISTORY_CHANGED_EVENT,
+  readReadingHistory,
+} from "./readingHistory";
+import {
+  clearSavedContentViews,
+  readSavedContentViews,
+  SAVED_VIEWS_CHANGED_EVENT,
+} from "./savedViews";
 
 export type VideoAiBrief = {
   video_id: string;
@@ -5226,18 +5237,48 @@ export function WorkspaceAiSettingsPanel({
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const notesImportInputRef = useRef<HTMLInputElement | null>(null);
   const [personalNoteCount, setPersonalNoteCount] = useState(() => listPersonalNoteVideoIds().size);
+  const [personalTagCount, setPersonalTagCount] = useState(() => listPersonalTagCounts().length);
+  const [savedViewCount, setSavedViewCount] = useState(() => readSavedContentViews().length);
+  const [readingHistoryCount, setReadingHistoryCount] = useState(() => readReadingHistory().length);
   const [notesBackupFeedback, setNotesBackupFeedback] = useState<string | null>(null);
   const [notesBackupError, setNotesBackupError] = useState<string | null>(null);
   useEffect(() => {
-    const syncNoteCount = () => setPersonalNoteCount(listPersonalNoteVideoIds().size);
-    syncNoteCount();
-    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNoteCount);
-    window.addEventListener("storage", syncNoteCount);
+    const syncLocalStudyGovernance = () => {
+      setPersonalNoteCount(listPersonalNoteVideoIds().size);
+      setPersonalTagCount(listPersonalTagCounts().length);
+      setSavedViewCount(readSavedContentViews().length);
+      setReadingHistoryCount(readReadingHistory().length);
+    };
+    syncLocalStudyGovernance();
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncLocalStudyGovernance);
+    window.addEventListener(SAVED_VIEWS_CHANGED_EVENT, syncLocalStudyGovernance);
+    window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncLocalStudyGovernance);
+    window.addEventListener("storage", syncLocalStudyGovernance);
     return () => {
-      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNoteCount);
-      window.removeEventListener("storage", syncNoteCount);
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncLocalStudyGovernance);
+      window.removeEventListener(SAVED_VIEWS_CHANGED_EVENT, syncLocalStudyGovernance);
+      window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncLocalStudyGovernance);
+      window.removeEventListener("storage", syncLocalStudyGovernance);
     };
   }, []);
+  const handleClearReadingHistory = () => {
+    clearReadingHistory();
+    setNotesBackupError(null);
+    setNotesBackupFeedback(
+      zh
+        ? "已清空本机最近阅读记录（个人笔记与标签已保留）。"
+        : "Cleared local reading trail (personal notes & tags preserved).",
+    );
+  };
+  const handleClearSavedViews = () => {
+    clearSavedContentViews();
+    setNotesBackupError(null);
+    setNotesBackupFeedback(
+      zh
+        ? "已清空本机常用筛选视图（个人笔记与标签已保留）。"
+        : "Cleared local saved views (personal notes & tags preserved).",
+    );
+  };
   const handleExportPersonalNotes = () => {
     setNotesBackupError(null);
     const json = exportPersonalNotesJson();
@@ -6199,6 +6240,11 @@ export function WorkspaceAiSettingsPanel({
           <span className="personal-notes-backup-meta tabular-nums">
             {zh ? `个人笔记与标签（本机 ${personalNoteCount} 条）` : `Personal notes & tags (${personalNoteCount} local)`}
           </span>
+          <p className="local-study-governance-summary tabular-nums">
+            {zh
+              ? `本机学习数据：笔记 ${personalNoteCount} 条 · 标签 ${personalTagCount} 个 · 常用视图 ${savedViewCount} 个 · 最近阅读 ${readingHistoryCount} 条`
+              : `Local study data: ${personalNoteCount} notes · ${personalTagCount} tags · ${savedViewCount} saved views · ${readingHistoryCount} recent reads`}
+          </p>
           <div className="button-row">
             <button
               type="button"
@@ -6233,6 +6279,32 @@ export function WorkspaceAiSettingsPanel({
               onChange={(event) => void handleImportPersonalNotes(event)}
             />
           </div>
+          {readingHistoryCount > 0 || savedViewCount > 0 ? (
+            <div
+              className="button-row local-study-governance-actions"
+              role="group"
+              aria-label={zh ? "本机轻量记录清理" : "Local session cleanup"}
+            >
+              {readingHistoryCount > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={handleClearReadingHistory}
+                >
+                  {zh ? `清空最近阅读 (${readingHistoryCount})` : `Clear reading trail (${readingHistoryCount})`}
+                </button>
+              ) : null}
+              {savedViewCount > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={handleClearSavedViews}
+                >
+                  {zh ? `清空常用视图 (${savedViewCount})` : `Clear saved views (${savedViewCount})`}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {notesBackupFeedback ? (
             <p className="semantic-state state-neutral" role="status">
               {notesBackupFeedback}

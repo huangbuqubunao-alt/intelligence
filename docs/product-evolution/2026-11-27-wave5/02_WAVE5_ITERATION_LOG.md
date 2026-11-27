@@ -70,3 +70,17 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Home` → `#Intelligence`）**：
   - 确认加载新资源 `index-Csrb3fXj.js` & `index-DdHZBTrA.css`（HTTP `200`）；`#Home` 右栏 `.home-momentum-panel` 清晰显示 `已精读 0 / 5 篇长内容`、`本机已沉淀 2 篇个人批注 · 3 个自建标签`；`#Intelligence` 在深色与暖纸浅色主题下均正确展示 2 个 `.intel-noted-badge`（`已批注 · #核心结论` 与 `已批注 · #实践复盘`）；点击「查看笔记内容」自动激活「有笔记」筛选（2 / 5 篇）；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Home Momentum Dark](./screenshots/iter-28/step_1_iter28_home_momentum_dark.png)、[Intel Noted Dark](./screenshots/iter-28/step_2_iter28_intel_noted_dark.png)、[Intel Noted Light](./screenshots/iter-28/step_3_iter28_intel_noted_light.png)、[Home Mobile](./screenshots/iter-28/step_4_iter28_home_mobile.png)。
+
+## Iteration 29 (`EVO-W5-06`) — `#Settings` Local Study Data Governance & Wave 5 Full-Surface QA
+
+- **解决的用户问题**：经过 Iter 17–28 后，本机同时保存了个人笔记、自建标签、常用筛选视图与最近阅读轨迹；用户需要在 `#Settings` 一眼看清这 4 类本机学习数据资产规模，并能安全地单独清理轻量的「最近阅读」或「常用视图」而不误删高价值的个人笔记与标签。
+- **核心改动**：
+  1. [WorkspaceAiWidgets.tsx](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：在 `WorkspaceAiSettingsPanel` 订阅 `PERSONAL_NOTES_CHANGED_EVENT`、`SAVED_VIEWS_CHANGED_EVENT`、`READING_HISTORY_CHANGED_EVENT` 与 `storage` 事件，在 `.personal-notes-backup-row` 内新增 `.local-study-governance-summary`（「本机学习数据：笔记 N 条 · 标签 M 个 · 常用视图 V 个 · 最近阅读 R 条」），并在存在轻量会话数据时呈现独立安全按钮（`清空最近阅读 (R)` / `清空常用视图 (V)`）与明确保留提示。
+- **自动化验证**：
+  - 新增 [EvolutionIter29.test.tsx](../../../frontend/src/workspace/EvolutionIter29.test.tsx)（2 passed，覆盖 4 项统计联动、分别清空最近阅读与常用视图后确认个人笔记与标签零损失及空状态隐藏按钮）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`914ms` (`assets/index-DYECrWAZ.js` / `assets/workspace-ai-hub-751NX0il.js` / `assets/index-rVAhfeMg.css`)；Vitest：**87/87 files, 1337/1337 passed**。
+- **Chromium 实机 8 视图全界面 QA 巡检（`127.0.0.1:8799` Demo + `127.0.0.1:8796` Empty Workspace）**：
+  - 确认加载最新构建产物 `index-DYECrWAZ.js`、`workspace-ai-hub-751NX0il.js` 与 `index-rVAhfeMg.css`（HTTP `200`）。
+  - 完整走查 8 个界面：`#Home`（学习进度+继续精读）、`#Following`、`#Content`（保存「QA必看视图」常用视图）、`#Content/vidDemoAgt1`（思考模板+展开 3 条关联延伸阅读）、`#Research`（结构化视角栏与研究汇编导出）、`#Topics`（我的自建标签）、`#Settings`（Dark/Light/Mobile `390x844` `mobileOverflow: false`，点击 `清空最近阅读 (2)` 后轨迹清零而笔记/标签/常用视图完整保留）、空白工作台 `8796/#Settings`（全 `0` 统计平静收敛）。
+  - 全程 `0` console error、`0` page error、`0` 失败网络请求、`0` live `/research/ask` 误触发。
+  - 实机截图归档：[Settings Dark](./screenshots/iter-29/view_7_settings_governance_dark.png)、[Settings Light](./screenshots/iter-29/view_7b_settings_governance_light.png)、[Settings Mobile](./screenshots/iter-29/view_7c_settings_mobile.png)、[Empty Settings](./screenshots/iter-29/view_8_empty_settings.png) 等 10 张 PNG 归档于 `screenshots/iter-29/`。

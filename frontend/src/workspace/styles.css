@@ -7169,6 +7169,18 @@ input[type="radio"] {
   color: var(--text-muted);
 }
 
+/* Iteration 29: Local Study Data Governance summary & granular session reset */
+.local-study-governance-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.local-study-governance-actions {
+  padding-top: 2px;
+}
+
 /* Iteration 20: Personal #Tag Filter Strip in #Content & My Personal Tags Card in #Topics */
 .content-tag-filter-strip {
   display: flex;
