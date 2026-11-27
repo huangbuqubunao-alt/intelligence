@@ -1,7 +1,8 @@
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
-import { ApiRequestError, api, post, put } from "../api/client";
+import { ApiRequestError, api, post, put, uploadLocal } from "../api/client";
 import { pulseCelebration } from "./motion";
 import { OpenResearchSource } from "./ResearchTypes";
+import { buildResearchSynthesisMarkdown, deriveResearchNoteFilename } from "./researchExport";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
 import {
@@ -3484,6 +3485,9 @@ export function WorkspaceAiResearchPanel({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedPlain, setCopiedPlain] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
+  const [saveNoteError, setSaveNoteError] = useState<string | null>(null);
   const questionInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -3498,7 +3502,48 @@ export function WorkspaceAiResearchPanel({
   useEffect(() => {
     setCopied(false);
     setCopiedPlain(false);
+    setSavingNote(false);
+    setSavedNoteId(null);
+    setSaveNoteError(null);
   }, [activeSession?.session_id]);
+
+  const promoteToLocalNote = async () => {
+    if (!activeSession || activeSession.refused || activeSession.citations.length === 0 || savingNote) {
+      return;
+    }
+    const md = buildResearchSynthesisMarkdown(activeSession, zh);
+    if (!md) return;
+    setSavingNote(true);
+    setSaveNoteError(null);
+    try {
+      const filename = deriveResearchNoteFilename(activeSession.question, activeSession.session_id);
+      const file = new File([md], filename, { type: "text/markdown;charset=utf-8" });
+      const controller = new AbortController();
+      const response = await uploadLocal<{
+        import?: { content_id?: string };
+        content_id?: string;
+      }>(
+        `/local/imports?filename=${encodeURIComponent(filename)}`,
+        file,
+        controller.signal,
+        () => {},
+        () => {},
+      );
+      const contentId = response.import?.content_id ?? response.content_id ?? null;
+      if (!contentId) {
+        throw new Error("MISSING_CONTENT_ID");
+      }
+      setSavedNoteId(contentId);
+    } catch {
+      setSaveNoteError(
+        zh
+          ? "未能沉淀为本地研究笔记，请检查本地工作区服务状态后重试。"
+          : "Could not save research synthesis into the local library.",
+      );
+    } finally {
+      setSavingNote(false);
+    }
+  };
 
   const resetCompareUi = () => {
     setComparePickerOpen(false);
@@ -4779,6 +4824,37 @@ export function WorkspaceAiResearchPanel({
                 </button>
               </>
             ) : null}
+            {!activeSession.refused && activeSession.citations.length > 0 ? (
+              savedNoteId ? (
+                <button
+                  type="button"
+                  className="button button-primary button-small"
+                  onClick={() => onOpen("content", savedNoteId)}
+                >
+                  <PhosphorIcon name="file-text" size={13} />
+                  {zh ? "✓ 已沉淀入内容库 · 打开阅读 →" : "✓ Saved to library · Open note →"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  disabled={savingNote}
+                  onClick={(event) => {
+                    pulseCelebration(event.currentTarget);
+                    void promoteToLocalNote();
+                  }}
+                >
+                  <PhosphorIcon name="plus" size={13} />
+                  {savingNote
+                    ? zh
+                      ? "正在沉淀…"
+                      : "Saving…"
+                    : zh
+                      ? "沉淀为本地研究笔记"
+                      : "Save as local note"}
+                </button>
+              )
+            ) : null}
             <button
               type="button"
               className={`button button-small ${activeSession.pinned ? "button-saved" : "button-ghost"}`}
@@ -4812,6 +4888,11 @@ export function WorkspaceAiResearchPanel({
               {zh ? "删除问答" : "Delete Q&A"}
             </button>
           </div>
+          {saveNoteError ? (
+            <p className="form-error" role="alert" style={{ marginTop: "8px" }}>
+              {saveNoteError}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
