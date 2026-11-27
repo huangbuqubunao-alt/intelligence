@@ -7,6 +7,7 @@ import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
 import {
   exportPersonalNotesJson,
+  exportPersonalNotesMarkdown,
   importPersonalNotesJson,
   listPersonalNoteVideoIds,
   PERSONAL_NOTES_CHANGED_EVENT,
@@ -5162,6 +5163,39 @@ export function WorkspaceAiSettingsPanel({
         : `Exported ${count} local personal note(s) and tags.`,
     );
   };
+  const handleExportPersonalNotesMarkdown = async () => {
+    setNotesBackupError(null);
+    const titleByVideoId: Record<string, string> = {};
+    try {
+      const payload = await api<{ videos?: Array<{ video_id?: string; title?: string | null }> }>(
+        "/videos?limit=200",
+      );
+      for (const item of payload?.videos ?? []) {
+        if (typeof item?.video_id === "string" && typeof item?.title === "string" && item.title.trim()) {
+          titleByVideoId[item.video_id] = item.title.trim();
+        }
+      }
+    } catch {
+      // Fall back to video_id titles if video catalog lookup is unavailable.
+    }
+    const { markdown, noteCount } = exportPersonalNotesMarkdown(titleByVideoId, zh);
+    setPersonalNoteCount(noteCount);
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.download = `intelligence-personal-notes-${stamp}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotesBackupFeedback(
+      zh
+        ? `已导出 Obsidian 个人笔记汇编 (.md，共 ${noteCount} 条)。`
+        : `Exported Obsidian Markdown notes digest (${noteCount} note(s)).`,
+    );
+  };
   const handleImportPersonalNotes = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -6077,6 +6111,14 @@ export function WorkspaceAiSettingsPanel({
             >
               <PhosphorIcon name="archive" size={13} />
               {zh ? "导出个人笔记 (.json)" : "Export personal notes (.json)"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={() => void handleExportPersonalNotesMarkdown()}
+            >
+              <PhosphorIcon name="file-text" size={13} />
+              {zh ? "导出笔记汇编 (.md)" : "Export notes digest (.md)"}
             </button>
             <button
               type="button"

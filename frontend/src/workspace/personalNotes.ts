@@ -252,3 +252,71 @@ export function importPersonalNotesJson(rawJson: string): {
     totalCount: Object.keys(current).length,
   };
 }
+
+function sanitizeWikilinkTitle(rawTitle: string, fallbackId: string): string {
+  const cleaned = rawTitle
+    .replace(/[[\]|#^\n\r]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || fallbackId;
+}
+
+export function exportPersonalNotesMarkdown(
+  titleByVideoId: Record<string, string> = {},
+  zh = true,
+): { markdown: string; noteCount: number } {
+  const store = readAllPersonalNotes();
+  const entries = Object.entries(store)
+    .filter(([, note]) => note.text.trim().length > 0 || note.tags.length > 0)
+    .sort(([, a], [, b]) => (Date.parse(b.updatedAt || "") || 0) - (Date.parse(a.updatedAt || "") || 0));
+
+  const exportedStamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const header = [
+    zh ? "# 个人研究笔记与标签汇编" : "# Personal Research Notes & Tags Digest",
+    "",
+    zh
+      ? `- 导出时间：${exportedStamp} UTC\n- 笔记条数：${entries.length}`
+      : `- Exported at: ${exportedStamp} UTC\n- Notes: ${entries.length}`,
+  ];
+
+  const tagCounts = listPersonalTagCounts();
+  if (tagCounts.length > 0) {
+    header.push("");
+    header.push(zh ? "## 标签索引" : "## Tag Index");
+    header.push(tagCounts.map((item) => `#${item.tag} (${item.count})`).join(" · "));
+  }
+
+  if (entries.length === 0) {
+    header.push("");
+    header.push(
+      zh
+        ? "_暂无本地个人笔记，可在任意内容详情页记录心得或摘录时间戳。_"
+        : "_No local personal notes recorded yet._",
+    );
+    return { markdown: `${header.join("\n")}\n`, noteCount: 0 };
+  }
+
+  const sections = entries.map(([videoId, note]) => {
+    const safeTitle = sanitizeWikilinkTitle(titleByVideoId[videoId] ?? videoId, videoId);
+    const updated = note.updatedAt ? note.updatedAt.slice(0, 16).replace("T", " ") : "";
+    const lines: string[] = [
+      `## [[${safeTitle}]]`,
+      zh
+        ? `- 来源 ID：\`${videoId}\`${updated ? ` · 更新时间：${updated}` : ""}`
+        : `- Source ID: \`${videoId}\`${updated ? ` · Updated: ${updated}` : ""}`,
+    ];
+    if (note.tags.length > 0) {
+      lines.push(note.tags.map((tag) => `#${tag}`).join(" "));
+    }
+    if (note.text.trim()) {
+      lines.push("");
+      lines.push(note.text.trim());
+    }
+    return lines.join("\n");
+  });
+
+  return {
+    markdown: `${header.join("\n")}\n\n---\n\n${sections.join("\n\n---\n\n")}\n`,
+    noteCount: entries.length,
+  };
+}

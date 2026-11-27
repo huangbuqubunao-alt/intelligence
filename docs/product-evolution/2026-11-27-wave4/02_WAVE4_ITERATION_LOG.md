@@ -75,3 +75,14 @@
   - TypeScript / Build / Vitest：`npx tsc --noEmit --incremental false`（0 errors）、`npm run build`（`assets/index-DSDkFkus.js` + `assets/index-Mb47NKEr.css`）、Vitest **80/80 files, 1324/1324 tests passed**。
   - 实机 Chromium（`http://127.0.0.1:8799/#Following` & `http://127.0.0.1:8796/#Following`）：确认新包 HTTP 200；Demo 全健康信源下简报栏不误报异常、`待评估信源 (1)` 切换筛选正常、空工作区展示规范引导；Dark / Light / Mobile (`390x844`, `mobileOverflow: false`)、`0` console/network 错误。
   - 实机截图归档：[Following Dark](./screenshots/iter-22/step_1_iter22_following_dark.png)、[Following Light](./screenshots/iter-22/step_2_iter22_following_light.png)、[Following Mobile](./screenshots/iter-22/step_3_iter22_following_mobile.png)、[Empty Following](./screenshots/iter-22/step_4_iter22_empty_following.png)。
+
+## Iteration 23 (`EVO-W4-06`) — Obsidian Markdown Personal Notes Digest Export & Wave 4 8-View QA Sweep
+- **产品目标**：补齐个人精读笔记与 `#tag` 体系向外部知识库的无摩擦流转闭环，让用户不仅能做 JSON 整库迁移，还能一键将全部本机心得与时间戳摘录导出为带 Obsidian `[[wikilinks]]` 与标签索引的单文件 Markdown 汇编。
+- **代码变更**：
+  - 修改 `frontend/src/workspace/personalNotes.ts`：新增 `sanitizeWikilinkTitle` 与 `exportPersonalNotesMarkdown(titleByVideoId, zh)`，按最新更新时间倒序汇整全部非空个人笔记、生成标签计数索引与 `## [[Title]]` 双链条目，并对 0 条笔记场景返回规范可读说明。
+  - 修改 `frontend/src/workspace/WorkspaceAiWidgets.tsx`：引入 `exportPersonalNotesMarkdown`，在 `.personal-notes-backup-row` 新增 `导出笔记汇编 (.md)` / `Export notes digest (.md)` 按钮，下载前尝试拉取 `/videos?limit=200` 自动回填可读标题（接口不可用时优雅回退至 `video_id`）。
+  - 新增 `frontend/src/workspace/EvolutionIter23.test.tsx`：验证双链括号清洗、标签索引与时间倒序逻辑，以及设置页点击 `导出笔记汇编 (.md)` 后真实触发带解析标题的 Markdown 文件下载与状态提示。
+- **验证证据**：
+  - TypeScript / Build / Vitest：`npx tsc --noEmit --incremental false`（0 errors）、`npm run build`（`assets/index-Gn0wcjU9.js` + `assets/workspace-ai-hub-Bqbl7t3S.js` + `assets/index-Mb47NKEr.css`）、Vitest **81/81 files, 1326/1326 tests passed**。
+  - 全表面 8 视图实机 Chromium QA（`http://127.0.0.1:8799` & `http://127.0.0.1:8796`）：覆盖 `#Settings`（`.md` 汇编导出确认反馈 + `.json` 导入导出）、`#Content/vidDemoAgt1`（阅读耗时与排版切换）、`#Home`（最近阅读续读栏）、`#Topics` 浅色主题（自建标签联动）、`#Following`（信噪比简报）、`#Research`（跨视频问答）、Mobile `390x844`（`mobileOverflow: false`）与 `8796` 空工作区；`0` console/page/network 错误。
+  - 实机截图归档：[View 1 Settings MD Dark](./screenshots/iter-23/view1_settings_md_dark.png)、[View 2 Reader Dark](./screenshots/iter-23/view2_reader_dark.png)、[View 3 Home Dark](./screenshots/iter-23/view3_home_dark.png)、[View 4 Topics Light](./screenshots/iter-23/view4_topics_light.png)、[View 5 Following Dark](./screenshots/iter-23/view5_following_dark.png)、[View 6 Research Dark](./screenshots/iter-23/view6_research_dark.png)、[View 7 Settings Mobile](./screenshots/iter-23/view7_settings_mobile.png)、[View 8 Empty Settings](./screenshots/iter-23/view8_empty_settings.png)。
