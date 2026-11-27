@@ -7492,3 +7492,75 @@ input[type="radio"] {
   gap: 8px 12px;
   margin-top: 10px;
 }
+
+/* Iter 26: Reader Connected Knowledge panel & 1-click pairwise Research compare */
+.reader-related-list {
+  display: grid;
+  gap: 8px;
+}
+
+.reader-related-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.reader-related-row:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-hover);
+}
+
+.reader-related-open {
+  flex: 1 1 240px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-strong);
+  text-align: left;
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.reader-related-open strong {
+  font-size: 13.5px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-related-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.reader-related-reason {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 11.5px;
+  font-weight: 550;
+}
+
+.reader-related-compare {
+  flex-shrink: 0;
+}

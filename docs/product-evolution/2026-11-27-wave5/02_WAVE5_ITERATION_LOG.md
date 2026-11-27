@@ -31,3 +31,16 @@
 - **Chromium 实机验证（`127.0.0.1:8799/#Research`）**：
   - 确认加载新资源 `index-MCDOyrUa.js`、`workspace-ai-hub-D5LOhqAZ.js` & `index-tZ46Rynv.css`（HTTP `200`）；点击「视角 · 共识与分歧」精准预填提问框且 `0` 个 `/research/ask` 请求发出；点击「导出研究汇编 (.md)」呈现「已导出研究汇编 (.md · 含 2 条已核验问答)。」；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
   - 实机截图归档：[Research Lenses Dark](./screenshots/iter-25/step_1_iter25_research_dark.png)、[Research Lenses Light](./screenshots/iter-25/step_2_iter25_research_light.png)、[Research Lenses Mobile](./screenshots/iter-25/step_3_iter25_research_mobile.png)。
+
+## Iteration 26 (`EVO-W5-03`) — Reader "Connected Knowledge" & 1-Click Pairwise Research Compare
+
+- **解决的用户问题**：用户在阅读单篇内容时，很难顺手发现库内同一 `#tag`、同专题或同频道的关联资料，更无法一键将「当前正在读的这一篇 + 关联的那一篇」直接送入 `#Research` 做正反对比提问。
+- **核心改动**：
+  1. 新增 [relatedContent.ts](../../../frontend/src/workspace/relatedContent.ts)：`findRelatedContentItems`（纯本机 Zero-Network 算法，按共同个人 `#tag` +5、同专题 +3、同标签领域 +2、同频道 +1 计算关联度并自动排除 Shorts 噪音，输出最高信号理由如 `共标 #核心结论` / `同专题 · ...`）。
+  2. [App.tsx](../../../frontend/src/workspace/App.tsx) & [styles.css](../../../frontend/src/workspace/styles.css)：`ContentDetailPanel` 底部「按需查阅原始资料」下方新增默认折叠的「关联延伸阅读」渐进式面板（`.reader-related-panel`），点击「展开关联 (N)」呈现关联卡片与双独立按钮（左键跳转延伸阅读，右 sibling「对比提问 →」带双视频 ID 与对比草稿跳转 `#Research` 预填且绝不误触发请求）。
+- **自动化验证**：
+  - 新增 [EvolutionIter26.test.tsx](../../../frontend/src/workspace/EvolutionIter26.test.tsx)（2 passed，覆盖共享 `#tag` 优先级排序、Shorts 排除、渐进式展开及点击「对比提问 →」锁定 2 篇跳转 `#Research`）。
+  - `npx tsc --noEmit --incremental false`：0 errors；`npm run build`：`985ms` (`assets/index-I-0CP-G-.js` / `assets/index-CqqKRhj6.css`)；Vitest：**84/84 files, 1332/1332 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Content/vidDemoAgt1`）**：
+  - 确认加载新资源 `index-I-0CP-G-.js` & `index-CqqKRhj6.css`（HTTP `200`）；默认收敛态展开后呈现 2 篇同专题关联内容；点击「对比提问 →」精确跳转 `#Research` 锁定 2 篇且 `0` 个 `/research/ask` 请求发出；Dark / Light / `390x844` 移动端（`mobileOverflow: false`）；**0 console/page/network 错误**。
+  - 实机截图归档：[Related Dark](./screenshots/iter-26/step_1_iter26_related_dark.png)、[Related Light](./screenshots/iter-26/step_2_iter26_related_light.png)、[Related Mobile](./screenshots/iter-26/step_3_iter26_related_mobile.png)。

@@ -31,6 +31,7 @@ import {
   suggestSavedViewName,
   type SavedContentView,
 } from "./savedViews";
+import { findRelatedContentItems } from "./relatedContent";
 import {
   PERSONAL_NOTES_CHANGED_EVENT,
   type PersonalTagCount,
@@ -4944,6 +4945,8 @@ function ContentPage(
         key={targetVideoId}
         id={targetVideoId}
         highlightedEvidenceId={highlightedEvidenceId}
+        allVideos={mergedLoadedAndSearchVideos}
+        onCompareVideos={onCompareSelectedResearch}
         onClose={onClose}
         onAddLocal={onAddLocal}
         activeFilterSummary={activeFilterSummary}
@@ -7217,6 +7220,8 @@ function ContentDetailPanel(
   {
     id,
     highlightedEvidenceId,
+    allVideos,
+    onCompareVideos,
     onClose,
     onAddLocal,
     activeFilterSummary,
@@ -7227,6 +7232,8 @@ function ContentDetailPanel(
   }: {
     id: string;
     highlightedEvidenceId?: string | null;
+    allVideos?: ContentItem[];
+    onCompareVideos?: (videoIds: string[], titles: string[]) => void;
     onClose: () => void;
     onAddLocal?: () => void;
     activeFilterSummary?: string | null;
@@ -7261,6 +7268,7 @@ function ContentDetailPanel(
   const [copiedSegmentKey, setCopiedSegmentKey] = useState<string | null>(null);
   const [personalNote, setPersonalNote] = useState<PersonalNote | null>(() => readPersonalNote(id));
   const [comfortMode, setComfortMode] = useState<boolean>(() => readReaderComfortMode());
+  const [relatedOpen, setRelatedOpen] = useState(false);
   const recordedVisitVideoIdRef = useRef<string | null>(null);
   const [summaryVerbatim, setSummaryVerbatim] = useState(false);
   const [loadedEvidence, setLoadedEvidence] = useState<ContentEvidence[]>([]);
@@ -7290,6 +7298,7 @@ function ContentDetailPanel(
     setTranscriptSearch("");
     setCopiedSegmentKey(null);
     setPersonalNote(readPersonalNote(id));
+    setRelatedOpen(false);
     drawerReturnFocusRef.current = null;
   }, [id]);
   useEffect(() => {
@@ -8321,6 +8330,83 @@ function ContentDetailPanel(
           </button>
         </div>
       </section>
+      {(() => {
+        const relatedMatches = findRelatedContentItems(
+          data.video,
+          allVideos ?? [],
+          readAllPersonalNotes(),
+          zhReader,
+          4,
+        );
+        if (relatedMatches.length === 0) return null;
+        return (
+          <Panel
+            title={zhReader ? "关联延伸阅读" : "Connected in your library"}
+            icon="stack"
+            className="reader-related-panel"
+            actions={
+              <button
+                type="button"
+                className="button button-ghost button-small tabular-nums"
+                aria-expanded={relatedOpen}
+                onClick={() => setRelatedOpen((open) => !open)}
+              >
+                {relatedOpen
+                  ? zhReader
+                    ? "收起"
+                    : "Hide"
+                  : zhReader
+                    ? `展开关联 (${relatedMatches.length})`
+                    : `Show connected (${relatedMatches.length})`}
+              </button>
+            }
+          >
+            {relatedOpen ? (
+              <div className="reader-related-list">
+                {relatedMatches.map((match) => (
+                  <div className="reader-related-row" key={match.video.video_id}>
+                    <button
+                      type="button"
+                      className="reader-related-open"
+                      onClick={() => onAdvanceToVideo?.(match.video.video_id)}
+                    >
+                      <strong>{match.video.title ?? match.video.video_id}</strong>
+                      <span className="reader-related-meta tabular-nums">
+                        <span className="reader-related-reason">{match.reasonLabel}</span>
+                        {match.video.channel_name ? <span>{match.video.channel_name}</span> : null}
+                        {match.aiScore !== null ? <span>{match.aiScore.toFixed(1)}</span> : null}
+                      </span>
+                    </button>
+                    {onCompareVideos ? (
+                      <button
+                        type="button"
+                        className="button button-secondary button-small reader-related-compare"
+                        onClick={() =>
+                          onCompareVideos(
+                            [data.video.video_id, match.video.video_id],
+                            [
+                              data.video.title ?? data.video.video_id,
+                              match.video.title ?? match.video.video_id,
+                            ],
+                          )
+                        }
+                      >
+                        {zhReader ? "对比提问 →" : "Compare →"}
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="hint reader-related-summary tabular-nums">
+                {zhReader
+                  ? `库内发现 ${relatedMatches.length} 篇关联资料（${relatedMatches[0].reasonLabel}）· 点击「展开关联」阅读或双篇对比`
+                  : `${relatedMatches.length} connected item(s) in your library (${relatedMatches[0].reasonLabel}) · expand to browse or compare`}
+              </p>
+            )}
+          </Panel>
+        );
+      })()}
       <ReaderReferenceDrawer
         activeTab={refDrawerTab}
         zhReader={zhReader}
