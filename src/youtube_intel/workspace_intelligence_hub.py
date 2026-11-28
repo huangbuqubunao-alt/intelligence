@@ -9784,6 +9784,7 @@ class WorkspaceIntelligenceHub:
                 summary["synthesis_zh"] = ""
                 summary["independence_summary_zh"] = ""
                 summary["top_opportunities_zh"] = []
+                summary["source_perspectives"] = []
                 summary["related_topics"] = [dict(rt) for rt in related_topics]
                 summary["obsidian_markdown"] = ""
             return summary
@@ -9875,19 +9876,78 @@ class WorkspaceIntelligenceHub:
                 key=lambda item: (float(item["score"]), item["_sort_stamp"]),
                 reverse=True,
             )
-            claims: list[str] = []
-            for cand in [entries[0], *top_ranked]:
-                hl = str(cand.get("headline_zh") or "").strip().rstrip("。；;. ")
-                if hl and hl not in claims:
-                    claims.append(hl)
-                if len(claims) >= 3:
+            perspective_candidates: list[dict[str, Any]] = []
+            seen_vids: set[str] = set()
+            seen_chs: set[str] = set()
+            for cand in top_ranked:
+                vid = str(cand.get("video_id") or "").strip()
+                ch = str(cand.get("channel_name") or "").strip()
+                if vid and vid not in seen_vids and ch and ch not in seen_chs:
+                    seen_vids.add(vid)
+                    seen_chs.add(ch)
+                    perspective_candidates.append(cand)
+                if len(perspective_candidates) >= 4:
                     break
+            if len(perspective_candidates) < 4:
+                for cand in top_ranked:
+                    vid = str(cand.get("video_id") or "").strip()
+                    if vid and vid not in seen_vids:
+                        seen_vids.add(vid)
+                        perspective_candidates.append(cand)
+                    if len(perspective_candidates) >= 4:
+                        break
+            source_perspectives: list[dict[str, object]] = []
+            for cand in perspective_candidates:
+                ch_label = str(cand.get("channel_name") or "").strip() or "未知来源"
+                hl = str(cand.get("headline_zh") or "").strip().rstrip("。；;. ")
+                raw_sum = str(cand.get("summary_zh") or "").strip()
+                first_clause = raw_sum.split("。", 1)[0].strip().rstrip("。；;. ") if raw_sum else ""
+                angle = first_clause if first_clause and first_clause != hl else hl
+                if len(angle) > 110:
+                    angle = angle[:107].rstrip("，,、；; ") + "…"
+                source_perspectives.append(
+                    {
+                        "channel_name": ch_label,
+                        "video_id": str(cand.get("video_id") or ""),
+                        "title": str(cand.get("title") or ""),
+                        "headline_zh": hl,
+                        "angle_zh": angle,
+                        "score": round(float(cand.get("score") or 0.0), 1),
+                    }
+                )
+
             if len(entries) == 1:
                 synthesis_zh = str(
                     entries[0].get("summary_zh") or entries[0].get("headline_zh") or ""
                 ).strip()
             else:
-                synthesis_zh = ("；".join(claims) + "。") if claims else ""
+                scope_lead = (
+                    f"本专题综合 {preview} 共 {source_count} 个独立来源的 {len(entries)} 篇实测/解析"
+                    f"（均分 {avg_score:.1f}，其中 {must_watch} 篇必看）。"
+                    if source_count >= 2
+                    else f"本专题围绕 {channels[0] if channels else '当前资料'} 的 {len(entries)} 篇内容持续演进"
+                    f"（均分 {avg_score:.1f}）。"
+                )
+                lead_p = source_perspectives[0] if source_perspectives else None
+                body_clauses: list[str] = []
+                if lead_p is not None:
+                    lead_hl = str(lead_p["headline_zh"] or "").strip()
+                    lead_angle = str(lead_p["angle_zh"] or "").strip()
+                    if lead_hl:
+                        body_clauses.append(
+                            f"核心脉络聚焦「{lead_p['channel_name']}」提出的“{lead_hl}”"
+                        )
+                    elif lead_angle:
+                        body_clauses.append(
+                            f"核心脉络聚焦「{lead_p['channel_name']}」：{lead_angle}"
+                        )
+                for other_p in source_perspectives[1:3]:
+                    other_hl = str(other_p["headline_zh"] or other_p["angle_zh"] or "").strip()
+                    if other_hl:
+                        body_clauses.append(
+                            f"同时「{other_p['channel_name']}」进一步补充了“{other_hl}”"
+                        )
+                synthesis_zh = scope_lead + (("；".join(body_clauses) + "。") if body_clauses else "")
             top_opps: list[str] = []
             for cand in top_ranked:
                 for raw_opp in (
@@ -9912,6 +9972,7 @@ class WorkspaceIntelligenceHub:
             result["entries"] = clean_entries
             result["synthesis_zh"] = synthesis_zh
             result["top_opportunities_zh"] = top_opps
+            result["source_perspectives"] = source_perspectives
             result["related_topics"] = [dict(rt) for rt in related_topics]
             result["obsidian_markdown"] = self._build_topic_obsidian_markdown(
                 topic_name=topic_name or "专题脉络",

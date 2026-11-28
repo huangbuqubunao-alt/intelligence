@@ -83,6 +83,31 @@ def test_demo_showcase_prepare_is_offline_and_populates_multi_source_hub(
     assert dash_body.get("workspace_weekly_brief") is not None
     assert len(cast(list[object], dash_body["pinned_topics"])) >= 2
 
+    intel_code, intel_body = app.handle("GET", "/api/v1/intelligence")
+    assert intel_code == 200
+    intel_items = cast(list[dict[str, object]], intel_body.get("items") or intel_body.get("intelligence") or [])
+    bili_video = next(v for v in videos if v.get("provider") == "BILIBILI")
+    bili_video_id = str(bili_video["video_id"])
+    bili_intel = next(
+        (
+            it
+            for it in intel_items
+            if isinstance(it.get("card"), dict)
+            and cast(dict[str, object], it["card"]).get("video_id") == bili_video_id
+        ),
+        None,
+    )
+    assert bili_intel is not None, f"Missing intelligence card for seeded Bilibili video {bili_video_id}"
+    bili_card = cast(dict[str, object], bili_intel["card"])
+    assert bili_card["source_display_name"] == "极客架构演示室（Demo）"
+
+    delta_code, delta_body = app.handle("GET", "/api/v1/knowledge-delta")
+    assert delta_code == 200
+    delta = cast(dict[str, object], delta_body["knowledge_delta"])
+    assert delta["status"] == "available"
+    cats = cast(list[dict[str, object]], delta["categories"])
+    assert sum(int(c.get("count") or 0) for c in cats) >= 1
+
     res_code, res_body = app.handle("GET", "/api/v1/workspace-ai/research/sessions")
     assert res_code == 200
     seeded_sessions = cast(list[dict[str, object]], res_body["sessions"])
@@ -251,3 +276,79 @@ def test_demo_showcase_refuses_unanswerable_off_topic_question_without_fabricate
         assert session["citations"] == []
         assert len(cast(list[object], session["related_excerpts"])) >= 1
         assert session["provider"] == "demo-replay"
+
+
+def test_demo_showcase_answers_bilingual_local_first_marginal_cost_query_without_repetition(
+    tmp_path: Path,
+) -> None:
+    runtime = prepare_demo_showcase(REPO_ROOT, demo_root=tmp_path / "demo-iter1", reset=True)
+
+    # Seeded Q&A sessions must not repeat identical takeaway sentences.
+    res_code, res_body = runtime.fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert res_code == 200
+    for seeded in cast(list[dict[str, object]], res_body["sessions"]):
+        takeaways = [str(x) for x in cast(list[object], seeded.get("key_takeaways_zh") or [])]
+        normalized = [t.split("[", 1)[0].strip() for t in takeaways]
+        assert len(normalized) == len(set(normalized))
+
+    # In-library bilingual query that previously triggered a false refusal.
+    status, body = runtime.fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "本地优先 AI 工具如何兼顾零边际成本和可信引用？"}).encode("utf-8"),
+    )
+    assert status == 200
+    session = cast(dict[str, object], body["session"])
+    assert session["refused"] is False
+    assert session["provider"] == "demo-replay"
+    citations = cast(list[dict[str, object]], session["citations"])
+    assert len(citations) >= 2
+    distinct_videos = {str(c.get("video_id") or "") for c in citations}
+    assert len(distinct_videos) >= 2
+    takeaways = [str(x) for x in cast(list[object], session["key_takeaways_zh"])]
+    normalized_t = [t.split("[", 1)[0].strip() for t in takeaways]
+    assert len(normalized_t) == len(set(normalized_t))
+
+
+def test_demo_showcase_topic_detail_provides_cross_source_synthesis_and_perspectives(
+    tmp_path: Path,
+) -> None:
+    runtime = prepare_demo_showcase(REPO_ROOT, demo_root=tmp_path / "demo-iter4", reset=True)
+    list_code, list_body = runtime.fast_app.handle("GET", "/api/v1/topics")
+    assert list_code == 200
+    topics = cast(list[dict[str, object]], list_body["topics"])
+    target = next(
+        t
+        for t in topics
+        if int(cast(dict[str, object], t.get("ai_evolution") or {}).get("video_count") or 0) >= 2
+    )
+    det_code, det_body = runtime.fast_app.handle(
+        "GET", f"/api/v1/topics/{target['topic_id']}"
+    )
+    assert det_code == 200
+    topic = cast(dict[str, object], det_body["topic"])
+    evo = cast(dict[str, object], topic["ai_evolution"])
+    synthesis = str(evo.get("synthesis_zh") or "")
+    assert "独立来源" in synthesis or "持续演进" in synthesis
+    perspectives = cast(list[dict[str, object]], evo.get("source_perspectives") or [])
+    assert len(perspectives) >= 2
+    assert len({str(p.get("channel_name") or "") for p in perspectives}) >= 2
+
+    # Handing off topic comparison video_ids + follow-up questions must yield grounded citations
+    # without breaking strict off-topic refusal.
+    topic_vids = [str(p["video_id"]) for p in perspectives if p.get("video_id")]
+    for compare_q in (
+        f"横向对比「{target['name']}」下这 {len(topic_vids)} 篇不同来源的核心共识、关键分歧与适用边界",
+        "对比不同来源的核心分歧与边界条件",
+        "提炼最值得立即落地的 3 个执行步骤",
+        "哪些结论仅由单一来源提及、需要进一步验证？",
+    ):
+        q_code, q_body = runtime.fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/research/ask",
+            json.dumps({"question": compare_q, "video_ids": topic_vids}).encode("utf-8"),
+        )
+        assert q_code == 200
+        q_session = cast(dict[str, object], q_body["session"])
+        assert q_session["refused"] is False, compare_q
+        assert len(cast(list[object], q_session["citations"])) >= 1, compare_q

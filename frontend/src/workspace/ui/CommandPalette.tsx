@@ -10,6 +10,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { compareContentNewestFirst, isEffectiveVideoShortNoise } from "../WorkspaceAiWidgets";
+import {
+  listPersonalTagCounts,
+  PersonalNote,
+  PersonalTagCount,
+  readAllPersonalNotes,
+} from "../personalNotes";
+import { readSavedContentViews, type SavedContentView } from "../savedViews";
 import { useUiLanguage } from "../uiLanguage";
 import { PhosphorIcon, PhosphorIconName } from "./phosphorIcons";
 
@@ -144,7 +151,7 @@ export function commandScore(str: string, abbreviation: string, aliases: string[
 
 export type CommandPaletteAction = {
   id: string;
-  group: "navigation" | "actions" | "content" | "research" | "intelligence" | "topics";
+  group: "navigation" | "actions" | "notes" | "content" | "research" | "intelligence" | "topics";
   label: string;
   subtitle?: string;
   shortcut?: string;
@@ -229,8 +236,10 @@ export function CommandPalette({
   onOpenResearchSession,
   onFilterContentByChannel,
   onFilterContentByTopic,
+  onFilterContentByPersonalTag,
   onFilterIntelligenceByTopic,
   onAskTopicResearch,
+  onOpenSavedView,
 }: {
   open: boolean;
   onClose: () => void;
@@ -241,8 +250,10 @@ export function CommandPalette({
   onOpenResearchSession?: (sessionId: string) => void;
   onFilterContentByChannel?: (channelKey: string) => void;
   onFilterContentByTopic?: (topicCluster: string) => void;
+  onFilterContentByPersonalTag?: (tag: string) => void;
   onFilterIntelligenceByTopic?: (topicId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
+  onOpenSavedView?: (view: SavedContentView) => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -263,6 +274,9 @@ export function CommandPalette({
   const [topics, setTopics] = useState<PaletteTopic[]>([]);
   const [qaSessions, setQaSessions] = useState<PaletteResearchSession[]>([]);
   const [channelScopes, setChannelScopes] = useState<PaletteChannelScope[]>([]);
+  const [personalNotes, setPersonalNotes] = useState<Record<string, PersonalNote>>({});
+  const [personalTagCounts, setPersonalTagCounts] = useState<PersonalTagCount[]>([]);
+  const [savedViews, setSavedViews] = useState<SavedContentView[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
@@ -280,6 +294,9 @@ export function CommandPalette({
     }
     let alive = true;
     queueMicrotask(() => inputRef.current?.focus());
+    setPersonalNotes(readAllPersonalNotes());
+    setPersonalTagCounts(listPersonalTagCounts());
+    setSavedViews(readSavedContentViews());
     api<{
       videos?: PaletteVideo[];
       pagination?: { total_count?: number; has_more?: boolean };
@@ -506,6 +523,8 @@ export function CommandPalette({
           brief?.starred ? "已收藏 收藏 starred" : "",
           brief && !brief.is_read && !shortNoise ? "未读 unread" : "",
           brief?.recommendation_tier === "MUST_WATCH" ? "必看 must watch" : "",
+          personalNotes[video.video_id]?.text ?? "",
+          ...(personalNotes[video.video_id]?.tags ?? []).flatMap((tag) => [tag, `#${tag}`]),
         ].filter(Boolean),
         rankBonus,
         onSelect: () => onOpenContent(video.video_id),
@@ -721,12 +740,106 @@ export function CommandPalette({
         })
       : [];
 
+    const dynamicPersonalTagFilters: CommandPaletteAction[] = onFilterContentByPersonalTag
+      ? personalTagCounts.map((entry) => ({
+          id: `act:personal-tag:${entry.tag}`,
+          group: "notes",
+          label: zh ? `按个人标签筛选：#${entry.tag}` : `Filter by personal tag: #${entry.tag}`,
+          subtitle: zh
+            ? `${entry.count} 条已批注内容 · 在内容库中查看`
+            : `${entry.count} annotated item(s) in Content`,
+          icon: "funnel",
+          aliases: [entry.tag, `#${entry.tag}`, "个人标签", "笔记", "tag", "notes"],
+          rankBonus: 0.14,
+          onSelect: () => onFilterContentByPersonalTag(entry.tag),
+        }))
+      : [];
+
+    const dynamicSavedViewActions: CommandPaletteAction[] = onOpenSavedView
+      ? savedViews.map((view) => {
+          const criteriaParts = [
+            view.bucketFilter !== "ALL" ? view.bucketFilter : "",
+            view.providerFilter !== "ALL" ? view.providerFilter : "",
+            view.topicFilter !== "ALL" ? view.topicFilter : "",
+            view.channelFilter !== "ALL" ? view.channelFilter : "",
+            view.tagFilter !== "ALL" ? `#${view.tagFilter}` : "",
+            view.searchQuery.trim() ? `“${view.searchQuery.trim()}”` : "",
+          ].filter(Boolean);
+          return {
+            id: `act:saved-view:${view.id}`,
+            group: "actions",
+            label: zh ? `打开保存视图：${view.name}` : `Open saved view: ${view.name}`,
+            subtitle: criteriaParts.length
+              ? criteriaParts.join(" · ")
+              : zh
+                ? "内容库自定义视图"
+                : "Saved Content filter view",
+            icon: "funnel",
+            aliases: [
+              view.name,
+              "saved view",
+              "filter",
+              "视图",
+              "筛选",
+              "内容库",
+              view.tagFilter !== "ALL" ? view.tagFilter : "",
+              view.topicFilter !== "ALL" ? view.topicFilter : "",
+              view.channelFilter !== "ALL" ? view.channelFilter : "",
+              view.searchQuery.trim(),
+            ].filter(Boolean),
+            rankBonus: 0.16,
+            onSelect: () => onOpenSavedView(view),
+          };
+        })
+      : [];
+
+    const dynamicPersonalNotes: CommandPaletteAction[] = Object.entries(personalNotes).map(
+      ([videoId, note]) => {
+        const matchedVideo = searchableVideos.find((v) => v.video_id === videoId);
+        const videoTitle = (matchedVideo?.title ?? videoId).trim();
+        const firstLine =
+          note.text
+            .split(/\r?\n/)
+            .map((line) => line.replace(/^>\s*/, "").trim())
+            .find(Boolean) ?? "";
+        const snippet =
+          firstLine.length > 56
+            ? `${firstLine.slice(0, 56)}…`
+            : firstLine || note.tags.map((t) => `#${t}`).join(" ");
+        return {
+          id: `note:${videoId}`,
+          group: "notes",
+          label: snippet,
+          subtitle: [
+            zh ? "个人笔记" : "Note",
+            videoTitle,
+            ...note.tags.map((tag) => `#${tag}`),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          icon: "file-text",
+          aliases: [
+            note.text,
+            videoTitle,
+            videoId,
+            "个人笔记 思考 批注 摘录 note highlight",
+            ...note.tags.flatMap((tag) => [tag, `#${tag}`]),
+          ].filter(Boolean),
+          rankBonus: 0.1,
+          onSelect: () => onOpenContent(videoId),
+        };
+      },
+    );
+
     return [
       ...staticActions,
+      ...dynamicSavedViewActions,
       ...dynamicChannelActions,
       ...dynamicTopicFilterActions,
       ...dynamicTopicIntelActions,
       ...dynamicTopicAskActions,
+      ...dynamicPersonalTagFilters,
+      ...dynamicPersonalNotes,
       ...dynamicContent,
       ...dynamicResearch,
       ...dynamicInsights,
@@ -734,11 +847,14 @@ export function CommandPalette({
     ];
   }, [
     staticActions,
+    savedViews,
     channelScopes,
     searchableVideos,
     qaSessions,
     insights,
     topics,
+    personalNotes,
+    personalTagCounts,
     zh,
     t,
     onOpenContent,
@@ -747,8 +863,10 @@ export function CommandPalette({
     onOpenResearchSession,
     onFilterContentByChannel,
     onFilterContentByTopic,
+    onFilterContentByPersonalTag,
     onFilterIntelligenceByTopic,
     onAskTopicResearch,
+    onOpenSavedView,
   ]);
 
   const { filteredItems, totalMatchCount } = useMemo(() => {
@@ -797,6 +915,7 @@ export function CommandPalette({
   const groupTitle: Record<CommandPaletteAction["group"], string> = {
     navigation: t("Quick navigation"),
     actions: t("Quick actions"),
+    notes: zh ? "个人笔记与标签" : "Personal Notes & Tags",
     content: t("Content library"),
     research: zh ? "AI 深度问答存档" : "Saved AI Q&A",
     intelligence: t("Verified Intelligence"),
@@ -806,6 +925,7 @@ export function CommandPalette({
   const groupsOrder: CommandPaletteAction["group"][] = [
     "navigation",
     "actions",
+    "notes",
     "content",
     "research",
     "intelligence",

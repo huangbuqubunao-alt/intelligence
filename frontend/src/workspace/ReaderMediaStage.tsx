@@ -91,6 +91,9 @@ export type ReaderMediaStageProps = {
   onMediaError: (code: number | null) => void;
   onRetryMedia: () => void;
   onOpenTranscriptDrawer?: () => void;
+  evidenceCount?: number;
+  transcriptAvailable?: boolean;
+  onOpenEvidenceDrawer?: () => void;
 };
 
 export function ReaderMediaStage({
@@ -113,6 +116,9 @@ export function ReaderMediaStage({
   onMediaError,
   onRetryMedia,
   onOpenTranscriptDrawer,
+  evidenceCount = 0,
+  transcriptAvailable = false,
+  onOpenEvidenceDrawer,
 }: ReaderMediaStageProps) {
   const [retryNonce, setRetryNonce] = useState(0);
   const errorInfo = mediaErrorCode !== null ? describeMediaPlaybackError(mediaErrorCode, zhReader) : null;
@@ -216,7 +222,7 @@ export function ReaderMediaStage({
           </button>
         </div>
       ) : (
-        <div className="reader-media-poster">
+        <div className={`reader-media-poster${heroPosterUrl ? "" : " is-editorial-card"}`}>
           {heroPosterUrl ? (
             <img
               className="reader-media-poster-img"
@@ -241,39 +247,67 @@ export function ReaderMediaStage({
                 </span>
               ) : null}
             </div>
-            <p className="reader-media-poster-title">
-              {isLocalMedia
-                ? zhReader
-                  ? "本机原始媒体已保存 · 点击直接页内播放"
-                  : "Local media stored on device · Play inline"
-                : channelName || (isBilibili ? "Bilibili" : "YouTube")}
-            </p>
-            {isPlayableLocalVideo || isPlayableLocalAudio ? (
-              <button
-                type="button"
-                className="button button-primary button-small"
-                onClick={onPlayStart}
-              >
-                <PhosphorIcon name="play-circle" weight="fill" size={14} />
-                {isPlayableLocalAudio
+            <div className="reader-media-editorial-copy">
+              <p className="reader-media-poster-title">
+                {isLocalMedia
                   ? zhReader
-                    ? "页内试听原音频"
-                    : "Play audio inline"
-                  : zhReader
-                    ? "页内播放原视频"
-                    : "Play video inline"}
-              </button>
-            ) : sourceUrl ? (
-              <a
-                className="button button-primary button-small"
-                href={sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <PhosphorIcon name="play-circle" weight="fill" size={14} />
-                {zhReader ? "在原站播放原视频 ↗" : "Watch original video ↗"}
-              </a>
-            ) : null}
+                    ? "本机原始媒体已保存 · 点击直接页内播放"
+                    : "Local media stored on device · Play inline"
+                  : channelName || (isBilibili ? "Bilibili" : "YouTube")}
+              </p>
+              {!heroPosterUrl ? (
+                <p className="reader-media-editorial-status tabular-nums">
+                  {transcriptAvailable && evidenceCount > 0
+                    ? zhReader
+                      ? `已保存可核验原文 · ${evidenceCount} 条原话证据`
+                      : `Verified transcript · ${evidenceCount} evidence spans`
+                    : transcriptAvailable
+                      ? zhReader
+                        ? "已保存可核验原文"
+                        : "Verified transcript saved"
+                      : zhReader
+                        ? "按需打开原视频观看"
+                        : "Watch original video on demand"}
+                </p>
+              ) : null}
+            </div>
+            <div className="reader-media-poster-actions">
+              {isPlayableLocalVideo || isPlayableLocalAudio ? (
+                <button
+                  type="button"
+                  className="button button-primary button-small"
+                  onClick={onPlayStart}
+                >
+                  <PhosphorIcon name="play-circle" weight="fill" size={14} />
+                  {isPlayableLocalAudio
+                    ? zhReader
+                      ? "页内试听原音频"
+                      : "Play audio inline"
+                    : zhReader
+                      ? "页内播放原视频"
+                      : "Play video inline"}
+                </button>
+              ) : sourceUrl ? (
+                <a
+                  className="button button-primary button-small"
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <PhosphorIcon name="play-circle" weight="fill" size={14} />
+                  {zhReader ? "在原站播放原视频 ↗" : "Watch original video ↗"}
+                </a>
+              ) : null}
+              {!heroPosterUrl && evidenceCount > 0 && onOpenEvidenceDrawer ? (
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={onOpenEvidenceDrawer}
+                >
+                  {zhReader ? "核对原话证据" : "Inspect evidence"}
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       )}

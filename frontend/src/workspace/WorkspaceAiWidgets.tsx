@@ -1,9 +1,45 @@
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
-import { ApiRequestError, api, post, put } from "../api/client";
+import { ApiRequestError, api, post, put, uploadLocal } from "../api/client";
 import { pulseCelebration } from "./motion";
 import { OpenResearchSource } from "./ResearchTypes";
+import {
+  buildLensPrompt,
+  buildResearchDossierMarkdown,
+  buildResearchSynthesisMarkdown,
+  buildSourceNoteResearchExcerpt,
+  classifyResearchSessionTrust,
+  deriveResearchNoteFilename,
+  getVerifiableCitations,
+  RESEARCH_LENSES,
+  researchTrustLabel,
+} from "./researchExport";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
+import {
+  appendQuoteToPersonalNote,
+  exportPersonalNotesMarkdown,
+  listPersonalNoteVideoIds,
+  listPersonalTagCounts,
+  MAX_STUDY_SNAPSHOT_BYTES,
+  PERSONAL_NOTES_CHANGED_EVENT,
+  readAllPersonalNotes,
+} from "./personalNotes";
+import {
+  exportStudyWorkspaceSnapshotParts,
+  importStudyWorkspaceSnapshotPayloads,
+  SnapshotImportFileError,
+  type StudyWorkspaceSnapshotPart,
+} from "./studyWorkspaceSnapshot";
+import {
+  clearReadingHistory,
+  READING_HISTORY_CHANGED_EVENT,
+  readReadingHistory,
+} from "./readingHistory";
+import {
+  clearSavedContentViews,
+  readSavedContentViews,
+  SAVED_VIEWS_CHANGED_EVENT,
+} from "./savedViews";
 
 export type VideoAiBrief = {
   video_id: string;
@@ -227,6 +263,15 @@ export type TopicChannelBreakdownItem = {
   unread_count: number;
 };
 
+export type TopicSourcePerspective = {
+  channel_name: string;
+  video_id: string;
+  title: string;
+  headline_zh: string;
+  angle_zh: string;
+  score: number;
+};
+
 export type TopicAiEvolution = {
   video_count: number;
   must_watch_count: number;
@@ -238,6 +283,7 @@ export type TopicAiEvolution = {
   synthesis_zh: string;
   independence_summary_zh: string;
   top_opportunities_zh: string[];
+  source_perspectives?: TopicSourcePerspective[];
   source_channels: string[];
   channel_breakdown: TopicChannelBreakdownItem[];
   related_topics: TopicRelatedSummary[];
@@ -251,9 +297,11 @@ let pendingResearchChannel = "";
 let pendingResearchSessionId = "";
 let pendingContentChannel = "";
 let pendingContentTopic = "";
+let pendingContentBucket = "";
 let pendingTopicClusterName = "";
 let pendingIntelligenceTopicId = "";
 let pendingResearchVideoIds: string[] = [];
+let pendingResearchDraftQuestion = "";
 
 export function setPendingResearchTopicCluster(topicName: string): void {
   pendingResearchTopicCluster = topicName.trim();
@@ -315,6 +363,34 @@ export function consumePendingContentTopic(): string {
   return next;
 }
 
+export function setPendingContentBucket(
+  bucket: "" | "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS" | "NOTED",
+): void {
+  pendingContentBucket = bucket;
+}
+
+export function consumePendingContentBucket():
+  | ""
+  | "ALL"
+  | "UNREAD"
+  | "MUST_WATCH"
+  | "STARRED"
+  | "TUTORIAL"
+  | "SHORTS"
+  | "NOTED" {
+  const next = pendingContentBucket as
+    | ""
+    | "ALL"
+    | "UNREAD"
+    | "MUST_WATCH"
+    | "STARRED"
+    | "TUTORIAL"
+    | "SHORTS"
+    | "NOTED";
+  pendingContentBucket = "";
+  return next;
+}
+
 export function setPendingTopicClusterName(topicName: string): void {
   pendingTopicClusterName = topicName.trim();
 }
@@ -344,6 +420,16 @@ export function setPendingResearchVideoIds(videoIds: string[]): void {
 export function consumePendingResearchVideoIds(): string[] {
   const next = pendingResearchVideoIds;
   pendingResearchVideoIds = [];
+  return next;
+}
+
+export function setPendingResearchDraftQuestion(question: string): void {
+  pendingResearchDraftQuestion = question.trim();
+}
+
+export function consumePendingResearchDraftQuestion(): string {
+  const next = pendingResearchDraftQuestion;
+  pendingResearchDraftQuestion = "";
   return next;
 }
 
@@ -718,6 +804,7 @@ function parseCitationArray(raw: unknown): AiResearchCitation[] {
         source_url: safeHttps(c.source_url),
         citation_url: safeHttps(c.citation_url),
         excerpt: String(c.excerpt ?? ""),
+        ...(typeof c.verified === "boolean" ? { verified: c.verified } : {}),
       };
     })
     .filter((c) => c.video_id.length > 0 && c.evidence_id.length > 0);
@@ -806,6 +893,12 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
       : {}),
     ...(typeof raw.action_items_advisory === "boolean"
       ? { action_items_advisory: raw.action_items_advisory }
+      : {}),
+    ...(typeof raw.verification_status === "string"
+      ? { verification_status: raw.verification_status }
+      : {}),
+    ...(typeof raw.verified_citation_count === "number"
+      ? { verified_citation_count: raw.verified_citation_count }
       : {}),
     refused,
     refusal_reason_zh: refusalReason,
@@ -949,6 +1042,19 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
         }))
         .filter((ch) => ch.channel_key.length > 0 && ch.video_count > 0)
     : [];
+  const source_perspectives: TopicSourcePerspective[] = Array.isArray(raw.source_perspectives)
+    ? raw.source_perspectives
+        .filter(isRec)
+        .map((p) => ({
+          channel_name: typeof p.channel_name === "string" ? p.channel_name : "",
+          video_id: typeof p.video_id === "string" ? p.video_id : "",
+          title: typeof p.title === "string" ? p.title : "",
+          headline_zh: typeof p.headline_zh === "string" ? p.headline_zh : "",
+          angle_zh: typeof p.angle_zh === "string" ? p.angle_zh : "",
+          score: typeof p.score === "number" ? p.score : 0,
+        }))
+        .filter((p) => p.channel_name.length > 0 && (p.angle_zh.length > 0 || p.headline_zh.length > 0))
+    : [];
   return {
     video_count: raw.video_count,
     must_watch_count: typeof raw.must_watch_count === "number" ? raw.must_watch_count : 0,
@@ -964,6 +1070,7 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
     independence_summary_zh:
       typeof raw.independence_summary_zh === "string" ? raw.independence_summary_zh : "",
     top_opportunities_zh: strArr(raw.top_opportunities_zh),
+    source_perspectives,
     source_channels: strArr(raw.source_channels),
     channel_breakdown,
     related_topics,
@@ -1377,6 +1484,7 @@ export function WeeklyAiBriefPanel({
     initialBrief?.history ?? [],
   );
   const [busy, setBusy] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedPlain, setCopiedPlain] = useState(false);
   const [bundleScope, setBundleScope] = useState<ObsidianBundleScope>("must_watch");
@@ -1414,6 +1522,7 @@ export function WeeklyAiBriefPanel({
       const nextHist = readWeeklyHistoryList(res.history);
       if (parsed) {
         setBrief(parsed);
+        setDetailsExpanded(true);
         const resolvedHist = nextHist.length ? nextHist : parsed.history ?? [];
         if (resolvedHist.length) setHistoryList(resolvedHist);
       }
@@ -1436,6 +1545,7 @@ export function WeeklyAiBriefPanel({
       const nextHist = readWeeklyHistoryList(res.history);
       if (parsed) {
         setBrief(parsed);
+        setDetailsExpanded(true);
         const resolvedHist = nextHist.length ? nextHist : parsed.history ?? [];
         if (resolvedHist.length) setHistoryList(resolvedHist);
       }
@@ -1639,62 +1749,88 @@ export function WeeklyAiBriefPanel({
 
       <p className="weekly-exec-summary">{brief.executive_summary_zh}</p>
 
-      <div className="weekly-insight-columns">
-        {brief.core_trends_zh.length > 0 ? (
-          <div className="weekly-insight-col">
-            <h3>{zh ? "核心趋势判断" : "Core trends"}</h3>
-            <ul>
-              {brief.core_trends_zh.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {brief.product_opportunities_zh.length > 0 ? (
-          <div className="weekly-insight-col">
-            <h3>{zh ? "AI 产品化启发" : "Product ideas"}</h3>
-            <ul>
-              {brief.product_opportunities_zh.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {brief.business_opportunities_zh.length > 0 ? (
-          <div className="weekly-insight-col">
-            <h3>{zh ? "商业变现切口" : "Monetization angles"}</h3>
-            <ul>
-              {brief.business_opportunities_zh.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-
-      {brief.must_watch_picks.length > 0 ? (
-        <div className="weekly-picks-block">
-          <h3>{zh ? "本周必看精选" : "Must-watch picks"}</h3>
-          <div className="weekly-picks-list">
-            {brief.must_watch_picks.map((pick) => (
-              <button
-                key={pick.video_id}
-                type="button"
-                className="weekly-pick-row"
-                onClick={() => onOpenContent(pick.video_id)}
-              >
-                <div className="weekly-pick-main">
-                  <strong>{pick.title}</strong>
-                  <p>{pick.reason_zh}</p>
-                </div>
-                <span className="ai-score-pill ai-score-high tabular-nums">
-                  <strong>{pick.score.toFixed(1)}</strong>
-                  <span>· {pick.channel_name || (zh ? "来源" : "Source")}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+      {(brief.core_trends_zh.length > 0 ||
+        brief.product_opportunities_zh.length > 0 ||
+        brief.business_opportunities_zh.length > 0 ||
+        brief.must_watch_picks.length > 0) ? (
+        <div className="weekly-details-toggle-row">
+          <button
+            type="button"
+            className="button button-ghost button-small"
+            aria-expanded={detailsExpanded}
+            onClick={() => setDetailsExpanded((prev) => !prev)}
+          >
+            {detailsExpanded
+              ? zh
+                ? "收起周报详情"
+                : "Collapse full brief details"
+              : zh
+                ? `展开完整周报详情（${brief.must_watch_picks.length} 条精选）`
+                : `Expand full brief details (${brief.must_watch_picks.length} picks)`}
+          </button>
         </div>
+      ) : null}
+
+      {detailsExpanded ? (
+        <>
+          <div className="weekly-insight-columns">
+            {brief.core_trends_zh.length > 0 ? (
+              <div className="weekly-insight-col">
+                <h3>{zh ? "核心趋势判断" : "Core trends"}</h3>
+                <ul>
+                  {brief.core_trends_zh.map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {brief.product_opportunities_zh.length > 0 ? (
+              <div className="weekly-insight-col">
+                <h3>{zh ? "AI 产品化启发" : "Product ideas"}</h3>
+                <ul>
+                  {brief.product_opportunities_zh.map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {brief.business_opportunities_zh.length > 0 ? (
+              <div className="weekly-insight-col">
+                <h3>{zh ? "商业变现切口" : "Monetization angles"}</h3>
+                <ul>
+                  {brief.business_opportunities_zh.map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+
+          {brief.must_watch_picks.length > 0 ? (
+            <div className="weekly-picks-block">
+              <h3>{zh ? "本周必看精选" : "Must-watch picks"}</h3>
+              <div className="weekly-picks-list">
+                {brief.must_watch_picks.map((pick) => (
+                  <button
+                    key={pick.video_id}
+                    type="button"
+                    className="weekly-pick-row"
+                    onClick={() => onOpenContent(pick.video_id)}
+                  >
+                    <div className="weekly-pick-main">
+                      <strong>{pick.title}</strong>
+                      <p>{pick.reason_zh}</p>
+                    </div>
+                    <span className="ai-score-pill ai-score-high tabular-nums">
+                      <strong>{pick.score.toFixed(1)}</strong>
+                      <span>· {pick.channel_name || (zh ? "来源" : "Source")}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       <div className="obsidian-export-bar">
@@ -2301,14 +2437,14 @@ export function WorkspaceVideoAiActions({
       {busyKind === "distill"
         ? zh
           ? "正在提炼中文结论…"
-          : "Distilling Chinese summary…"
+          : "Distilling AI summary…"
         : aiBrief
           ? zh
             ? "AI 重新提炼中文总结"
-            : "Re-distill AI Chinese brief"
+            : "Re-distill AI brief"
           : zh
             ? "AI 提炼中文总结与洞察"
-            : "Distill AI Chinese brief"}
+            : "Distill AI brief"}
     </button>
   ) : canMetadataPreview ? (
     <button
@@ -2521,15 +2657,30 @@ export function WorkspaceVideoAiBriefCard({
   brief,
   obsidianMarkdown,
   onSelectTopicCluster,
+  onCaptureTakeaway,
+  capturedNoteText,
 }: {
   brief: VideoAiBrief | null;
   obsidianMarkdown?: string;
   onSelectTopicCluster?: (topicCluster: string) => void;
+  onCaptureTakeaway?: (quoteText: string, categoryLabel: string) => void;
+  capturedNoteText?: string;
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
+  const [capturedItems, setCapturedItems] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    setCapturedItems({});
+  }, [brief?.video_id]);
   if (!brief) return null;
   const md = obsidianMarkdown ?? brief.obsidian_markdown ?? "";
+  const isItemCaptured = (item: string) =>
+    Boolean(capturedItems[item] || (capturedNoteText && item.trim() && capturedNoteText.includes(item.trim())));
+  const handleCapture = (item: string, categoryLabel: string) => {
+    if (!onCaptureTakeaway) return;
+    onCaptureTakeaway(item, categoryLabel);
+    setCapturedItems((prev) => ({ ...prev, [item]: true }));
+  };
 
   return (
     <div className="video-ai-brief-card">
@@ -2568,9 +2719,36 @@ export function WorkspaceVideoAiBriefCard({
             <div className="weekly-insight-col">
               <h3>{zh ? "AI 产品化启发" : "AI product takeaways"}</h3>
               <ul>
-                {brief.product_opportunities_zh.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
+                {brief.product_opportunities_zh.map((item, i) => {
+                  const captured = isItemCaptured(item);
+                  const categoryLabel = zh ? "AI 产品化启发" : "AI product takeaway";
+                  return onCaptureTakeaway ? (
+                    <li key={i} className="brief-takeaway-item">
+                      <div className="brief-takeaway-row">
+                        <span>{item}</span>
+                        <button
+                          type="button"
+                          className={`brief-takeaway-capture-btn${captured ? " is-captured" : ""}`}
+                          aria-pressed={captured}
+                          aria-label={
+                            captured
+                              ? zh
+                                ? `已摘录：${item}`
+                                : `Saved: ${item}`
+                              : zh
+                                ? `摘录进个人批注：${item}`
+                                : `Save to personal notes: ${item}`
+                          }
+                          onClick={() => handleCapture(item, categoryLabel)}
+                        >
+                          {captured ? (zh ? "已摘录 ✓" : "Saved ✓") : zh ? "+ 摘录" : "+ Save"}
+                        </button>
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={i}>{item}</li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
@@ -2578,9 +2756,36 @@ export function WorkspaceVideoAiBriefCard({
             <div className="weekly-insight-col">
               <h3>{zh ? "商业变现与切入机会" : "Monetization opportunities"}</h3>
               <ul>
-                {brief.business_opportunities_zh.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
+                {brief.business_opportunities_zh.map((item, i) => {
+                  const captured = isItemCaptured(item);
+                  const categoryLabel = zh ? "商业变现启发" : "Monetization takeaway";
+                  return onCaptureTakeaway ? (
+                    <li key={i} className="brief-takeaway-item">
+                      <div className="brief-takeaway-row">
+                        <span>{item}</span>
+                        <button
+                          type="button"
+                          className={`brief-takeaway-capture-btn${captured ? " is-captured" : ""}`}
+                          aria-pressed={captured}
+                          aria-label={
+                            captured
+                              ? zh
+                                ? `已摘录：${item}`
+                                : `Saved: ${item}`
+                              : zh
+                                ? `摘录进个人批注：${item}`
+                                : `Save to personal notes: ${item}`
+                          }
+                          onClick={() => handleCapture(item, categoryLabel)}
+                        >
+                          {captured ? (zh ? "已摘录 ✓" : "Saved ✓") : zh ? "+ 摘录" : "+ Save"}
+                        </button>
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={i}>{item}</li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
@@ -3136,6 +3341,55 @@ export function formatPlainTextTopicBrief(
   return lines.join("\n\n");
 }
 
+export function buildTopicMarkdownWithPersonalNotes(
+  obsidianMarkdown: string,
+  evolution: TopicAiEvolution | null | undefined,
+  zh: boolean,
+): { markdown: string; matchedNoteCount: number } {
+  const entries = evolution?.entries ?? [];
+  if (!entries.length) {
+    return { markdown: obsidianMarkdown, matchedNoteCount: 0 };
+  }
+  const allNotes = readAllPersonalNotes();
+  const matched: Array<{ title: string; text: string; tags: string[] }> = [];
+  const seenIds = new Set<string>();
+  for (const entry of entries) {
+    const vid = entry.video_id?.trim();
+    if (!vid || seenIds.has(vid)) continue;
+    seenIds.add(vid);
+    const note = allNotes[vid];
+    if (!note || (!note.text.trim() && note.tags.length === 0)) continue;
+    matched.push({
+      title: (entry.title || vid).replace(/[[\]|]/g, "").replace(/\s+/g, " ").trim() || "Untitled",
+      text: note.text.trim(),
+      tags: note.tags,
+    });
+  }
+  if (matched.length === 0) {
+    return { markdown: obsidianMarkdown, matchedNoteCount: 0 };
+  }
+  const sectionLines: string[] = [
+    "",
+    zh
+      ? `## 个人思考与批注 (${matched.length})`
+      : `## Personal Notes (${matched.length})`,
+    "",
+  ];
+  for (const item of matched) {
+    const tagSuffix = item.tags.length > 0 ? ` — ${item.tags.map((tag) => `#${tag}`).join(" ")}` : "";
+    sectionLines.push(`### [[${item.title}]]${tagSuffix}`);
+    if (item.text) {
+      sectionLines.push(item.text);
+    }
+    sectionLines.push("");
+  }
+  const base = obsidianMarkdown.trimEnd();
+  return {
+    markdown: `${base}\n${sectionLines.join("\n")}`,
+    matchedNoteCount: matched.length,
+  };
+}
+
 export function TopicObsidianExportBar({
   topicName,
   obsidianMarkdown,
@@ -3149,13 +3403,29 @@ export function TopicObsidianExportBar({
   const zh = language === "zh-CN";
   const [copied, setCopied] = useState(false);
   const [copiedPlain, setCopiedPlain] = useState(false);
+  const [includePersonalNotes, setIncludePersonalNotes] = useState(true);
+  const [, setNotesRev] = useState(0);
 
   useEffect(() => {
     setCopied(false);
     setCopiedPlain(false);
   }, [topicName]);
 
+  useEffect(() => {
+    const syncNotes = () => setNotesRev((v) => v + 1);
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNotes);
+    window.addEventListener("storage", syncNotes);
+    return () => {
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncNotes);
+      window.removeEventListener("storage", syncNotes);
+    };
+  }, []);
+
   if (!obsidianMarkdown.trim() && !evolution) return null;
+
+  const augmented = buildTopicMarkdownWithPersonalNotes(obsidianMarkdown, evolution, zh);
+  const effectiveMarkdown =
+    includePersonalNotes && augmented.matchedNoteCount > 0 ? augmented.markdown : obsidianMarkdown;
 
   return (
     <div className="topic-moc-export-box">
@@ -3188,7 +3458,7 @@ export function TopicObsidianExportBar({
           className="button button-secondary button-small"
           onClick={(event) => {
             pulseCelebration(event.currentTarget);
-            void navigator.clipboard?.writeText(obsidianMarkdown);
+            void navigator.clipboard?.writeText(effectiveMarkdown);
             setCopied(true);
             setTimeout(() => setCopied(false), 2200);
           }}
@@ -3205,18 +3475,32 @@ export function TopicObsidianExportBar({
         <button
           type="button"
           className="button button-ghost button-small"
-          onClick={() => downloadObsidianMarkdown(`专题MOC-${topicName}.md`, obsidianMarkdown)}
+          onClick={() => downloadObsidianMarkdown(`专题MOC-${topicName}.md`, effectiveMarkdown)}
         >
           {zh ? "下载专题 .md" : "Download Topic .md"}
         </button>
       </div>
+      {augmented.matchedNoteCount > 0 ? (
+        <label className="topic-moc-notes-toggle tabular-nums">
+          <input
+            type="checkbox"
+            checked={includePersonalNotes}
+            onChange={(event) => setIncludePersonalNotes(event.target.checked)}
+          />
+          <span>
+            {zh
+              ? `附带本专题个人批注 (${augmented.matchedNoteCount})`
+              : `Include topic personal notes (${augmented.matchedNoteCount})`}
+          </span>
+        </label>
+      ) : null}
       <details className="obsidian-preview-drawer">
         <summary>
           {zh
             ? "预览专题 MOC 双链笔记 ([[wikilinks]])"
             : "Preview Topic MOC [[wikilinks]] Markdown"}
         </summary>
-        <pre className="obsidian-preview-pre">{obsidianMarkdown}</pre>
+        <pre className="obsidian-preview-pre">{effectiveMarkdown}</pre>
       </details>
     </div>
   );
@@ -3272,16 +3556,25 @@ export function formatPlainTextResearchBrief(
   session: AiResearchSession,
   zh: boolean,
 ): string {
+  const tier = classifyResearchSessionTrust(session);
+  if (tier === "REFUSED" || tier === "NEEDS_REVERIFICATION") {
+    return "";
+  }
   const stripWiki = (text: string) =>
     text.replace(
       /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
       (_, target: string, alias?: string) => (alias ?? target).trim(),
     );
+  const verifiable = getVerifiableCitations(session);
+  const trustNotice = researchTrustLabel(tier, session, zh);
   const lines: string[] = [];
   lines.push(
     zh
       ? `【跨视频深度问答】${stripWiki(session.question.trim())}`
       : `[Cross-Video Q&A] ${stripWiki(session.question.trim())}`,
+  );
+  lines.push(
+    zh ? `证据等级：${trustNotice}` : `Trust posture: ${trustNotice}`,
   );
   if (session.scope_label_zh?.trim()) {
     lines.push(
@@ -3315,11 +3608,19 @@ export function formatPlainTextResearchBrief(
       ].join("\n"),
     );
   }
-  if (session.citations.length > 0) {
+  if (verifiable.length > 0) {
+    const citationHeader =
+      tier === "VERIFIED_EXACT"
+        ? zh
+          ? "原话时间轴出处（已核验）："
+          : "Verified citations:"
+        : zh
+          ? "原话时间轴出处（请对照核验）："
+          : "Cited excerpts (verify against sources):";
     lines.push(
       [
-        zh ? "原话时间轴出处：" : "Verified citations:",
-        ...session.citations.map((c) => {
+        citationHeader,
+        ...verifiable.map((c) => {
           const meta = [c.channel_name?.trim(), c.timestamp_label?.trim()]
             .filter(Boolean)
             .join(" · ");
@@ -3363,20 +3664,22 @@ export function WorkspaceAiResearchPanel({
     topic: string;
     channel: string;
     starredOnly: boolean;
+    draftQuestion: string;
   } | null>(null);
   if (initialPendingRef.current === null) {
     const rawVids = consumePendingResearchVideoIds();
     const rawTopic = consumePendingResearchTopicCluster();
     const rawChannel = consumePendingResearchChannel();
     const rawStarred = consumePendingResearchStarredOnly();
+    const rawDraft = consumePendingResearchDraftQuestion();
     if (rawVids.length > 0) {
-      initialPendingRef.current = { videoIds: rawVids, topic: "", channel: "", starredOnly: false };
+      initialPendingRef.current = { videoIds: rawVids, topic: "", channel: "", starredOnly: false, draftQuestion: rawDraft };
     } else if (rawTopic) {
-      initialPendingRef.current = { videoIds: [], topic: rawTopic, channel: "", starredOnly: false };
+      initialPendingRef.current = { videoIds: [], topic: rawTopic, channel: "", starredOnly: false, draftQuestion: rawDraft };
     } else if (rawChannel) {
-      initialPendingRef.current = { videoIds: [], topic: "", channel: rawChannel, starredOnly: false };
+      initialPendingRef.current = { videoIds: [], topic: "", channel: rawChannel, starredOnly: false, draftQuestion: rawDraft };
     } else {
-      initialPendingRef.current = { videoIds: [], topic: "", channel: "", starredOnly: rawStarred };
+      initialPendingRef.current = { videoIds: [], topic: "", channel: "", starredOnly: rawStarred, draftQuestion: rawDraft };
     }
   }
   const [selectedChannel, setSelectedChannel] = useState(
@@ -3390,7 +3693,8 @@ export function WorkspaceAiResearchPanel({
   );
   const pendingSessionIdRef = useRef<string>("");
   const hasInitialVideosHandoffRef = useRef<boolean>(
-    (initialPendingRef.current?.videoIds.length ?? 0) > 0,
+    (initialPendingRef.current?.videoIds.length ?? 0) > 0 ||
+      Boolean(initialPendingRef.current?.draftQuestion),
   );
   const [comparePickerOpen, setComparePickerOpen] = useState(
     () => (initialPendingRef.current?.videoIds.length ?? 0) > 0,
@@ -3403,13 +3707,24 @@ export function WorkspaceAiResearchPanel({
   );
   const [compareSearch, setCompareSearch] = useState("");
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
-  const [questionInput, setQuestionInput] = useState("");
+  const [questionInput, setQuestionInput] = useState(
+    () => initialPendingRef.current?.draftQuestion ?? "",
+  );
+  const [followUpNotice, setFollowUpNotice] = useState<string | null>(null);
   const [sessionSearch, setSessionSearch] = useState("");
+  const [pinnedOnlyHistory, setPinnedOnlyHistory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sessionMutatingId, setSessionMutatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedPlain, setCopiedPlain] = useState(false);
+  const [clipboardCopyError, setClipboardCopyError] = useState<string | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+  const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
+  const [saveNoteError, setSaveNoteError] = useState<string | null>(null);
+  const [savedToSourceNote, setSavedToSourceNote] = useState(false);
+  const [sourceNoteFeedback, setSourceNoteFeedback] = useState<string | null>(null);
+  const [dossierExportStatus, setDossierExportStatus] = useState<string | null>(null);
   const questionInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -3424,7 +3739,134 @@ export function WorkspaceAiResearchPanel({
   useEffect(() => {
     setCopied(false);
     setCopiedPlain(false);
+    setClipboardCopyError(null);
+    setSavingNote(false);
+    setSavedNoteId(null);
+    setSaveNoteError(null);
+    setSavedToSourceNote(false);
+    setSourceNoteFeedback(null);
   }, [activeSession?.session_id]);
+
+  const copyResearchText = async (
+    text: string,
+    targetButton: HTMLElement | null,
+    kind: "plain" | "obsidian",
+  ) => {
+    setClipboardCopyError(null);
+    try {
+      const writeFn = navigator.clipboard?.writeText;
+      if (typeof writeFn !== "function") {
+        throw new Error("CLIPBOARD_UNAVAILABLE");
+      }
+      await writeFn.call(navigator.clipboard, text);
+      if (targetButton) {
+        pulseCelebration(targetButton);
+      }
+      if (kind === "plain") {
+        setCopiedPlain(true);
+        setTimeout(() => setCopiedPlain(false), 2000);
+      } else {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      if (kind === "plain") {
+        setCopiedPlain(false);
+      } else {
+        setCopied(false);
+      }
+      setClipboardCopyError(
+        zh
+          ? "未能写入系统剪贴板（浏览器权限受限）。请改用「下载 .md」或检查站点剪贴板权限。"
+          : "Could not write to system clipboard (browser permission denied). Use Download .md or allow clipboard access.",
+      );
+    }
+  };
+
+  const exportResearchDossier = (targetSessions: AiResearchSession[]) => {
+    const {
+      markdown,
+      includedCount,
+      verifiedCount,
+      heuristicCount,
+      skippedCount,
+    } = buildResearchDossierMarkdown(targetSessions, zh);
+    if (includedCount === 0) {
+      setDossierExportStatus(
+        zh
+          ? "当前筛选范围内暂无可导出的带有效出处问答（拒答/待复核记录已排除）。"
+          : "No eligible grounded sessions available to export.",
+      );
+      return;
+    }
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.download = `intelligence-research-dossier-${stamp}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    const countLabelZh =
+      heuristicCount > 0 && verifiedCount > 0
+        ? `${verifiedCount} 条严格已核验 · ${heuristicCount} 条含启发式/部分裁剪`
+        : heuristicCount > 0
+          ? `${heuristicCount} 条含启发式/部分裁剪草稿（请核对原话）`
+          : `${verifiedCount} 条严格已核验`;
+    const countLabelEn =
+      heuristicCount > 0 && verifiedCount > 0
+        ? `${verifiedCount} strictly verified, ${heuristicCount} heuristic/partial drafts`
+        : heuristicCount > 0
+          ? `${heuristicCount} heuristic/partial draft(s)`
+          : `${verifiedCount} strictly verified`;
+    setDossierExportStatus(
+      zh
+        ? `已导出研究汇编 (.md · 含 ${countLabelZh}${skippedCount > 0 ? ` · 已跳过 ${skippedCount} 条无引用/待复核/拒答记录` : ""})。`
+        : `Exported research dossier (.md · ${countLabelEn}${skippedCount > 0 ? `, ${skippedCount} excluded` : ""}).`,
+    );
+  };
+
+  const promoteToLocalNote = async () => {
+    if (!activeSession || savingNote) return;
+    const tier = classifyResearchSessionTrust(activeSession);
+    if (tier === "REFUSED" || tier === "NEEDS_REVERIFICATION") {
+      return;
+    }
+    const md = buildResearchSynthesisMarkdown(activeSession, zh);
+    if (!md) return;
+    setSavingNote(true);
+    setSaveNoteError(null);
+    try {
+      const filename = deriveResearchNoteFilename(activeSession.question, activeSession.session_id);
+      const file = new File([md], filename, { type: "text/markdown;charset=utf-8" });
+      const controller = new AbortController();
+      const response = await uploadLocal<{
+        import?: { content_id?: string };
+        content_id?: string;
+      }>(
+        `/local/imports?filename=${encodeURIComponent(filename)}`,
+        file,
+        controller.signal,
+        () => {},
+        () => {},
+      );
+      const contentId = response.import?.content_id ?? response.content_id ?? null;
+      if (!contentId) {
+        throw new Error("MISSING_CONTENT_ID");
+      }
+      setSavedNoteId(contentId);
+    } catch {
+      setSaveNoteError(
+        zh
+          ? "未能沉淀为本地研究笔记，请检查本地工作区服务状态后重试。"
+          : "Could not save research synthesis into the local library.",
+      );
+    } finally {
+      setSavingNote(false);
+    }
+  };
 
   const resetCompareUi = () => {
     setComparePickerOpen(false);
@@ -3495,6 +3937,15 @@ export function WorkspaceAiResearchPanel({
     const nextCh = consumePendingResearchChannel();
     const nextTp = consumePendingResearchTopicCluster();
     const nextStarred = consumePendingResearchStarredOnly();
+    const nextDraft = consumePendingResearchDraftQuestion();
+    if (nextDraft) {
+      setQuestionInput(nextDraft);
+      setFollowUpNotice(
+        zh
+          ? "已锁定对比来源并填入预设问题，可直接按 Enter 发送或自由微调。"
+          : "Comparison scope locked & prompt filled — edit or press Enter to ask.",
+      );
+    }
     if (nextVids.length > 0) {
       applyVideoCompareScope(nextVids);
     } else if (nextTp) {
@@ -3503,7 +3954,7 @@ export function WorkspaceAiResearchPanel({
       applyChannelScope(nextCh);
     } else if (nextStarred) {
       applyStarredScope(true);
-    } else if (hasInitialVideosHandoffRef.current) {
+    } else if (nextDraft || hasInitialVideosHandoffRef.current) {
       hasInitialVideosHandoffRef.current = false;
       queueMicrotask(() => questionInputRef.current?.focus());
     }
@@ -3572,19 +4023,25 @@ export function WorkspaceAiResearchPanel({
     });
   };
 
-  const ask = async (qText: string) => {
+  const ask = async (qText: string, options?: { clearScope?: boolean }) => {
     const clean = qText.trim();
     if (!clean || busy) return;
+    const expandAll = Boolean(options?.clearScope);
+    if (expandAll) {
+      resetAllScopes();
+    }
     setBusy(true);
     setError(null);
     try {
       const payload: Record<string, unknown> = { question: clean };
-      if (selectedVideoIds.length > 0) {
-        payload.video_ids = selectedVideoIds;
-      } else {
-        if (starredOnly) payload.starred_only = true;
-        if (selectedChannel) payload.channel_key = selectedChannel;
-        if (selectedTopic) payload.topic_cluster = selectedTopic;
+      if (!expandAll) {
+        if (selectedVideoIds.length > 0) {
+          payload.video_ids = selectedVideoIds;
+        } else {
+          if (starredOnly) payload.starred_only = true;
+          if (selectedChannel) payload.channel_key = selectedChannel;
+          if (selectedTopic) payload.topic_cluster = selectedTopic;
+        }
       }
       const res = await post<{ session?: unknown }>("/workspace-ai/research/ask", payload);
       const session = readAiResearchSession(res.session);
@@ -3756,17 +4213,19 @@ export function WorkspaceAiResearchPanel({
     questionInputRef.current?.focus();
   };
 
+  const pinnedSessionCount = sessions.filter((s) => Boolean(s.pinned)).length;
+  const effectivePinnedOnly = pinnedOnlyHistory && pinnedSessionCount > 0;
   const trimmedHistoryQuery = sessionSearch.trim().toLowerCase();
-  const filteredSessions = trimmedHistoryQuery
-    ? sessions.filter((s) => {
-        const citeText = s.citations
-          .map((c) => `${c.video_title} ${c.channel_name}`)
-          .join(" ");
-        return `${s.question} ${s.scope_label_zh} ${s.answer_zh} ${citeText}`
-          .toLowerCase()
-          .includes(trimmedHistoryQuery);
-      })
-    : sessions;
+  const filteredSessions = sessions.filter((s) => {
+    if (effectivePinnedOnly && !s.pinned) return false;
+    if (!trimmedHistoryQuery) return true;
+    const citeText = s.citations
+      .map((c) => `${c.video_title} ${c.channel_name}`)
+      .join(" ");
+    return `${s.question} ${s.scope_label_zh} ${s.answer_zh} ${citeText}`
+      .toLowerCase()
+      .includes(trimmedHistoryQuery);
+  });
 
   return (
     <section
@@ -4071,6 +4530,50 @@ export function WorkspaceAiResearchPanel({
         </div>
       ) : null}
 
+      {followUpNotice ? (
+        <p className="ai-followup-toast" role="status" aria-live="polite">
+          {followUpNotice}
+        </p>
+      ) : null}
+
+      {!isEmptyLibrary ? (
+        <div
+          className="research-lenses-bar"
+          role="group"
+          aria-label={zh ? "结构化研究分析视角" : "Structured research lenses"}
+        >
+          {RESEARCH_LENSES.map((lens) => (
+            <button
+              key={lens.id}
+              type="button"
+              className="research-lens-chip"
+              disabled={busy}
+              onClick={() => {
+                const scopeLabel =
+                  selectedVideoIds.length > 0
+                    ? zh
+                      ? `已选定 ${selectedVideoIds.length} 篇内容`
+                      : `${selectedVideoIds.length} selected items`
+                    : selectedChannel
+                      ? scopeOptions?.channels.find((c) => c.key === selectedChannel)?.label ??
+                        selectedChannel
+                      : selectedTopic || (zh ? "全库已核验资料" : "the library");
+                const draft = buildLensPrompt(lens.id, scopeLabel, zh);
+                setQuestionInput(draft);
+                setFollowUpNotice(
+                  zh
+                    ? "已填入分析透镜问题模板，可直接按 Enter 发送或补充关键词。"
+                    : "Lens template filled — edit or press Enter to ask.",
+                );
+                queueMicrotask(() => questionInputRef.current?.focus());
+              }}
+            >
+              {zh ? lens.labelZh : lens.labelEn}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <form className="ai-research-ask-form" onSubmit={handleSubmit}>
         <div className="ai-research-input-wrap">
           <textarea
@@ -4085,11 +4588,17 @@ export function WorkspaceAiResearchPanel({
             }
             value={questionInput}
             disabled={busy || isEmptyLibrary}
-            onChange={(e) => setQuestionInput(e.target.value)}
+            onChange={(e) => {
+              setQuestionInput(e.target.value);
+              if (followUpNotice) setFollowUpNotice(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                if (!isEmptyLibrary) void ask(questionInput);
+                if (!isEmptyLibrary) {
+                  setFollowUpNotice(null);
+                  void ask(questionInput);
+                }
               }
             }}
           />
@@ -4101,6 +4610,7 @@ export function WorkspaceAiResearchPanel({
               title={zh ? "清空输入内容" : "Clear input"}
               onClick={() => {
                 setQuestionInput("");
+                setFollowUpNotice(null);
                 questionInputRef.current?.focus();
               }}
             >
@@ -4366,6 +4876,23 @@ export function WorkspaceAiResearchPanel({
                 : `Verified ${activeSession.verified_citation_count ?? activeSession.citations.filter((c) => c.verified !== false).length} citations · ${activeSession.covered_source_count ?? activeSession.covered_sources?.length ?? 0} sources`}
             </span>
           </div>
+          {!activeSession.refused ? (
+            <p className="ai-qa-trust-note">
+              {activeSession.fact_verification_state === "SUPPORTED"
+                ? zh
+                  ? "以下回答仅依据你已选中的原文与时间轴生成，点击任意引用即可直达原片核对。"
+                  : "Answer grounded strictly in your selected excerpts and timestamps; click any citation to verify."
+                : activeSession.fact_verification_state === "PARTIAL_PRUNED_HEURISTIC" ||
+                    activeSession.fact_verification_state === "PARTIAL_PRUNED" ||
+                    activeSession.fact_verification_state === "HEURISTIC_ONLY"
+                  ? zh
+                    ? "已自动过滤无原文依据的推测；标注「启发式相关」的表述建议点击下方引用核对原话。"
+                    : "Unverified speculation was removed; click any timestamp below to check heuristic statements against the source."
+                  : zh
+                    ? "建议点击下方原始引用核对细节，所有来源均保留可追溯锚点。"
+                    : "Verify details with the timestamped excerpts below; all sources stay traceable."}
+            </p>
+          ) : null}
           {(activeSession.covered_sources?.length ?? 0) > 0 ? (
             <div
               className="ai-covered-sources-strip"
@@ -4401,6 +4928,24 @@ export function WorkspaceAiResearchPanel({
           {activeSession.refused ? (
             <div className="semantic-state state-warning" role="status">
               <p>{activeSession.answer_zh}</p>
+              {hasActiveScope ||
+              (activeSession.scope_label_zh && !/全部/.test(activeSession.scope_label_zh)) ? (
+                <div className="ai-refusal-recovery">
+                  <p className="hint">
+                    {zh
+                      ? `当前仅在限定范围（${activeSession.scope_label_zh || "已选来源"}）内检索；该范围内暂无直接原文支撑，因此未强行编造回答。`
+                      : `Searched only within your active filter (${activeSession.scope_label_zh || "selected scope"}); no direct supporting excerpt was found there, so no answer was fabricated.`}
+                  </p>
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    disabled={busy}
+                    onClick={() => void ask(activeSession.question, { clearScope: true })}
+                  >
+                    {zh ? "扩大到全部来源重新提问" : "Retry across all sources"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="summary-copy">{activeSession.answer_zh}</p>
@@ -4520,6 +5065,55 @@ export function WorkspaceAiResearchPanel({
             </div>
           ) : null}
 
+          {!activeSession.refused && canFollowUpActiveSession ? (
+            <div
+              className="ai-followup-strip"
+              role="group"
+              aria-label={zh ? "同范围继续深挖" : "Follow-up angles (same scope)"}
+            >
+              <span className="ai-followup-label">
+                {zh ? "同范围继续深挖：" : "Follow-up angles (same scope):"}
+              </span>
+              {(zh
+                ? [
+                    "对比不同来源的核心分歧与边界条件",
+                    "提炼最值得立即落地的 3 个执行步骤",
+                    "哪些结论仅由单一来源提及、需要进一步验证？",
+                  ]
+                : [
+                    "Compare core disagreements and boundary conditions across sources",
+                    "Extract the top 3 concrete implementation steps",
+                    "Which claims come from only a single source and need verification?",
+                  ]
+              ).map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  className="ai-followup-chip"
+                  disabled={busy}
+                  onClick={() => {
+                    applyActiveSessionFollowUp();
+                    setQuestionInput(prompt);
+                    setFollowUpNotice(
+                      zh
+                        ? "已锁定当前来源范围并填入追问，可微调后按 Enter 发送。"
+                        : "Scope locked & follow-up filled — edit or press Enter to ask.",
+                    );
+                    queueMicrotask(() => {
+                      const el = questionInputRef.current;
+                      if (el) {
+                        el.focus();
+                        el.setSelectionRange?.(prompt.length, prompt.length);
+                      }
+                    });
+                  }}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div className="button-row">
             {canFollowUpActiveSession ? (
               <button
@@ -4537,62 +5131,153 @@ export function WorkspaceAiResearchPanel({
                     : `Follow up on cited videos (${activeCitedVideoIds.length})`}
               </button>
             ) : null}
-            <button
-              type="button"
-              className="button button-secondary button-small"
-              onClick={(event) => {
-                pulseCelebration(event.currentTarget);
-                void navigator.clipboard?.writeText(
-                  formatPlainTextResearchBrief(activeSession, zh),
-                );
-                setCopiedPlain(true);
-                setTimeout(() => setCopiedPlain(false), 2000);
-              }}
-            >
-              <PhosphorIcon name="quotes" size={13} />
-              {copiedPlain
-                ? zh
-                  ? "已复制纯文本提纲"
-                  : "Copied plain-text brief"
-                : zh
-                  ? "复制纯文本提纲"
-                  : "Copy plain-text brief"}
-            </button>
-            {activeSession.obsidian_markdown ? (
-              <>
-                <button
-                  type="button"
-                  className="button button-secondary button-small"
-                  onClick={(event) => {
-                    pulseCelebration(event.currentTarget);
-                    void navigator.clipboard?.writeText(activeSession.obsidian_markdown);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                >
-                  <PhosphorIcon name="file-text" size={13} />
-                  {copied
-                    ? zh
-                      ? "已复制双链问答"
-                      : "Copied"
-                    : zh
-                      ? "复制双链问答"
-                      : "Copy Obsidian Q&A"}
-                </button>
-                <button
-                  type="button"
-                  className="button button-ghost button-small"
-                  onClick={() =>
-                    downloadObsidianMarkdown(
-                      `跨视频问答-${activeSession.session_id}`,
-                      activeSession.obsidian_markdown,
+            {(() => {
+              const activeTier = classifyResearchSessionTrust(activeSession);
+              const exportAllowed =
+                activeTier === "VERIFIED_EXACT" || activeTier === "PARTIAL_OR_HEURISTIC";
+              const isHeuristicDraft = activeTier === "PARTIAL_OR_HEURISTIC";
+              const plainTextBrief = exportAllowed
+                ? formatPlainTextResearchBrief(activeSession, zh)
+                : "";
+              const safeObsidianMarkdown = exportAllowed
+                ? buildResearchSynthesisMarkdown(activeSession, zh)
+                : "";
+              const sourceExcerpt = exportAllowed
+                ? buildSourceNoteResearchExcerpt(activeSession, zh)
+                : null;
+              return (
+                <>
+                  {exportAllowed && plainTextBrief ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={(event) => {
+                        void copyResearchText(plainTextBrief, event.currentTarget, "plain");
+                      }}
+                    >
+                      <PhosphorIcon name="quotes" size={13} />
+                      {copiedPlain
+                        ? zh
+                          ? "已复制纯文本提纲"
+                          : "Copied plain-text brief"
+                        : zh
+                          ? "复制纯文本提纲"
+                          : "Copy plain-text brief"}
+                    </button>
+                  ) : null}
+                  {exportAllowed && safeObsidianMarkdown ? (
+                    <>
+                      <button
+                        type="button"
+                        className="button button-secondary button-small"
+                        onClick={(event) => {
+                          void copyResearchText(safeObsidianMarkdown, event.currentTarget, "obsidian");
+                        }}
+                      >
+                        <PhosphorIcon name="file-text" size={13} />
+                        {copied
+                          ? zh
+                            ? "已复制双链问答"
+                            : "Copied"
+                          : zh
+                            ? "复制双链问答"
+                            : "Copy Obsidian Q&A"}
+                      </button>
+                      <button
+                        type="button"
+                        className="button button-ghost button-small"
+                        onClick={() =>
+                          downloadObsidianMarkdown(
+                            `跨视频问答-${activeSession.session_id}`,
+                            safeObsidianMarkdown,
+                          )
+                        }
+                      >
+                        {zh ? "下载 .md" : "Download .md"}
+                      </button>
+                    </>
+                  ) : null}
+                  {exportAllowed ? (
+                    savedNoteId ? (
+                      <button
+                        type="button"
+                        className="button button-primary button-small"
+                        onClick={() => onOpen("content", savedNoteId)}
+                      >
+                        <PhosphorIcon name="file-text" size={13} />
+                        {zh ? "✓ 已沉淀入内容库 · 打开阅读 →" : "✓ Saved to library · Open note →"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="button button-secondary button-small"
+                        disabled={savingNote}
+                        onClick={(event) => {
+                          pulseCelebration(event.currentTarget);
+                          void promoteToLocalNote();
+                        }}
+                      >
+                        <PhosphorIcon name="plus" size={13} />
+                        {savingNote
+                          ? zh
+                            ? "正在沉淀…"
+                            : "Saving…"
+                          : isHeuristicDraft
+                            ? zh
+                              ? "沉淀为本地研究笔记（含启发式提示）"
+                              : "Save as local note (heuristic draft)"
+                            : zh
+                              ? "沉淀为本地研究笔记"
+                              : "Save as local note"}
+                      </button>
                     )
-                  }
-                >
-                  {zh ? "下载 .md" : "Download .md"}
-                </button>
-              </>
-            ) : null}
+                  ) : null}
+                  {sourceExcerpt ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={(event) => {
+                        pulseCelebration(event.currentTarget);
+                        appendQuoteToPersonalNote(
+                          sourceExcerpt.primaryVideoId,
+                          sourceExcerpt.quoteMarkdown,
+                        );
+                        setSavedToSourceNote(true);
+                        setSourceNoteFeedback(
+                          sourceExcerpt.distinctSourceCount > 1
+                            ? zh
+                              ? `已将跨来源研究结论（综合 ${sourceExcerpt.distinctSourceCount} 篇出处${isHeuristicDraft ? " · 含启发式提示" : ""}）摘录进《${sourceExcerpt.primaryVideoTitle}》个人批注。`
+                              : `Saved cross-source conclusion (${sourceExcerpt.distinctSourceCount} sources${isHeuristicDraft ? ", heuristic draft" : ""}) into "${sourceExcerpt.primaryVideoTitle}" personal notes.`
+                            : zh
+                              ? `已将研究结论摘录进《${sourceExcerpt.primaryVideoTitle}》个人批注${isHeuristicDraft ? "（含启发式提示）" : ""}。`
+                              : `Saved conclusion into "${sourceExcerpt.primaryVideoTitle}" personal notes${isHeuristicDraft ? " (heuristic draft)" : ""}.`,
+                        );
+                      }}
+                    >
+                      <PhosphorIcon name="quotes" size={13} />
+                      {savedToSourceNote
+                        ? zh
+                          ? "已摘录进来源批注 ✓"
+                          : "Saved to source note ✓"
+                        : isHeuristicDraft
+                          ? zh
+                            ? "摘录进来源批注（含启发式提示）"
+                            : "Save to source note (heuristic draft)"
+                          : zh
+                            ? "摘录进来源批注"
+                            : "Save to source note"}
+                    </button>
+                  ) : null}
+                  {!exportAllowed ? (
+                    <span className="muted-copy" role="status">
+                      {zh
+                        ? "当前问答处于待复核或无可核验引用状态，已暂停复制、下载与入库。"
+                        : "Copy, download, and note-saving are paused while this session needs re-verification or lacks verified citations."}
+                    </span>
+                  ) : null}
+                </>
+              );
+            })()}
             <button
               type="button"
               className={`button button-small ${activeSession.pinned ? "button-saved" : "button-ghost"}`}
@@ -4626,66 +5311,125 @@ export function WorkspaceAiResearchPanel({
               {zh ? "删除问答" : "Delete Q&A"}
             </button>
           </div>
+          {sourceNoteFeedback ? (
+            <p className="ai-source-note-feedback" role="status" aria-live="polite">
+              {sourceNoteFeedback}
+            </p>
+          ) : null}
+          {saveNoteError ? (
+            <p className="form-error" role="alert" style={{ marginTop: "8px" }}>
+              {saveNoteError}
+            </p>
+          ) : null}
+          {clipboardCopyError ? (
+            <p className="form-error" role="alert" style={{ marginTop: "8px" }}>
+              {clipboardCopyError}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
       {sessions.length >= 1 ? (
-        <div className="ai-session-history">
+        <>
           <div className="ai-session-history-head">
             <h4>{zh ? "历史跨视频问答" : "Recent AI Q&A sessions"}</h4>
-            {sessions.length >= 3 ? (
-              <input
-                type="search"
-                className="ai-session-search-input"
-                aria-label={zh ? "筛选历史问答" : "Filter Q&A history"}
-                placeholder={zh ? "筛选历史问题或频道…" : "Filter past Q&A…"}
-                value={sessionSearch}
-                onChange={(e) => setSessionSearch(e.target.value)}
-              />
+            {pinnedSessionCount > 0 || sessions.length >= 3 ? (
+              <div className="ai-session-history-controls">
+                {pinnedSessionCount > 0 ? (
+                  <button
+                    type="button"
+                    className={`ai-question-chip tabular-nums${effectivePinnedOnly ? " is-active" : ""}`}
+                    aria-pressed={effectivePinnedOnly}
+                    onClick={() => setPinnedOnlyHistory((prev) => !prev)}
+                  >
+                    <PhosphorIcon
+                      name="push-pin"
+                      weight={effectivePinnedOnly ? "fill" : "regular"}
+                      size={11}
+                    />
+                    {" "}
+                    {zh
+                      ? `仅看置顶 (${pinnedSessionCount})`
+                      : `Pinned only (${pinnedSessionCount})`}
+                  </button>
+                ) : null}
+                {sessions.length >= 3 ? (
+                  <input
+                    type="search"
+                    className="ai-session-search-input"
+                    aria-label={zh ? "筛选历史问答" : "Filter Q&A history"}
+                    placeholder={zh ? "筛选历史问题或频道…" : "Filter past Q&A…"}
+                    value={sessionSearch}
+                    onChange={(e) => setSessionSearch(e.target.value)}
+                  />
+                ) : null}
+              </div>
             ) : null}
           </div>
-          {filteredSessions.length > 0 ? (
-            <div className="ai-suggested-pills">
-              {filteredSessions.map((s) => {
-                const vCount =
-                  s.video_count && s.video_count > 0
-                    ? s.video_count
-                    : new Set(s.citations.map((c) => c.video_id)).size;
-                const baseLabel =
-                  vCount > 0
-                    ? zh
-                      ? `${s.question} · ${vCount} 篇`
-                      : `${s.question} · ${vCount} videos`
-                    : s.question;
-                const chipLabel = s.pinned
-                  ? `${zh ? "[置顶] " : "[Pinned] "}${baseLabel}`
-                  : baseLabel;
-                return (
-                  <button
-                    key={s.session_id}
-                    type="button"
-                    className={`ai-question-chip tabular-nums${activeSession?.session_id === s.session_id ? " is-active" : ""}`}
-                    onClick={() => setActiveSession(s)}
-                  >
-                    {s.pinned ? (
-                      <PhosphorIcon
-                        name="push-pin"
-                        weight="fill"
-                        size={11}
-                        className="ai-qa-chip-pin-icon"
-                      />
-                    ) : null}
-                    {chipLabel}
-                  </button>
-                );
-              })}
+          <div className="ai-session-history">
+            {filteredSessions.length > 0 ? (
+              <div className="ai-suggested-pills">
+                {filteredSessions.map((s) => {
+                  const vCount =
+                    s.video_count && s.video_count > 0
+                      ? s.video_count
+                      : new Set(s.citations.map((c) => c.video_id)).size;
+                  const baseLabel =
+                    vCount > 0
+                      ? zh
+                        ? `${s.question} · ${vCount} 篇`
+                        : `${s.question} · ${vCount} videos`
+                      : s.question;
+                  const chipLabel = s.pinned
+                    ? `${zh ? "[置顶] " : "[Pinned] "}${baseLabel}`
+                    : baseLabel;
+                  return (
+                    <button
+                      key={s.session_id}
+                      type="button"
+                      className={`ai-question-chip tabular-nums${activeSession?.session_id === s.session_id ? " is-active" : ""}`}
+                      onClick={() => setActiveSession(s)}
+                    >
+                      {s.pinned ? (
+                        <PhosphorIcon
+                          name="push-pin"
+                          weight="fill"
+                          size={11}
+                          className="ai-qa-chip-pin-icon"
+                        />
+                      ) : null}
+                      {chipLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="hint">
+                {zh ? "没有匹配的历史问答记录。" : "No matching past Q&A sessions."}
+              </p>
+            )}
+          </div>
+          {filteredSessions.some((s) => !s.refused && s.citations.length > 0) ||
+          dossierExportStatus ? (
+            <div className="ai-session-history-footer">
+              {filteredSessions.some((s) => !s.refused && s.citations.length > 0) ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => exportResearchDossier(filteredSessions)}
+                >
+                  <PhosphorIcon name="file-text" size={13} />
+                  {zh ? "导出研究汇编 (.md)" : "Export Dossier (.md)"}
+                </button>
+              ) : null}
+              {dossierExportStatus ? (
+                <p className="semantic-state state-neutral" role="status">
+                  {dossierExportStatus}
+                </p>
+              ) : null}
             </div>
-          ) : (
-            <p className="hint">
-              {zh ? "没有匹配的历史问答记录。" : "No matching past Q&A sessions."}
-            </p>
-          )}
-        </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   );
@@ -4860,6 +5604,293 @@ export function WorkspaceAiSettingsPanel({
   const [exportingObsidianZip, setExportingObsidianZip] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
+  const notesImportInputRef = useRef<HTMLInputElement | null>(null);
+  const [personalNoteCount, setPersonalNoteCount] = useState(() => listPersonalNoteVideoIds().size);
+  const [personalTagCount, setPersonalTagCount] = useState(() => listPersonalTagCounts().length);
+  const [savedViewCount, setSavedViewCount] = useState(() => readSavedContentViews().length);
+  const [readingHistoryCount, setReadingHistoryCount] = useState(() => readReadingHistory().length);
+  const [notesBackupFeedback, setNotesBackupFeedback] = useState<string | null>(null);
+  const [notesBackupError, setNotesBackupError] = useState<string | null>(null);
+  const [exportedSnapshotParts, setExportedSnapshotParts] = useState<
+    Array<{ filename: string; part: StudyWorkspaceSnapshotPart }>
+  >([]);
+  useEffect(() => {
+    const syncLocalStudyGovernance = () => {
+      setPersonalNoteCount(listPersonalNoteVideoIds().size);
+      setPersonalTagCount(listPersonalTagCounts().length);
+      setSavedViewCount(readSavedContentViews().length);
+      setReadingHistoryCount(readReadingHistory().length);
+    };
+    syncLocalStudyGovernance();
+    window.addEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncLocalStudyGovernance);
+    window.addEventListener(SAVED_VIEWS_CHANGED_EVENT, syncLocalStudyGovernance);
+    window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncLocalStudyGovernance);
+    window.addEventListener("storage", syncLocalStudyGovernance);
+    return () => {
+      window.removeEventListener(PERSONAL_NOTES_CHANGED_EVENT, syncLocalStudyGovernance);
+      window.removeEventListener(SAVED_VIEWS_CHANGED_EVENT, syncLocalStudyGovernance);
+      window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncLocalStudyGovernance);
+      window.removeEventListener("storage", syncLocalStudyGovernance);
+    };
+  }, []);
+  const handleClearReadingHistory = () => {
+    clearReadingHistory();
+    setNotesBackupError(null);
+    setNotesBackupFeedback(
+      zh
+        ? "已清空本机最近阅读记录（个人笔记与标签已保留）。"
+        : "Cleared local reading trail (personal notes & tags preserved).",
+    );
+  };
+  const handleClearSavedViews = () => {
+    clearSavedContentViews();
+    setNotesBackupError(null);
+    setNotesBackupFeedback(
+      zh
+        ? "已清空本机常用筛选视图（个人笔记与标签已保留）。"
+        : "Cleared local saved views (personal notes & tags preserved).",
+    );
+  };
+  const triggerSnapshotPartDownload = (filename: string, json: string) => {
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+  const handleExportPersonalNotes = () => {
+    setNotesBackupFeedback(null);
+    setNotesBackupError(null);
+    let parts: StudyWorkspaceSnapshotPart[];
+    try {
+      parts = exportStudyWorkspaceSnapshotParts();
+    } catch {
+      setExportedSnapshotParts([]);
+      setNotesBackupError(
+        zh
+          ? "导出快照校验未通过（部分记录超出单卷安全限制），已中止下载，本机数据不受影响。"
+          : "Export verification failed (snapshot exceeded safe volume invariants); download cancelled cleanly.",
+      );
+      return;
+    }
+    const count = listPersonalNoteVideoIds().size;
+    const viewCount = readSavedContentViews().length;
+    setPersonalNoteCount(count);
+    setSavedViewCount(viewCount);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const wrapped = parts.map((part) => {
+      const batchTag = part.exportBatchId.replace(/[^A-Za-z0-9]/g, "").slice(0, 6) || "batch";
+      return {
+        filename:
+          part.totalParts === 1
+            ? `intelligence-personal-notes-${stamp}.json`
+            : `intelligence-personal-notes-${stamp}-${batchTag}-part-${part.partIndex}-of-${part.totalParts}.json`,
+        part,
+      };
+    });
+    setExportedSnapshotParts(wrapped.length > 1 ? wrapped : []);
+    wrapped.forEach(({ filename, part }, idx) => {
+      if (idx === 0) {
+        triggerSnapshotPartDownload(filename, part.json);
+      } else {
+        window.setTimeout(() => triggerSnapshotPartDownload(filename, part.json), idx * 180);
+      }
+    });
+    if (wrapped.length > 1) {
+      setNotesBackupFeedback(
+        zh
+          ? `已按单卷 10 MiB / 10,000 条安全阈值分 ${wrapped.length} 卷导出（共 ${count} 条笔记${viewCount > 0 ? ` · ${viewCount} 个常用视图` : ""}）；恢复时请一次全选 ${wrapped.length} 个分卷 .json 导入。`
+          : `Exported in ${wrapped.length} safe volume(s) (${count} note(s)${viewCount > 0 ? `, ${viewCount} saved view(s)` : ""}; each <= 10 MiB / 10,000 notes). Select all ${wrapped.length} volume files together when restoring.`,
+      );
+      return;
+    }
+    setNotesBackupFeedback(
+      viewCount > 0
+        ? zh
+          ? `已导出本机个人笔记与标签（共 ${count} 条 · 含 ${viewCount} 个常用视图）。`
+          : `Exported ${count} local personal note(s), tags, and ${viewCount} saved view(s).`
+        : zh
+          ? `已导出本机个人笔记与标签（共 ${count} 条）。`
+          : `Exported ${count} local personal note(s) and tags.`,
+    );
+  };
+  const handleExportPersonalNotesMarkdown = async () => {
+    setNotesBackupError(null);
+    const titleByVideoId: Record<string, string> = {};
+    try {
+      const payload = await api<{ videos?: Array<{ video_id?: string; title?: string | null }> }>(
+        "/videos?limit=200",
+      );
+      for (const item of payload?.videos ?? []) {
+        if (typeof item?.video_id === "string" && typeof item?.title === "string" && item.title.trim()) {
+          titleByVideoId[item.video_id] = item.title.trim();
+        }
+      }
+    } catch {
+      // Fall back to video_id titles if video catalog lookup is unavailable.
+    }
+    const { markdown, noteCount } = exportPersonalNotesMarkdown(titleByVideoId, zh);
+    setPersonalNoteCount(noteCount);
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.download = `intelligence-personal-notes-${stamp}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotesBackupFeedback(
+      zh
+        ? `已导出 Obsidian 个人笔记汇编 (.md，共 ${noteCount} 条)。`
+        : `Exported Obsidian Markdown notes digest (${noteCount} note(s)).`,
+    );
+  };
+  const handleImportPersonalNotes = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length === 0) return;
+    setNotesBackupFeedback(null);
+    setNotesBackupError(null);
+    setExportedSnapshotParts([]);
+    for (const file of files) {
+      if (file.size > MAX_STUDY_SNAPSHOT_BYTES) {
+        setNotesBackupError(
+          zh
+            ? `备份文件（${file.name}）超过 10 MiB 限制，未能导入。请使用分卷备份或裁剪无效内容后重试。`
+            : `Backup file (${file.name}) exceeds the 10 MiB limit and was rejected before reading.`,
+        );
+        return;
+      }
+    }
+    try {
+      const payloads: Array<{ name: string; rawJson: string }> = [];
+      for (const file of files) {
+        payloads.push({ name: file.name, rawJson: await file.text() });
+      }
+      const result = importStudyWorkspaceSnapshotPayloads(payloads);
+
+      setPersonalNoteCount(result.totalNotes);
+      setSavedViewCount(result.totalViews);
+
+      const noteDetailPartsZh: string[] = [];
+      const noteDetailPartsEn: string[] = [];
+      if (result.noteConflicts > 0) {
+        noteDetailPartsZh.push(
+          `另有 ${result.noteConflicts} 条缺少有效或冲突时间戳记录已保留本机现值`,
+        );
+        noteDetailPartsEn.push(
+          `${result.noteConflicts} conflicting or invalid-timestamp record(s) kept existing local values`,
+        );
+      }
+      if (result.skippedOlderNotes > 0) {
+        noteDetailPartsZh.push(`已跳过 ${result.skippedOlderNotes} 条早于当前版本的旧修订`);
+        noteDetailPartsEn.push(`skipped ${result.skippedOlderNotes} older revision(s)`);
+      }
+      if (result.missingPartIndices.length > 0) {
+        const missingList = result.missingPartIndices.join("、");
+        const missingListEn = result.missingPartIndices.join(", ");
+        const expectedLabel = result.expectedTotalParts ? `共 ${result.expectedTotalParts} 卷` : "多卷备份";
+        const expectedLabelEn = result.expectedTotalParts ? `of ${result.expectedTotalParts}` : "in set";
+        const hasIncompleteSegs =
+          result.incompleteSegmentedNotes > 0 || result.incompleteSegmentedViews > 0;
+        noteDetailPartsZh.push(
+          hasIncompleteSegs
+            ? `注意：缺少第 ${missingList} 卷（${expectedLabel}），其中分段长记录尚未完整重组，请补充全部分卷后再导入`
+            : `注意：检测到缺少第 ${missingList} 卷（${expectedLabel}），本次仅恢复了已选分卷内的完整记录`,
+        );
+        noteDetailPartsEn.push(
+          hasIncompleteSegs
+            ? `missing volume(s) ${missingListEn} (${expectedLabelEn}); segmented entries require all parts together`
+            : `missing volume(s) ${missingListEn} (${expectedLabelEn}); only selected parts were imported`,
+        );
+      } else if (result.incompleteSegmentedNotes > 0 || result.incompleteSegmentedViews > 0) {
+        noteDetailPartsZh.push(
+          "检测到未配齐的分段长记录，请同时全选同一批次导出的全部分卷 .json 文件后导入",
+        );
+        noteDetailPartsEn.push(
+          "incomplete segmented entries detected; select all snapshot volumes from the same export together",
+        );
+      }
+      const conflictSuffixZh =
+        noteDetailPartsZh.length > 0 ? `（${noteDetailPartsZh.join("；")}）` : "";
+      const conflictSuffixEn =
+        noteDetailPartsEn.length > 0 ? ` (${noteDetailPartsEn.join("; ")})` : "";
+
+      if (!result.notesPersisted && !result.viewsPersisted) {
+        setNotesBackupError(
+          zh
+            ? `未能导入个人笔记与常用视图：浏览器本地存储空间不足（当前共 ${result.totalNotes} 条笔记 · ${result.totalViews} 个视图）。`
+            : `Could not import notes or saved views: browser local storage quota exceeded (${result.totalNotes} note(s), ${result.totalViews} view(s) remain).`,
+        );
+        return;
+      }
+      if (!result.notesPersisted && result.viewsPersisted) {
+        setNotesBackupError(
+          result.importedViews > 0
+            ? zh
+              ? `未能保存个人笔记：浏览器本地存储空间不足（已写入 ${result.importedNotes} 条，当前共 ${result.totalNotes} 条）；仅合并了 ${result.importedViews} 个常用视图（共 ${result.totalViews} 个视图）。`
+              : `Could not save personal notes: browser local storage quota exceeded (${result.importedNotes} written; total ${result.totalNotes} note(s)). Only merged ${result.importedViews} saved view(s) (${result.totalViews} views total).`
+            : zh
+              ? `未能保存个人笔记：浏览器本地存储空间不足（已写入 ${result.importedNotes} 条，当前共 ${result.totalNotes} 条）。`
+              : `Could not save personal notes: browser local storage quota exceeded (${result.importedNotes} written; total remains ${result.totalNotes} note(s)).`,
+        );
+        return;
+      }
+      if (result.notesPersisted && !result.viewsPersisted) {
+        setNotesBackupFeedback(
+          zh
+            ? `已导入 ${result.importedNotes} 条个人笔记，但因存储空间限制未能保存 ${result.failedViewsCount} 个常用视图（当前共 ${result.totalNotes} 条笔记 · ${result.totalViews} 个视图）。${conflictSuffixZh}`
+            : `Merged ${result.importedNotes} note(s), but ${result.failedViewsCount} saved view(s) could not be persisted due to storage limits (${result.totalNotes} notes, ${result.totalViews} views total).${conflictSuffixEn}`,
+        );
+        return;
+      }
+      setNotesBackupFeedback(
+        result.importedViews > 0
+          ? zh
+            ? `已合并导入 ${result.importedNotes} 条个人笔记与 ${result.importedViews} 个常用视图，当前本机共 ${result.totalNotes} 条笔记 · ${result.totalViews} 个视图。${conflictSuffixZh}`
+            : `Merged ${result.importedNotes} personal note(s) and ${result.importedViews} saved view(s); total now ${result.totalNotes} note(s) and ${result.totalViews} view(s).${conflictSuffixEn}`
+          : zh
+            ? `已合并导入 ${result.importedNotes} 条个人笔记，当前本机共 ${result.totalNotes} 条。${conflictSuffixZh}`
+            : `Merged ${result.importedNotes} personal note(s); total now ${result.totalNotes}.${conflictSuffixEn}`,
+      );
+    } catch (err) {
+      if (err instanceof SnapshotImportFileError && err.code === "MIXED_SNAPSHOT_EXPORT_BATCHES") {
+        setNotesBackupError(
+          zh
+            ? `未能导入个人笔记：检测到所选分卷来自 ${err.batchCount ?? "多个"} 个不同的导出批次，已中止本次导入以避免混拼损坏正文（本机原有数据未受影响）。请全选同一套备份的全部分卷文件后重试。`
+            : `Could not import personal notes: selected backup volumes belong to ${err.batchCount ?? "multiple"} different export batches. Import was aborted to prevent cross-batch corruption (local data unchanged). Select all volumes from the same export batch together.`,
+        );
+        return;
+      }
+      if (err instanceof SnapshotImportFileError && err.code === "CORRUPTED_SEGMENT_CHECKSUM") {
+        setNotesBackupError(
+          zh
+            ? `未能导入个人笔记：分段记录校验失败（${err.fileName || "所选分卷"} 内容已损坏或缺失对应片段），本次导入已整体中止，本机原有数据未受影响。`
+            : `Could not import personal notes: segmented entry checksum verification failed (${err.fileName || "selected file"}). Import was aborted and local data was not modified.`,
+        );
+        return;
+      }
+      if (err instanceof SnapshotImportFileError && err.fileName) {
+        setNotesBackupError(
+          zh
+            ? `未能导入个人笔记：文件「${err.fileName}」格式无效、超出体积限制或已损坏；本次导入已整体中止，本机原有数据未受影响。`
+            : `Could not import personal notes: file "${err.fileName}" is invalid, oversized, or corrupted. Local data was not modified.`,
+        );
+        return;
+      }
+      setNotesBackupError(
+        zh
+          ? "未能导入个人笔记，请选择有效的 intelligence-personal-notes .json 备份文件。"
+          : "Could not import personal notes. Choose a valid personal-notes .json backup file.",
+      );
+    }
+  };
   const sectionRef = useRef<HTMLElement | null>(null);
   const dirtyRef = useRef(false);
   const [modeDraft, setModeDraft] = useState<"local_ollama" | "cloud_byok">(
@@ -5266,6 +6297,61 @@ export function WorkspaceAiSettingsPanel({
         {zh ? "当前引擎：" : "Active: "}
         <strong>{currentSummary}</strong>
       </p>
+
+      <div
+        className="ai-cost-guide-card"
+        role="region"
+        aria-label={zh ? "模式选择与月度成本参考" : "Engine Mode & Cost Guide"}
+      >
+        <div className="ai-cost-guide-head">
+          <strong>{zh ? "模式选择与月度成本参考" : "Engine Mode & Cost Guide"}</strong>
+          <span className="hint">
+            {zh ? "不会在后台自动开启任何付费调用" : "Zero automatic paid API calls"}
+          </span>
+        </div>
+        <div className="ai-cost-guide-grid">
+          <div
+            className={`ai-cost-tier${config?.active_mode !== "cloud_byok" ? " is-active" : ""}`}
+          >
+            <div className="ai-cost-tier-head">
+              <strong>{zh ? "本机免费 Ollama" : "Local Free Ollama"}</strong>
+              {config?.active_mode !== "cloud_byok" ? (
+                <span className="ai-cost-tier-badge">
+                  {zh ? "当前生效" : "Active"}
+                </span>
+              ) : null}
+            </div>
+            <div className="ai-cost-tier-price">
+              {zh ? "¥0 边际费用 · 数据不出本机" : "$0 marginal cost · 100% local"}
+            </div>
+            <p className="ai-cost-tier-note">
+              {zh
+                ? "适合高频总结与隐私阅读；推荐 16GB+ 内存运行 9B 模型，默认即启用且永不产生账单。"
+                : "Ideal for private everyday triage and distilling; 16GB+ RAM recommended for 9B models."}
+            </p>
+          </div>
+          <div
+            className={`ai-cost-tier${config?.active_mode === "cloud_byok" ? " is-active" : ""}`}
+          >
+            <div className="ai-cost-tier-head">
+              <strong>{zh ? "云端 BYOK（自备 Key）" : "Cloud BYOK (Your Key)"}</strong>
+              {config?.active_mode === "cloud_byok" ? (
+                <span className="ai-cost-tier-badge">
+                  {zh ? "当前生效" : "Active"}
+                </span>
+              ) : null}
+            </div>
+            <div className="ai-cost-tier-price">
+              {zh ? "按次计费 · 重度约 ¥15–40/月" : "Pay-per-use · Est. ~$2–$6/mo"}
+            </div>
+            <p className="ai-cost-tier-note">
+              {zh
+                ? "免装本地大模型；每次云端分析前先确认费用并受下方每日消费上限保护。"
+                : "No local model install needed; protected by per-action consent and the daily spend cap below."}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <input
         ref={restoreInputRef}
@@ -5680,6 +6766,128 @@ export function WorkspaceAiSettingsPanel({
                 ? "导入并恢复快照 (.json)"
                 : "Restore (.json)"}
           </button>
+        </div>
+        <div
+          className="personal-notes-backup-row"
+          role="group"
+          aria-label={zh ? "本机个人笔记与标签备份" : "Local personal notes backup"}
+        >
+          <span className="personal-notes-backup-meta tabular-nums">
+            {zh ? `个人笔记与标签（本机 ${personalNoteCount} 条）` : `Personal notes & tags (${personalNoteCount} local)`}
+          </span>
+          <p className="local-study-governance-summary tabular-nums">
+            {zh
+              ? `本机学习数据：笔记 ${personalNoteCount} 条 · 标签 ${personalTagCount} 个 · 常用视图 ${savedViewCount} 个 · 最近阅读 ${readingHistoryCount} 条`
+              : `Local study data: ${personalNoteCount} notes · ${personalTagCount} tags · ${savedViewCount} saved views · ${readingHistoryCount} recent reads`}
+          </p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={handleExportPersonalNotes}
+            >
+              <PhosphorIcon name="archive" size={13} />
+              {zh ? "导出个人笔记 (.json)" : "Export personal notes (.json)"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={() => void handleExportPersonalNotesMarkdown()}
+            >
+              <PhosphorIcon name="file-text" size={13} />
+              {zh ? "导出笔记汇编 (.md)" : "Export notes digest (.md)"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={() => notesImportInputRef.current?.click()}
+            >
+              <PhosphorIcon name="folder-open" size={13} />
+              {zh ? "导入个人笔记 (.json)" : "Import personal notes (.json)"}
+            </button>
+            <input
+              ref={notesImportInputRef}
+              type="file"
+              multiple
+              accept=".json,application/json"
+              hidden
+              aria-label={zh ? "选择个人笔记 JSON 文件" : "Choose personal notes JSON file"}
+              onChange={(event) => void handleImportPersonalNotes(event)}
+            />
+          </div>
+          {exportedSnapshotParts.length > 1 ? (
+            <div
+              className="button-row local-study-governance-actions"
+              role="group"
+              aria-label={zh ? "分卷备份单独下载" : "Individual snapshot volume downloads"}
+            >
+              {exportedSnapshotParts.map(({ filename, part }) => {
+                const countPartsZh = [
+                  part.noteCount > 0 ? `${part.noteCount} 条笔记` : "",
+                  part.savedViewCount > 0 ? `${part.savedViewCount} 个视图` : "",
+                ].filter(Boolean);
+                const countPartsEn = [
+                  part.noteCount > 0 ? `${part.noteCount} notes` : "",
+                  part.savedViewCount > 0 ? `${part.savedViewCount} views` : "",
+                ].filter(Boolean);
+                const contentBadge = zh
+                  ? countPartsZh.length > 0
+                    ? countPartsZh.join(" · ")
+                    : "分段数据"
+                  : countPartsEn.length > 0
+                    ? countPartsEn.join(" · ")
+                    : "segmented data";
+                return (
+                  <button
+                    key={part.partIndex}
+                    type="button"
+                    className="button button-ghost button-small tabular-nums"
+                    onClick={() => triggerSnapshotPartDownload(filename, part.json)}
+                  >
+                    {zh
+                      ? `下载分卷 ${part.partIndex}/${part.totalParts} (${contentBadge} · ${(part.byteLength / (1024 * 1024)).toFixed(2)} MiB)`
+                      : `Download part ${part.partIndex}/${part.totalParts} (${contentBadge} · ${(part.byteLength / (1024 * 1024)).toFixed(2)} MiB)`}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {readingHistoryCount > 0 || savedViewCount > 0 ? (
+            <div
+              className="button-row local-study-governance-actions"
+              role="group"
+              aria-label={zh ? "本机轻量记录清理" : "Local session cleanup"}
+            >
+              {readingHistoryCount > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={handleClearReadingHistory}
+                >
+                  {zh ? `清空最近阅读 (${readingHistoryCount})` : `Clear reading trail (${readingHistoryCount})`}
+                </button>
+              ) : null}
+              {savedViewCount > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={handleClearSavedViews}
+                >
+                  {zh ? `清空常用视图 (${savedViewCount})` : `Clear saved views (${savedViewCount})`}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {notesBackupFeedback ? (
+            <p className="semantic-state state-neutral" role="status">
+              {notesBackupFeedback}
+            </p>
+          ) : null}
+          {notesBackupError ? (
+            <p className="form-error" role="alert">
+              {notesBackupError}
+            </p>
+          ) : null}
         </div>
       </div>
     </section>
