@@ -1,10 +1,11 @@
-# Intelligence · PR #59 独立终审整改交付报告（Round 3 Ready）
+# Intelligence · PR #59 独立终审整改交付报告（Round 4 Ready）
 
 - **目标分支**：`antigravity/autonomous-product-evolution-wave8-20261127`（[PR #59](https://github.com/huangbuqubunao-alt/intelligence/pull/59)，保持 Draft）
 - **仓库 `main` 基线**：`f7b97134a9fafd3e8e447851a4237bdc66f7e60e`（全程未修改）
 - **第 44 项整提交回退锚点**：`f4da98e4`（干净 `git revert f3cd5563`，已验证阅读器回归简洁克制）
-- **上一轮已审计代码头（`VERIFIED_CODE_SHA_R2`）**：`81c16adb1be072cb3353d4b7194a4b6fae947e80`（交付头 `edf86fc6a2759a8c36ec0dd4dbfdc9593de9d7d8`）
-- **最新已验证代码基线（`VERIFIED_CODE_SHA_R3`）**：`2b0c4d6b40856a89fed7d4c21c2f1b837db1f574`
+- **Round 2 基线**：代码 `81c16adb1be072cb3353d4b7194a4b6fae947e80` · 交付 `edf86fc6a2759a8c36ec0dd4dbfdc9593de9d7d8`
+- **Round 3 基线**：代码 `2b0c4d6b40856a89fed7d4c21c2f1b837db1f574` · 交付 `8618ae53d6f46fdbbfc5bd69bd6683f346331c30`
+- **最新已验证代码基线（`VERIFIED_CODE_SHA_R4`）**：`a31b0bdcbce9b8af52fe2f31ea0944b5520c2184`
 - **日期**：2026-11-28（Asia/Shanghai）
 
 ---
@@ -47,12 +48,24 @@
 
 ---
 
-## 四、复审全量验证证据（均运行于 `VERIFIED_CODE_SHA_R3 = 2b0c4d6b`）
+## 四、第四轮定向收口（针对 Codex Round 3 仅剩 `P1-02` 两项边界 + 3 项非阻断 P2/P3）
 
-- **前端构建与静态检查**：`npx tsc --noEmit` 0 错误；`vite v5.4.19` 生产构建 `960ms` 通过。
-- **前端自动化测试全集**：`npx vitest run --poolOptions.forks.minForks=1 --poolOptions.forks.maxForks=3` → **102/102 测试文件、1372/1372 用例全部通过（`53.60s`）**。
-- **后端静态检查与全量回归**：
+| 复审发现 | 触发根因 | 本轮精确收口方案 | Round 4 验证依据 |
+| :--- | :--- | :--- | :--- |
+| **P1-02 边界 1** 精确 `10 MiB` v1 单条笔记导出超限 +38 字节导致空库拒绝恢复 | 导入规范化补齐 `tags`/`updatedAt` 后单条略微超过 10 MiB，导出时无法装入单卷 | 1. 新增代理对安全正文分段（`note_segments`）与导入重组逻辑，单条笔记本身超过 10 MiB 时自动无损切成 2+ 卷合规文件；<br>2. 导出端加入下载前不变量校验（单卷 ≤ 10 MiB、100% 笔记/视图覆盖）。 | 真机 Chrome 使用 Codex 复现包 `inputs/single-max-v1.json`（`10,485,760` B）导入→导出两卷（`10,485,712` B 与 `587` B）→空库全选复原，SHA-256 逐字节一致、`tags: []`；单元测试覆盖正/反序恢复。 |
+| **P1-02 边界 2** 多条超限常用视图合计超 10 MiB 被装进空尾卷并丢失全部视图 | 导出器把全部视图当作整体塞进唯一尾卷并在超限时清空视图数组 | 1. 改为常用视图逐项独立装卷（单条超限则对 `searchQuery` 无损分段重组），绝不批量丢弃；<br>2. 导出前不变量校验每份视图均被完整覆盖。 | 真机 Chrome 使用 Codex `inputs/saved-view-a/b.json` 导入→导出两卷（`5,400,403` B 含 1 笔记 1 视图、`5,400,331` B 含 0 笔记 1 视图）→空库全选恢复 `1/1` 笔记及 `2/2` 视图，两段 `searchQuery` SHA-256 一致。 |
+| **P2（设置）** 多卷导入缺卷未提示、半损坏批量导入无原子校验 | 仅选部分分卷无缺失卷提示；边读边写导致前卷成功而损坏后卷抛错 | 改为「全量解析与结构预检全部通过后再写入存储」的原子批量导入；识别 `part_index`/`total_parts` 缺失并明确列出缺卷与失败文件名。 | 真机验证仅传第 2/2 卷显式提示缺少第 1 卷；第 1 卷+损坏 `{` 文件一起上传整体中止并指明 `corrupt_p2.json`，`localStorage` 保持未写入。 |
+| **P2（研究）** 剪贴板写入被权限拒绝仍误报成功 | 异步 `clipboard.writeText` 未捕获拒绝即置为「已复制」 | 改为 `await` 真实剪贴板写入结果：成功才提示已复制，拒绝或异常显式弹出 `role="alert"` 权限受限告警。 | 真机 Chrome 阻断剪贴板权限后点击「复制纯文本提纲」，无成功按钮切换并展示权限拒绝告警；单测验证双复制按钮。 |
+| **P3（研究）** `HEURISTIC_ONLY` + `contains_heuristic_claims=true` 误报「已裁剪」 | `researchTrustLabel` 把 `contains_heuristic_claims` 直接映射到裁剪分支 | 仅 `PARTIAL_PRUNED` / `PARTIAL_PRUNED_HEURISTIC` 标示「已裁剪」；纯启发式会话保持「启发式相关 · 请核对原话」。 | `CodexPR59Remediation.test.tsx` 断言中英文输出严格区分纯启发式与部分裁剪状态。 |
+
+---
+
+## 五、最新全量验证证据（均运行于 `VERIFIED_CODE_SHA_R4 = a31b0bdc`）
+
+- **前端构建与静态检查**：`npx tsc --noEmit` 0 错误；`vite v5.4.19` 生产构建 `965ms` 通过。
+- **前端自动化测试全集**：`npx vitest run --poolOptions.forks.minForks=1 --poolOptions.forks.maxForks=3` → **102/102 测试文件、1376/1376 用例全部通过（`67.30s`）**。
+- **后端静态检查与定向集成回归**：
   - `uv lock --check`（107 packages）、`ruff check src tests scripts`（All checks passed）、`mypy src`（138 source files 0 error）、`scripts/ci_test_manifest.py verify`（`7401 collected / 7190 runnable`）；
-  - 7 个核心单元/集成/E2E 套件（`test_contracts.py`、`test_public_beta_demo_showcase.py`、`test_workspace_intelligence_hub.py`、`test_research_lite.py`、`test_fast_read_api.py`、`test_final_blocker_closure.py`、`test_po_demo.py`）：**139 passed in 228.63s**。
+  - 定向集成回归（`test_public_beta_demo_showcase.py` + `test_research_lite.py`）：**16 passed in 57.28s**（全量后端以本轮推送后的 GitHub Actions 14/14 远端流水线为准）。
 - **真实 Chrome 实机验收**（`http://127.0.0.1:8799/` 独立 Showcase Demo）：
-  - 完成 10,001 条与两篇 5.4 MB UTF-8 中文笔记分卷导出/空库恢复、真实存储配额超限告警、v1 三文件时戳回放与 2 月 30 日拦截、以及 `#Research` 启发式纯文本与恢复 `NEEDS_REVERIFICATION` 全 5 出口阻断实测；`0` 控制台错误、`0` 页面异常、`0` HTTP ≥ 400 请求。
+  - 基于 Codex Round 3 复现原件完成 `single-max-v1.json` 与 `saved-view-a/b.json` 导出/空库无损往返、缺卷提示与损坏文件原子回滚、`#Research` 剪贴板拒写诚实报错实测；`0` 控制台错误、`0` 页面异常、`0` HTTP ≥ 400 请求。
