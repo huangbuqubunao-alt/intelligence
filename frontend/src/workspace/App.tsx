@@ -36,7 +36,7 @@ import {
 import { findRelatedContentItems } from "./relatedContent";
 import { buildVerifiedIntelligenceMarkdown, downloadMarkdownText } from "./intelligenceExport";
 import { buildSelectedContentMarkdown } from "./contentExport";
-import { exportStudyWorkspaceSnapshotJson } from "./studyWorkspaceSnapshot";
+import { exportStudyWorkspaceSnapshotParts } from "./studyWorkspaceSnapshot";
 import { buildFollowingAuditMarkdown } from "./followingAuditExport";
 import {
   collectWorkspaceChecklistItems,
@@ -2189,17 +2189,33 @@ function Workspace() {
       aliases: ["backup", "snapshot", "json", "study", "备份", "学习状态", "镜像", "导出"],
       onSelect: () => {
         const stamp = new Date().toISOString().slice(0, 10);
-        const blob = new Blob([exportStudyWorkspaceSnapshotJson()], {
-          type: "application/json;charset=utf-8",
+        const parts = exportStudyWorkspaceSnapshotParts();
+        const triggerPart = (partIndex: number, totalParts: number, json: string) => {
+          const blob = new Blob([json], {
+            type: "application/json;charset=utf-8",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download =
+            totalParts === 1
+              ? `intelligence-study-snapshot-${stamp}.json`
+              : `intelligence-study-snapshot-${stamp}-part-${partIndex}-of-${totalParts}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+        };
+        parts.forEach((part, idx) => {
+          if (idx === 0) {
+            triggerPart(part.partIndex, part.totalParts, part.json);
+          } else {
+            window.setTimeout(
+              () => triggerPart(part.partIndex, part.totalParts, part.json),
+              idx * 180,
+            );
+          }
         });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `intelligence-study-snapshot-${stamp}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       },
     },
     {

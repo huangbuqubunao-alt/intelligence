@@ -10,6 +10,23 @@ export const PERSONAL_NOTES_CHANGED_EVENT = "yia-personal-notes-changed";
 export const MAX_STUDY_SNAPSHOT_BYTES = 10 * 1024 * 1024;
 export const MAX_PERSONAL_NOTES_IMPORT_COUNT = 10000;
 
+export function utf8ByteLength(text: string): number {
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(text).length;
+  }
+  let bytes = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      i += 1;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
 const UNSAFE_NOTE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 function isSafeNoteKey(rawKey: string): boolean {
@@ -380,17 +397,73 @@ function tagsEqual(a: readonly string[], b: readonly string[]): boolean {
   return a.every((item, idx) => item === b[idx]);
 }
 
+function daysInGregorianMonth(year: number, month: number): number {
+  if (month === 2) {
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    return isLeap ? 29 : 28;
+  }
+  if (month === 4 || month === 6 || month === 9 || month === 11) return 30;
+  return 31;
+}
+
+const STRICT_ISO_TIMESTAMP_RE =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:\d{2})$/;
+
 function parseStrictUpdatedAtMs(raw: unknown): { valid: boolean; iso: string; ms: number } {
+  const epochFallback = { valid: false, iso: new Date(0).toISOString(), ms: 0 };
   if (typeof raw !== "string") {
-    return { valid: false, iso: new Date(0).toISOString(), ms: 0 };
+    return epochFallback;
   }
   const clean = raw.trim();
-  if (!clean) {
-    return { valid: false, iso: new Date(0).toISOString(), ms: 0 };
+  const match = STRICT_ISO_TIMESTAMP_RE.exec(clean);
+  if (!match) {
+    return epochFallback;
   }
-  const ms = Date.parse(clean);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = match[6] ? Number(match[6]) : 0;
+  const msPart = match[7] ? Number(match[7].slice(0, 3).padEnd(3, "0")) : 0;
+  const tz = match[8];
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInGregorianMonth(year, month) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return epochFallback;
+  }
+
+  let offsetMinutes = 0;
+  if (tz !== "Z") {
+    const sign = tz[0] === "+" ? 1 : -1;
+    const offH = Number(tz.slice(1, 3));
+    const offM = Number(tz.slice(4, 6));
+    if (offH > 23 || offM > 59) {
+      return epochFallback;
+    }
+    offsetMinutes = sign * (offH * 60 + offM);
+  }
+
+  const localAsUtc = Date.UTC(year, month - 1, day, hour, minute, second, msPart);
+  const checkDate = new Date(localAsUtc);
+  if (
+    checkDate.getUTCFullYear() !== year ||
+    checkDate.getUTCMonth() + 1 !== month ||
+    checkDate.getUTCDate() !== day
+  ) {
+    return epochFallback;
+  }
+
+  const ms = localAsUtc - offsetMinutes * 60_000;
   if (!Number.isFinite(ms) || ms <= 0) {
-    return { valid: false, iso: new Date(0).toISOString(), ms: 0 };
+    return epochFallback;
   }
   return { valid: true, iso: clean, ms };
 }
@@ -414,6 +487,7 @@ export function importPersonalNotesObject(
   let importedCount = 0;
   let conflictCount = 0;
   let skippedOlderCount = 0;
+  let storeChanged = false;
   const entries = Object.entries(candidateNotes);
   if (entries.length > MAX_PERSONAL_NOTES_IMPORT_COUNT) {
     throw new Error("TOO_MANY_PERSONAL_NOTES");
@@ -434,9 +508,23 @@ export function importPersonalNotesObject(
     if (!existing) {
       current[videoId] = { text, tags, updatedAt: incomingTime.iso };
       importedCount += 1;
+      storeChanged = true;
       continue;
     }
+    const existingTime = parseStrictUpdatedAtMs(existing.updatedAt);
     if (existing.text === text && tagsEqual(existing.tags, tags)) {
+      if (incomingTime.valid) {
+        if (!existingTime.valid || incomingTime.ms > existingTime.ms) {
+          current[videoId] = {
+            text: existing.text,
+            tags: existing.tags,
+            updatedAt: incomingTime.iso,
+          };
+          storeChanged = true;
+        } else if (incomingTime.ms < existingTime.ms) {
+          skippedOlderCount += 1;
+        }
+      }
       continue;
     }
     if (!incomingTime.valid) {
@@ -444,7 +532,6 @@ export function importPersonalNotesObject(
       conflictCount += 1;
       continue;
     }
-    const existingTime = parseStrictUpdatedAtMs(existing.updatedAt);
     if (existingTime.valid && incomingTime.ms < existingTime.ms) {
       skippedOlderCount += 1;
       continue;
@@ -456,10 +543,11 @@ export function importPersonalNotesObject(
     }
     current[videoId] = { text, tags, updatedAt: incomingTime.iso };
     importedCount += 1;
+    storeChanged = true;
   }
 
   let persisted = true;
-  if (importedCount > 0) {
+  if (storeChanged) {
     persisted = writeNoteStore(current);
   }
   const verified = readNoteStore();
@@ -482,7 +570,7 @@ export function importPersonalNotesObject(
 }
 
 export function importPersonalNotesJson(rawJson: string): ImportPersonalNotesResult {
-  if (!rawJson || rawJson.length > MAX_STUDY_SNAPSHOT_BYTES) {
+  if (!rawJson || utf8ByteLength(rawJson) > MAX_STUDY_SNAPSHOT_BYTES) {
     throw new Error("INVALID_PERSONAL_NOTES_FILE");
   }
   let parsed: unknown;

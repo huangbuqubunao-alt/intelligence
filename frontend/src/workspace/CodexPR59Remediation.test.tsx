@@ -17,11 +17,13 @@ import {
 import { clearSavedContentViews, saveContentView } from "./savedViews";
 import {
   exportStudyWorkspaceSnapshotJson,
+  exportStudyWorkspaceSnapshotParts,
   importStudyWorkspaceSnapshotJson,
 } from "./studyWorkspaceSnapshot";
 import { UiLanguageProvider } from "./uiLanguage";
 import {
   type AiResearchSession,
+  formatPlainTextResearchBrief,
   WeeklyAiBriefPanel,
   WorkspaceAiResearchPanel,
   WorkspaceAiSettingsPanel,
@@ -195,6 +197,230 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
     });
     expect(importStudyWorkspaceSnapshotJson(equalTsDiffV1).noteConflicts).toBe(1);
     expect(readPersonalNote("vidConflict")?.text).toBe("Current Newer Note");
+
+    // Round 2 P1-03 counterexamples:
+    // 1) All 6 permutations of (Jan 1 A, Mar 1 A, Feb 1 B) converge to Mar 1 A with tags intact
+    const janA = JSON.stringify({
+      version: 1,
+      notes: { vidPerm: { text: "A", tags: ["core"], updatedAt: "2026-01-01T00:00:00Z" } },
+    });
+    const marA = JSON.stringify({
+      version: 1,
+      notes: { vidPerm: { text: "A", tags: ["core"], updatedAt: "2026-03-01T00:00:00Z" } },
+    });
+    const febB = JSON.stringify({
+      version: 1,
+      notes: { vidPerm: { text: "B", tags: ["core"], updatedAt: "2026-02-01T00:00:00Z" } },
+    });
+    const permutations = [
+      [janA, marA, febB],
+      [janA, febB, marA],
+      [marA, janA, febB],
+      [marA, febB, janA],
+      [febB, janA, marA],
+      [febB, marA, janA],
+    ];
+    for (const order of permutations) {
+      localStorage.clear();
+      for (const snap of order) {
+        importStudyWorkspaceSnapshotJson(snap);
+      }
+      const settled = readPersonalNote("vidPerm");
+      expect(settled?.text).toBe("A");
+      expect(settled?.tags).toEqual(["core"]);
+      expect(settled?.updatedAt).toBe("2026-03-01T00:00:00Z");
+    }
+
+    // 2) Invalid Gregorian calendar dates (2030-02-30, 2026-02-29 non-leap, 2026-04-31) never overwrite
+    localStorage.clear();
+    importStudyWorkspaceSnapshotJson(janA);
+    for (const badIso of [
+      "2030-02-30T00:00:00Z",
+      "2026-02-29T00:00:00Z",
+      "2026-04-31T00:00:00Z",
+    ]) {
+      const badDateSnap = JSON.stringify({
+        version: 1,
+        notes: { vidPerm: { text: "Corrupted Bad Date", tags: [], updatedAt: badIso } },
+      });
+      const resBad = importStudyWorkspaceSnapshotJson(badDateSnap);
+      expect(resBad.noteConflicts).toBe(1);
+      expect(readPersonalNote("vidPerm")?.text).toBe("A");
+    }
+    // Valid leap-year date (2028-02-29) is accepted cleanly
+    const leapValidSnap = JSON.stringify({
+      version: 1,
+      notes: { vidPerm: { text: "Leap Updated", tags: ["leap"], updatedAt: "2028-02-29T00:00:00Z" } },
+    });
+    expect(importStudyWorkspaceSnapshotJson(leapValidSnap).importedNotes).toBe(1);
+    expect(readPersonalNote("vidPerm")?.text).toBe("Leap Updated");
+  });
+
+  it("P1-02 multi-volume sharding: splits 10,001 notes and two 5.4 MiB UTF-8 Chinese notes cleanly and round-trips 100% without truncation", () => {
+    // 1) Sequential 6,000 + 4,000 + 1 import -> 10,001 notes in store
+    const makeBatch = (start: number, count: number) => {
+      const notes: Record<string, { text: string; tags: string[]; updatedAt: string }> = {};
+      for (let i = start; i < start + count; i += 1) {
+        notes[`n_${i}`] = {
+          text: `Short #${i}`,
+          tags: ["b"],
+          updatedAt: "2026-11-27T08:00:00Z",
+        };
+      }
+      return JSON.stringify({ version: 2, notes });
+    };
+    expect(importStudyWorkspaceSnapshotJson(makeBatch(1, 6000)).totalNotes).toBe(6000);
+    expect(importStudyWorkspaceSnapshotJson(makeBatch(6001, 4000)).totalNotes).toBe(10000);
+    expect(importStudyWorkspaceSnapshotJson(makeBatch(10001, 1)).totalNotes).toBe(10001);
+    saveContentView({
+      name: "万条视图",
+      searchQuery: "",
+      providerFilter: "ALL",
+      bucketFilter: "NOTED",
+      topicFilter: "ALL",
+      channelFilter: "ALL",
+      tagFilter: "ALL",
+    });
+
+    const parts10001 = exportStudyWorkspaceSnapshotParts();
+    expect(parts10001).toHaveLength(2);
+    expect(parts10001[0].noteCount).toBe(10000);
+    expect(parts10001[1].noteCount).toBe(1);
+    expect(parts10001[0].byteLength).toBeLessThanOrEqual(10 * 1024 * 1024);
+    expect(parts10001[1].byteLength).toBeLessThanOrEqual(10 * 1024 * 1024);
+
+    localStorage.clear();
+    clearSavedContentViews();
+    for (const part of parts10001) {
+      importStudyWorkspaceSnapshotJson(part.json);
+    }
+    expect(readPersonalNote("n_1")?.text).toBe("Short #1");
+    expect(readPersonalNote("n_10001")?.text).toBe("Short #10001");
+
+    // 2) Two long Chinese notes whose combined UTF-8 JSON exceeds 10 MiB (> 5.4 MB UTF-8 each)
+    localStorage.clear();
+    clearSavedContentViews();
+    const chinese1800k = "测".repeat(1800000); // ~5.4 MB UTF-8 for only 1.8M JS UTF-16 chars!
+    const f1 = JSON.stringify({
+      version: 2,
+      notes: { zh_1: { text: chinese1800k, tags: ["中文"], updatedAt: "2026-11-27T08:00:00Z" } },
+    });
+    const f2 = JSON.stringify({
+      version: 2,
+      notes: { zh_2: { text: chinese1800k, tags: ["中文"], updatedAt: "2026-11-27T09:00:00Z" } },
+    });
+    expect(importStudyWorkspaceSnapshotJson(f1).totalNotes).toBe(1);
+    expect(importStudyWorkspaceSnapshotJson(f2).totalNotes).toBe(2);
+
+    const zhParts = exportStudyWorkspaceSnapshotParts();
+    expect(zhParts).toHaveLength(2);
+    expect(zhParts[0].byteLength).toBeLessThanOrEqual(10 * 1024 * 1024);
+    expect(zhParts[1].byteLength).toBeLessThanOrEqual(10 * 1024 * 1024);
+
+    localStorage.clear();
+    for (const part of zhParts) {
+      importStudyWorkspaceSnapshotJson(part.json);
+    }
+    expect(readPersonalNote("zh_1")?.text.length).toBe(1800000);
+    expect(readPersonalNote("zh_2")?.text.length).toBe(1800000);
+  });
+
+  it("P1-02 quota matrix: Settings backup UI accurately reports notesPersisted=false even when viewsPersisted=true (0 views or 1 view) and notes+views both failing", async () => {
+    vi.stubGlobal("fetch", () => okJson({}));
+    savePersonalNote("vSeed", { text: "Seed", tags: [] });
+
+    let failNotesWrite = true;
+    let failViewsWrite = false;
+    const storageProto = Object.getPrototypeOf(window.localStorage) as Storage;
+    const origSetItem = storageProto.setItem;
+    vi.spyOn(storageProto, "setItem").mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (failNotesWrite && key === PERSONAL_NOTES_STORAGE_KEY) {
+        throw new Error("QuotaExceededError");
+      }
+      if (failViewsWrite && key === "yia.content_saved_views.v1") {
+        throw new Error("QuotaExceededError");
+      }
+      return origSetItem.call(this, key, value);
+    });
+
+    render(
+      <UiLanguageProvider>
+        <WorkspaceAiSettingsPanel />
+      </UiLanguageProvider>,
+    );
+    const fileInput = screen.getByLabelText("选择个人笔记 JSON 文件") as HTMLInputElement;
+
+    // Case A: notesPersisted=false, viewsPersisted=true (no views in snapshot)
+    const notesOnlyPayload = JSON.stringify({
+      version: 2,
+      notes: { vBig: { text: "Too large for quota", tags: [], updatedAt: "2026-11-27T12:00:00Z" } },
+    });
+    const fileA = new File([notesOnlyPayload], "notes-only.json", { type: "application/json" });
+    Object.defineProperty(fileA, "text", { value: async () => notesOnlyPayload });
+    fireEvent.change(fileInput, { target: { files: [fileA] } });
+    await waitFor(() => {
+      expect(screen.getByText(/未能保存个人笔记：浏览器本地存储空间不足/)).toBeTruthy();
+    });
+    expect(screen.queryByText(/已合并导入/)).toBeNull();
+
+    // Case B: notesPersisted=false, viewsPersisted=true (1 saved view succeeds)
+    const mixedPayload = JSON.stringify({
+      version: 2,
+      notes: { vBig: { text: "Too large for quota", tags: [], updatedAt: "2026-11-27T12:00:00Z" } },
+      saved_views: [
+        {
+          id: "view-ok",
+          name: "小视图",
+          searchQuery: "",
+          providerFilter: "ALL",
+          bucketFilter: "STARRED",
+          topicFilter: "ALL",
+          channelFilter: "ALL",
+          tagFilter: "ALL",
+          createdAt: "2026-11-27T12:00:00Z",
+        },
+      ],
+    });
+    const fileB = new File([mixedPayload], "mixed.json", { type: "application/json" });
+    Object.defineProperty(fileB, "text", { value: async () => mixedPayload });
+    fireEvent.change(fileInput, { target: { files: [fileB] } });
+    await waitFor(() => {
+      expect(
+        screen.getByText(/未能保存个人笔记：浏览器本地存储空间不足.*仅合并了 1 个常用视图/),
+      ).toBeTruthy();
+    });
+
+    // Case C: both notesPersisted=false and viewsPersisted=false (distinct new view triggers view write)
+    failViewsWrite = true;
+    const bothFailPayload = JSON.stringify({
+      version: 2,
+      notes: { vBig2: { text: "Too large too", tags: [], updatedAt: "2026-11-27T12:00:00Z" } },
+      saved_views: [
+        {
+          id: "view-fail-both",
+          name: "另一个视图",
+          searchQuery: "agent",
+          providerFilter: "ALL",
+          bucketFilter: "NOTED",
+          topicFilter: "ALL",
+          channelFilter: "ALL",
+          tagFilter: "ALL",
+          createdAt: "2026-11-27T12:00:00Z",
+        },
+      ],
+    });
+    const fileC = new File([bothFailPayload], "both-fail.json", { type: "application/json" });
+    Object.defineProperty(fileC, "text", { value: async () => bothFailPayload });
+    fireEvent.change(fileInput, { target: { files: [fileC] } });
+    await waitFor(() => {
+      expect(
+        screen.getByText(/未能导入个人笔记与常用视图：浏览器本地存储空间不足/),
+      ).toBeTruthy();
+    });
   });
 
   it("P2-01 & P2-04: verifies saved-view quota partial persistence honestly and rejects oversized files before reading", async () => {
@@ -328,10 +554,35 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
       citations: demoHeuristicSession.citations.map((c) => ({ ...c, verified: false })),
     };
 
+    const verifiedSession: AiResearchSession = {
+      ...demoHeuristicSession,
+      session_id: "sess-verified",
+      question: "Verified Question?",
+      fact_verification_state: "SUPPORTED",
+      source_integrity_status: "VERIFIED",
+      contains_heuristic_claims: false,
+      pinned: false,
+      obsidian_markdown: "# Verified Question?\n\n正文已严格核验。",
+    };
+
     expect(classifyResearchSessionTrust(demoHeuristicSession)).toBe("PARTIAL_OR_HEURISTIC");
+    expect(classifyResearchSessionTrust(verifiedSession)).toBe("VERIFIED_EXACT");
     expect(classifyResearchSessionTrust(staleSession)).toBe("NEEDS_REVERIFICATION");
     expect(classifyResearchSessionTrust(falseCitedSession)).toBe("REFUSED");
     expect(buildResearchSynthesisMarkdown(staleSession, true)).toBe("");
+    expect(formatPlainTextResearchBrief(staleSession, true)).toBe("");
+    expect(formatPlainTextResearchBrief(falseCitedSession, true)).toBe("");
+
+    const heuristicPlainZh = formatPlainTextResearchBrief(demoHeuristicSession, true);
+    const heuristicPlainEn = formatPlainTextResearchBrief(demoHeuristicSession, false);
+    expect(heuristicPlainZh).toContain("证据等级：部分未支持内容已裁剪 · 含启发式关联（请核对原话）");
+    expect(heuristicPlainZh).toContain("原话时间轴出处（请对照核验）：");
+    expect(heuristicPlainEn).toContain("Trust posture: Unsupported parts pruned");
+    expect(heuristicPlainEn).not.toContain("Verified citations:");
+
+    const verifiedPlainEn = formatPlainTextResearchBrief(verifiedSession, false);
+    expect(verifiedPlainEn).toContain("Trust posture: Strictly verified");
+    expect(verifiedPlainEn).toContain("Verified citations:");
 
     const dossier = buildResearchDossierMarkdown(
       [demoHeuristicSession, staleSession, falseCitedSession],
@@ -382,10 +633,54 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
     expect(note?.text).toContain("Bilibili Evidence Chain");
     expect(note?.text).toContain("部分未支持内容已裁剪");
 
-    // Switching to NEEDS_REVERIFICATION session hides both export-to-note paths
+    // Heuristic session single-item copy/download carry trust posture notice
+    const copiedTexts: string[] = [];
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async (text: string) => {
+          copiedTexts.push(text);
+        }),
+      },
+    });
+    const downloadedBlobs: Blob[] = [];
+    const origCreateObjectUrl = URL.createObjectURL;
+    const origRevokeObjectUrl = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn((blob: Blob | MediaSource) => {
+      downloadedBlobs.push(blob as Blob);
+      return "blob:research-single";
+    });
+    URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "复制纯文本提纲" }));
+      fireEvent.click(screen.getByRole("button", { name: "复制双链问答" }));
+      fireEvent.click(screen.getByRole("button", { name: "下载 .md" }));
+      await waitFor(() => expect(copiedTexts).toHaveLength(2));
+      expect(copiedTexts[0]).toContain("证据等级：部分未支持内容已裁剪");
+      expect(copiedTexts[1]).toContain("证据等级：部分未支持内容已裁剪");
+      expect(downloadedBlobs).toHaveLength(1);
+      const mdText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(reader.error ?? new Error("FileReader error"));
+        reader.readAsText(downloadedBlobs[0]);
+      });
+      expect(mdText).toContain("证据等级：部分未支持内容已裁剪");
+      expect(clickSpy).toHaveBeenCalled();
+    } finally {
+      URL.createObjectURL = origCreateObjectUrl;
+      URL.revokeObjectURL = origRevokeObjectUrl;
+    }
+
+    // Switching to NEEDS_REVERIFICATION session blocks ALL 5 single-session export & save exits
     fireEvent.click(screen.getByRole("button", { name: /Stale Session/ }));
+    expect(screen.queryByRole("button", { name: "复制纯文本提纲" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "复制双链问答" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "下载 .md" })).toBeNull();
     expect(screen.queryByRole("button", { name: /沉淀为本地研究笔记/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /摘录进来源批注/ })).toBeNull();
+    expect(screen.getByText(/已暂停复制、下载与入库/)).toBeTruthy();
   });
 
   it("P2-05, P2-06 & P2-09: blocks multi-word tag truncation, traps Tab focus inside KeyboardShortcutsModal, and starts WeeklyAiBriefPanel compact", async () => {

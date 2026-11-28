@@ -9,7 +9,9 @@ import {
   buildSourceNoteResearchExcerpt,
   classifyResearchSessionTrust,
   deriveResearchNoteFilename,
+  getVerifiableCitations,
   RESEARCH_LENSES,
+  researchTrustLabel,
 } from "./researchExport";
 import { PhosphorIcon } from "./ui/phosphorIcons";
 import { useUiLanguage } from "./uiLanguage";
@@ -23,8 +25,9 @@ import {
   readAllPersonalNotes,
 } from "./personalNotes";
 import {
-  exportStudyWorkspaceSnapshotJson,
+  exportStudyWorkspaceSnapshotParts,
   importStudyWorkspaceSnapshotJson,
+  type StudyWorkspaceSnapshotPart,
 } from "./studyWorkspaceSnapshot";
 import {
   clearReadingHistory,
@@ -3552,16 +3555,25 @@ export function formatPlainTextResearchBrief(
   session: AiResearchSession,
   zh: boolean,
 ): string {
+  const tier = classifyResearchSessionTrust(session);
+  if (tier === "REFUSED" || tier === "NEEDS_REVERIFICATION") {
+    return "";
+  }
   const stripWiki = (text: string) =>
     text.replace(
       /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
       (_, target: string, alias?: string) => (alias ?? target).trim(),
     );
+  const verifiable = getVerifiableCitations(session);
+  const trustNotice = researchTrustLabel(tier, session, zh);
   const lines: string[] = [];
   lines.push(
     zh
       ? `【跨视频深度问答】${stripWiki(session.question.trim())}`
       : `[Cross-Video Q&A] ${stripWiki(session.question.trim())}`,
+  );
+  lines.push(
+    zh ? `证据等级：${trustNotice}` : `Trust posture: ${trustNotice}`,
   );
   if (session.scope_label_zh?.trim()) {
     lines.push(
@@ -3595,11 +3607,19 @@ export function formatPlainTextResearchBrief(
       ].join("\n"),
     );
   }
-  if (session.citations.length > 0) {
+  if (verifiable.length > 0) {
+    const citationHeader =
+      tier === "VERIFIED_EXACT"
+        ? zh
+          ? "原话时间轴出处（已核验）："
+          : "Verified citations:"
+        : zh
+          ? "原话时间轴出处（请对照核验）："
+          : "Cited excerpts (verify against sources):";
     lines.push(
       [
-        zh ? "原话时间轴出处：" : "Verified citations:",
-        ...session.citations.map((c) => {
+        citationHeader,
+        ...verifiable.map((c) => {
           const meta = [c.channel_name?.trim(), c.timestamp_label?.trim()]
             .filter(Boolean)
             .join(" · ");
@@ -5072,72 +5092,78 @@ export function WorkspaceAiResearchPanel({
                     : `Follow up on cited videos (${activeCitedVideoIds.length})`}
               </button>
             ) : null}
-            <button
-              type="button"
-              className="button button-secondary button-small"
-              onClick={(event) => {
-                pulseCelebration(event.currentTarget);
-                void navigator.clipboard?.writeText(
-                  formatPlainTextResearchBrief(activeSession, zh),
-                );
-                setCopiedPlain(true);
-                setTimeout(() => setCopiedPlain(false), 2000);
-              }}
-            >
-              <PhosphorIcon name="quotes" size={13} />
-              {copiedPlain
-                ? zh
-                  ? "已复制纯文本提纲"
-                  : "Copied plain-text brief"
-                : zh
-                  ? "复制纯文本提纲"
-                  : "Copy plain-text brief"}
-            </button>
-            {activeSession.obsidian_markdown ? (
-              <>
-                <button
-                  type="button"
-                  className="button button-secondary button-small"
-                  onClick={(event) => {
-                    pulseCelebration(event.currentTarget);
-                    void navigator.clipboard?.writeText(activeSession.obsidian_markdown);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                >
-                  <PhosphorIcon name="file-text" size={13} />
-                  {copied
-                    ? zh
-                      ? "已复制双链问答"
-                      : "Copied"
-                    : zh
-                      ? "复制双链问答"
-                      : "Copy Obsidian Q&A"}
-                </button>
-                <button
-                  type="button"
-                  className="button button-ghost button-small"
-                  onClick={() =>
-                    downloadObsidianMarkdown(
-                      `跨视频问答-${activeSession.session_id}`,
-                      activeSession.obsidian_markdown,
-                    )
-                  }
-                >
-                  {zh ? "下载 .md" : "Download .md"}
-                </button>
-              </>
-            ) : null}
             {(() => {
               const activeTier = classifyResearchSessionTrust(activeSession);
               const exportAllowed =
                 activeTier === "VERIFIED_EXACT" || activeTier === "PARTIAL_OR_HEURISTIC";
               const isHeuristicDraft = activeTier === "PARTIAL_OR_HEURISTIC";
+              const plainTextBrief = exportAllowed
+                ? formatPlainTextResearchBrief(activeSession, zh)
+                : "";
+              const safeObsidianMarkdown = exportAllowed
+                ? buildResearchSynthesisMarkdown(activeSession, zh)
+                : "";
               const sourceExcerpt = exportAllowed
                 ? buildSourceNoteResearchExcerpt(activeSession, zh)
                 : null;
               return (
                 <>
+                  {exportAllowed && plainTextBrief ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={(event) => {
+                        pulseCelebration(event.currentTarget);
+                        void navigator.clipboard?.writeText(plainTextBrief);
+                        setCopiedPlain(true);
+                        setTimeout(() => setCopiedPlain(false), 2000);
+                      }}
+                    >
+                      <PhosphorIcon name="quotes" size={13} />
+                      {copiedPlain
+                        ? zh
+                          ? "已复制纯文本提纲"
+                          : "Copied plain-text brief"
+                        : zh
+                          ? "复制纯文本提纲"
+                          : "Copy plain-text brief"}
+                    </button>
+                  ) : null}
+                  {exportAllowed && safeObsidianMarkdown ? (
+                    <>
+                      <button
+                        type="button"
+                        className="button button-secondary button-small"
+                        onClick={(event) => {
+                          pulseCelebration(event.currentTarget);
+                          void navigator.clipboard?.writeText(safeObsidianMarkdown);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                      >
+                        <PhosphorIcon name="file-text" size={13} />
+                        {copied
+                          ? zh
+                            ? "已复制双链问答"
+                            : "Copied"
+                          : zh
+                            ? "复制双链问答"
+                            : "Copy Obsidian Q&A"}
+                      </button>
+                      <button
+                        type="button"
+                        className="button button-ghost button-small"
+                        onClick={() =>
+                          downloadObsidianMarkdown(
+                            `跨视频问答-${activeSession.session_id}`,
+                            safeObsidianMarkdown,
+                          )
+                        }
+                      >
+                        {zh ? "下载 .md" : "Download .md"}
+                      </button>
+                    </>
+                  ) : null}
                   {exportAllowed ? (
                     savedNoteId ? (
                       <button
@@ -5208,6 +5234,13 @@ export function WorkspaceAiResearchPanel({
                             ? "摘录进来源批注"
                             : "Save to source note"}
                     </button>
+                  ) : null}
+                  {!exportAllowed ? (
+                    <span className="muted-copy" role="status">
+                      {zh
+                        ? "当前问答处于待复核或无可核验引用状态，已暂停复制、下载与入库。"
+                        : "Copy, download, and note-saving are paused while this session needs re-verification or lacks verified citations."}
+                    </span>
                   ) : null}
                 </>
               );
@@ -5540,6 +5573,9 @@ export function WorkspaceAiSettingsPanel({
   const [readingHistoryCount, setReadingHistoryCount] = useState(() => readReadingHistory().length);
   const [notesBackupFeedback, setNotesBackupFeedback] = useState<string | null>(null);
   const [notesBackupError, setNotesBackupError] = useState<string | null>(null);
+  const [exportedSnapshotParts, setExportedSnapshotParts] = useState<
+    Array<{ filename: string; part: StudyWorkspaceSnapshotPart }>
+  >([]);
   useEffect(() => {
     const syncLocalStudyGovernance = () => {
       setPersonalNoteCount(listPersonalNoteVideoIds().size);
@@ -5577,23 +5613,48 @@ export function WorkspaceAiSettingsPanel({
         : "Cleared local saved views (personal notes & tags preserved).",
     );
   };
-  const handleExportPersonalNotes = () => {
-    setNotesBackupError(null);
-    const json = exportStudyWorkspaceSnapshotJson();
-    const count = listPersonalNoteVideoIds().size;
-    const viewCount = readSavedContentViews().length;
-    setPersonalNoteCount(count);
-    setSavedViewCount(viewCount);
+  const triggerSnapshotPartDownload = (filename: string, json: string) => {
     const blob = new Blob([json], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    const stamp = new Date().toISOString().slice(0, 10);
-    link.download = `intelligence-personal-notes-${stamp}.json`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+  const handleExportPersonalNotes = () => {
+    setNotesBackupError(null);
+    const parts = exportStudyWorkspaceSnapshotParts();
+    const count = listPersonalNoteVideoIds().size;
+    const viewCount = readSavedContentViews().length;
+    setPersonalNoteCount(count);
+    setSavedViewCount(viewCount);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const wrapped = parts.map((part) => ({
+      filename:
+        part.totalParts === 1
+          ? `intelligence-personal-notes-${stamp}.json`
+          : `intelligence-personal-notes-${stamp}-part-${part.partIndex}-of-${part.totalParts}.json`,
+      part,
+    }));
+    setExportedSnapshotParts(wrapped.length > 1 ? wrapped : []);
+    wrapped.forEach(({ filename, part }, idx) => {
+      if (idx === 0) {
+        triggerSnapshotPartDownload(filename, part.json);
+      } else {
+        window.setTimeout(() => triggerSnapshotPartDownload(filename, part.json), idx * 180);
+      }
+    });
+    if (wrapped.length > 1) {
+      setNotesBackupFeedback(
+        zh
+          ? `已按单卷 10 MiB / 10,000 条安全阈值分 ${wrapped.length} 卷导出（共 ${count} 条笔记${viewCount > 0 ? ` · ${viewCount} 个常用视图` : ""}）；恢复时请一次全选 ${wrapped.length} 个分卷 .json 导入。`
+          : `Exported in ${wrapped.length} safe volume(s) (${count} note(s)${viewCount > 0 ? `, ${viewCount} saved view(s)` : ""}; each <= 10 MiB / 10,000 notes). Select all ${wrapped.length} volume files together when restoring.`,
+      );
+      return;
+    }
     setNotesBackupFeedback(
       viewCount > 0
         ? zh
@@ -5638,56 +5699,105 @@ export function WorkspaceAiSettingsPanel({
     );
   };
   const handleImportPersonalNotes = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!file) return;
+    if (files.length === 0) return;
     setNotesBackupFeedback(null);
     setNotesBackupError(null);
-    if (file.size > MAX_STUDY_SNAPSHOT_BYTES) {
-      setNotesBackupError(
-        zh
-          ? "备份文件超过 10 MiB 限制，未能导入。请先裁剪无效内容后重试。"
-          : "Backup file exceeds the 10 MiB limit and was rejected before reading.",
-      );
-      return;
-    }
-    try {
-      const raw = await file.text();
-      const result = importStudyWorkspaceSnapshotJson(raw);
-      setPersonalNoteCount(result.totalNotes);
-      setSavedViewCount(result.totalViews);
-      if (!result.notesPersisted && !result.viewsPersisted) {
+    setExportedSnapshotParts([]);
+    for (const file of files) {
+      if (file.size > MAX_STUDY_SNAPSHOT_BYTES) {
         setNotesBackupError(
           zh
-            ? "未能导入个人笔记：浏览器本地存储空间不足，未写入任何修改。"
-            : "Could not import notes: browser local storage quota exceeded.",
+            ? `备份文件（${file.name}）超过 10 MiB 限制，未能导入。请使用分卷备份或裁剪无效内容后重试。`
+            : `Backup file (${file.name}) exceeds the 10 MiB limit and was rejected before reading.`,
         );
         return;
       }
-      if (result.notesPersisted && !result.viewsPersisted) {
-        setNotesBackupFeedback(
-          zh
-            ? `已导入 ${result.importedNotes} 条个人笔记，但因存储空间限制未能保存 ${result.failedViewsCount} 个常用视图（当前共 ${result.totalNotes} 条笔记 · ${result.totalViews} 个视图）。`
-            : `Merged ${result.importedNotes} note(s), but ${result.failedViewsCount} saved view(s) could not be persisted due to storage limits (${result.totalNotes} notes, ${result.totalViews} views total).`,
+    }
+    try {
+      let importedNotes = 0;
+      let importedViews = 0;
+      let noteConflicts = 0;
+      let skippedOlderNotes = 0;
+      let totalNotes = personalNoteCount;
+      let totalViews = savedViewCount;
+      let allNotesPersisted = true;
+      let allViewsPersisted = true;
+      let failedViewsCount = 0;
+
+      for (const file of files) {
+        const raw = await file.text();
+        const result = importStudyWorkspaceSnapshotJson(raw);
+        importedNotes += result.importedNotes;
+        importedViews += result.importedViews;
+        noteConflicts += result.noteConflicts;
+        skippedOlderNotes += result.skippedOlderNotes;
+        totalNotes = result.totalNotes;
+        totalViews = result.totalViews;
+        if (!result.notesPersisted) allNotesPersisted = false;
+        if (!result.viewsPersisted) {
+          allViewsPersisted = false;
+          failedViewsCount += result.failedViewsCount;
+        }
+      }
+
+      setPersonalNoteCount(totalNotes);
+      setSavedViewCount(totalViews);
+
+      const noteDetailPartsZh: string[] = [];
+      const noteDetailPartsEn: string[] = [];
+      if (noteConflicts > 0) {
+        noteDetailPartsZh.push(`另有 ${noteConflicts} 条缺少有效或冲突时间戳记录已保留本机现值`);
+        noteDetailPartsEn.push(
+          `${noteConflicts} conflicting or invalid-timestamp record(s) kept existing local values`,
         );
-        return;
+      }
+      if (skippedOlderNotes > 0) {
+        noteDetailPartsZh.push(`已跳过 ${skippedOlderNotes} 条早于当前版本的旧修订`);
+        noteDetailPartsEn.push(`skipped ${skippedOlderNotes} older revision(s)`);
       }
       const conflictSuffixZh =
-        result.noteConflicts > 0
-          ? `（另有 ${result.noteConflicts} 条缺少有效时间戳或冲突记录已保留本机现值）`
-          : "";
+        noteDetailPartsZh.length > 0 ? `（${noteDetailPartsZh.join("；")}）` : "";
       const conflictSuffixEn =
-        result.noteConflicts > 0
-          ? ` (${result.noteConflicts} conflicting or undated record(s) kept existing local values)`
-          : "";
+        noteDetailPartsEn.length > 0 ? ` (${noteDetailPartsEn.join("; ")})` : "";
+
+      if (!allNotesPersisted && !allViewsPersisted) {
+        setNotesBackupError(
+          zh
+            ? `未能导入个人笔记与常用视图：浏览器本地存储空间不足（当前共 ${totalNotes} 条笔记 · ${totalViews} 个视图）。`
+            : `Could not import notes or saved views: browser local storage quota exceeded (${totalNotes} note(s), ${totalViews} view(s) remain).`,
+        );
+        return;
+      }
+      if (!allNotesPersisted && allViewsPersisted) {
+        setNotesBackupError(
+          importedViews > 0
+            ? zh
+              ? `未能保存个人笔记：浏览器本地存储空间不足（已写入 ${importedNotes} 条，当前共 ${totalNotes} 条）；仅合并了 ${importedViews} 个常用视图（共 ${totalViews} 个视图）。`
+              : `Could not save personal notes: browser local storage quota exceeded (${importedNotes} written; total ${totalNotes} note(s)). Only merged ${importedViews} saved view(s) (${totalViews} views total).`
+            : zh
+              ? `未能保存个人笔记：浏览器本地存储空间不足（已写入 ${importedNotes} 条，当前共 ${totalNotes} 条）。`
+              : `Could not save personal notes: browser local storage quota exceeded (${importedNotes} written; total remains ${totalNotes} note(s)).`,
+        );
+        return;
+      }
+      if (allNotesPersisted && !allViewsPersisted) {
+        setNotesBackupFeedback(
+          zh
+            ? `已导入 ${importedNotes} 条个人笔记，但因存储空间限制未能保存 ${failedViewsCount} 个常用视图（当前共 ${totalNotes} 条笔记 · ${totalViews} 个视图）。${conflictSuffixZh}`
+            : `Merged ${importedNotes} note(s), but ${failedViewsCount} saved view(s) could not be persisted due to storage limits (${totalNotes} notes, ${totalViews} views total).${conflictSuffixEn}`,
+        );
+        return;
+      }
       setNotesBackupFeedback(
-        result.importedViews > 0
+        importedViews > 0
           ? zh
-            ? `已合并导入 ${result.importedNotes} 条个人笔记与 ${result.importedViews} 个常用视图，当前本机共 ${result.totalNotes} 条笔记 · ${result.totalViews} 个视图。${conflictSuffixZh}`
-            : `Merged ${result.importedNotes} personal note(s) and ${result.importedViews} saved view(s); total now ${result.totalNotes} note(s) and ${result.totalViews} view(s).${conflictSuffixEn}`
+            ? `已合并导入 ${importedNotes} 条个人笔记与 ${importedViews} 个常用视图，当前本机共 ${totalNotes} 条笔记 · ${totalViews} 个视图。${conflictSuffixZh}`
+            : `Merged ${importedNotes} personal note(s) and ${importedViews} saved view(s); total now ${totalNotes} note(s) and ${totalViews} view(s).${conflictSuffixEn}`
           : zh
-            ? `已合并导入 ${result.importedNotes} 条个人笔记，当前本机共 ${result.totalNotes} 条。${conflictSuffixZh}`
-            : `Merged ${result.importedNotes} personal note(s); total now ${result.totalNotes}.${conflictSuffixEn}`,
+            ? `已合并导入 ${importedNotes} 条个人笔记，当前本机共 ${totalNotes} 条。${conflictSuffixZh}`
+            : `Merged ${importedNotes} personal note(s); total now ${totalNotes}.${conflictSuffixEn}`,
       );
     } catch {
       setNotesBackupError(
@@ -6614,12 +6724,33 @@ export function WorkspaceAiSettingsPanel({
             <input
               ref={notesImportInputRef}
               type="file"
+              multiple
               accept=".json,application/json"
               hidden
               aria-label={zh ? "选择个人笔记 JSON 文件" : "Choose personal notes JSON file"}
               onChange={(event) => void handleImportPersonalNotes(event)}
             />
           </div>
+          {exportedSnapshotParts.length > 1 ? (
+            <div
+              className="button-row local-study-governance-actions"
+              role="group"
+              aria-label={zh ? "分卷备份单独下载" : "Individual snapshot volume downloads"}
+            >
+              {exportedSnapshotParts.map(({ filename, part }) => (
+                <button
+                  key={part.partIndex}
+                  type="button"
+                  className="button button-ghost button-small tabular-nums"
+                  onClick={() => triggerSnapshotPartDownload(filename, part.json)}
+                >
+                  {zh
+                    ? `下载分卷 ${part.partIndex}/${part.totalParts} (${part.noteCount} 条 · ${(part.byteLength / (1024 * 1024)).toFixed(2)} MiB)`
+                    : `Download part ${part.partIndex}/${part.totalParts} (${part.noteCount} notes · ${(part.byteLength / (1024 * 1024)).toFixed(2)} MiB)`}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {readingHistoryCount > 0 || savedViewCount > 0 ? (
             <div
               className="button-row local-study-governance-actions"
