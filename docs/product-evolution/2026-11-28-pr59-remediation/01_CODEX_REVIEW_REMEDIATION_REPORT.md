@@ -1,11 +1,12 @@
-# Intelligence · PR #59 独立终审整改交付报告（Round 4 Ready）
+# Intelligence · PR #59 独立终审整改交付报告（Round 5 Ready）
 
 - **目标分支**：`antigravity/autonomous-product-evolution-wave8-20261127`（[PR #59](https://github.com/huangbuqubunao-alt/intelligence/pull/59)，保持 Draft）
 - **仓库 `main` 基线**：`f7b97134a9fafd3e8e447851a4237bdc66f7e60e`（全程未修改）
 - **第 44 项整提交回退锚点**：`f4da98e4`（干净 `git revert f3cd5563`，已验证阅读器回归简洁克制）
 - **Round 2 基线**：代码 `81c16adb1be072cb3353d4b7194a4b6fae947e80` · 交付 `edf86fc6a2759a8c36ec0dd4dbfdc9593de9d7d8`
 - **Round 3 基线**：代码 `2b0c4d6b40856a89fed7d4c21c2f1b837db1f574` · 交付 `8618ae53d6f46fdbbfc5bd69bd6683f346331c30`
-- **最新已验证代码基线（`VERIFIED_CODE_SHA_R4`）**：`a31b0bdcbce9b8af52fe2f31ea0944b5520c2184`
+- **Round 4 基线**：代码 `a31b0bdcbce9b8af52fe2f31ea0944b5520c2184` · 交付 `1afe92dd50481c93982b9003a54f0bc2af9a440f`
+- **最新已验证代码基线（`VERIFIED_CODE_SHA_R5`）**：`280b73bdac3bef5d76dba67474dfef0826d0c01d`
 - **日期**：2026-11-28（Asia/Shanghai）
 
 ---
@@ -60,12 +61,20 @@
 
 ---
 
-## 五、最新全量验证证据（均运行于 `VERIFIED_CODE_SHA_R4 = a31b0bdc`）
+## 五、第五轮定向收口（针对 Codex Round 4 唯一剩余 `P1` — 跨批次混选分卷拼接正文）
 
-- **前端构建与静态检查**：`npx tsc --noEmit` 0 错误；`vite v5.4.19` 生产构建 `965ms` 通过。
-- **前端自动化测试全集**：`npx vitest run --poolOptions.forks.minForks=1 --poolOptions.forks.maxForks=3` → **102/102 测试文件、1376/1376 用例全部通过（`67.30s`）**。
+| 复审发现 | 触发根因 | 本轮精确收口方案 | Round 5 验证依据 |
+| :--- | :--- | :--- | :--- |
+| **P1** 混选备份 A 第 1 卷 + 备份 B 第 2 卷静默拼出从未备份正文 | 导入器全局共用卷号集合并仅按 `video_id` 归集拼接，未校验分卷是否属于同一导出批次，且同日多卷下载文件名相同 | 1. 每次导出生成唯一 `export_batch_id` 写入分卷 JSON 并带入下载文件名短标识（同毫秒/同日两次导出亦互异互不覆盖）；<br>2. 导入阶段严格按 `(batchKey, video_id/view.id)` 隔离分组（兼容无 `export_batch_id` 的旧分卷按 `exported_at` 隔离），跨批次混选立即在写入前原子中止并保持空库 `0` 条；<br>3. 分段载荷附加 `full_length` 与双 32 位滚动指纹校验，阻止篡改/缺片误拼。 | 真机 Chrome 实测 Codex 第四轮证据包：`repro-selection/` 混选立即报「来自 2 个不同的导出批次」并保持刷新后 `0` 条；`downloads/single/` 与 `downloads/revision/` 各自正反序仍精确还原 A/B 原稿 SHA-256；同策略复验本轮新导出 `A1+B2`（带批号文件名）同样拦截为 `0` 条；单测覆盖同毫秒导出与片段篡改校验，所有长文本用例已升级为完整指纹比对。 |
+
+---
+
+## 六、最新全量验证证据（均运行于 `VERIFIED_CODE_SHA_R5 = 280b73bd`）
+
+- **前端构建与静态检查**：`npx tsc --noEmit` 0 错误；`vite v5.4.19` 生产构建 `888ms` 通过。
+- **前端自动化测试全集**：`npx vitest run --poolOptions.forks.minForks=1 --poolOptions.forks.maxForks=3` → **102/102 测试文件、1377/1377 用例全部通过（`58.25s`）**。
 - **后端静态检查与定向集成回归**：
   - `uv lock --check`（107 packages）、`ruff check src tests scripts`（All checks passed）、`mypy src`（138 source files 0 error）、`scripts/ci_test_manifest.py verify`（`7401 collected / 7190 runnable`）；
-  - 定向集成回归（`test_public_beta_demo_showcase.py` + `test_research_lite.py`）：**16 passed in 57.28s**（全量后端以本轮推送后的 GitHub Actions 14/14 远端流水线为准）。
+  - 定向集成回归（`test_public_beta_demo_showcase.py` + `test_research_lite.py`）：**16 passed in 52.81s**（全量后端以本轮推送后的 GitHub Actions 14/14 远端流水线为准）。
 - **真实 Chrome 实机验收**（`http://127.0.0.1:8799/` 独立 Showcase Demo）：
-  - 基于 Codex Round 3 复现原件完成 `single-max-v1.json` 与 `saved-view-a/b.json` 导出/空库无损往返、缺卷提示与损坏文件原子回滚、`#Research` 剪贴板拒写诚实报错实测；`0` 控制台错误、`0` 页面异常、`0` HTTP ≥ 400 请求。
+  - 直接使用 Codex 第四轮 `PR59-round4-evidence.zip` 完成 `downloads/single/`（正反序）、`downloads/revision/`（正反序）、`repro-selection/`（跨批次拒写后保持空库）、及本轮带批号多卷新导出 `A1+B2` 隔离实测；`0` 控制台错误、`0` 页面异常、`0` HTTP ≥ 400 请求。
