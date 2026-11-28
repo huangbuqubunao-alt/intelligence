@@ -13,12 +13,14 @@ import {
   buildResearchDossierMarkdown,
   buildResearchSynthesisMarkdown,
   classifyResearchSessionTrust,
+  researchTrustLabel,
 } from "./researchExport";
-import { clearSavedContentViews, saveContentView } from "./savedViews";
+import { clearSavedContentViews, readSavedContentViews, saveContentView } from "./savedViews";
 import {
   exportStudyWorkspaceSnapshotJson,
   exportStudyWorkspaceSnapshotParts,
   importStudyWorkspaceSnapshotJson,
+  importStudyWorkspaceSnapshotPayloads,
 } from "./studyWorkspaceSnapshot";
 import { UiLanguageProvider } from "./uiLanguage";
 import {
@@ -757,5 +759,257 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
     expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(expandBtn);
     expect(screen.getByText("精选长视频一")).toBeTruthy();
+  });
+
+  it("Round 4 P1-02 boundary 1: exact 10 MiB compact v1 single note exports in lossless parts (<= 10 MiB each) and round-trips 100% in forward & reverse order", () => {
+    // jsdom caps built-in localStorage at 5,000,000 chars whereas Chrome stores 10+ MB Latin1;
+    // back localStorage with a roomy in-memory store here to exercise the exact 10,485,760-byte production limit.
+    const backing = new Map<string, string>();
+    const storageProto = Object.getPrototypeOf(window.localStorage) as Storage;
+    vi.spyOn(storageProto, "getItem").mockImplementation((k: string) => backing.get(k) ?? null);
+    vi.spyOn(storageProto, "setItem").mockImplementation((k: string, v: string) => {
+      backing.set(k, String(v));
+    });
+    vi.spyOn(storageProto, "removeItem").mockImplementation((k: string) => {
+      backing.delete(k);
+    });
+    vi.spyOn(storageProto, "clear").mockImplementation(() => {
+      backing.clear();
+    });
+
+    const prefix = '{"version":1,"notes":{"r":{"text":"';
+    const suffix = '"}}}';
+    const maxBytes = 10 * 1024 * 1024;
+    const textLen = maxBytes - prefix.length - suffix.length;
+    const singleMaxV1 = `${prefix}${"a".repeat(textLen)}${suffix}`;
+    expect(singleMaxV1.length).toBe(maxBytes);
+
+    const impRes = importStudyWorkspaceSnapshotJson(singleMaxV1);
+    expect(impRes.notesPersisted).toBe(true);
+    expect(impRes.importedNotes).toBe(1);
+    expect(impRes.totalNotes).toBe(1);
+
+    const parts = exportStudyWorkspaceSnapshotParts();
+    expect(parts.length).toBeGreaterThanOrEqual(2);
+    for (const p of parts) {
+      expect(p.byteLength).toBeLessThanOrEqual(maxBytes);
+    }
+
+    // Forward order restore
+    localStorage.clear();
+    const restoredForward = importStudyWorkspaceSnapshotPayloads(
+      parts.map((p) => ({ name: `part-${p.partIndex}.json`, rawJson: p.json })),
+    );
+    expect(restoredForward.importedNotes).toBe(1);
+    expect(restoredForward.totalNotes).toBe(1);
+    expect(restoredForward.missingPartIndices).toEqual([]);
+    expect(restoredForward.incompleteSegmentedNotes).toBe(0);
+    const noteForward = readPersonalNote("r");
+    expect(noteForward?.text.length).toBe(textLen);
+    expect(noteForward?.tags).toEqual([]);
+    expect(noteForward?.updatedAt).toBe(new Date(0).toISOString());
+
+    // Reverse order restore
+    localStorage.clear();
+    const restoredReverse = importStudyWorkspaceSnapshotPayloads(
+      [...parts].reverse().map((p) => ({ name: `part-${p.partIndex}.json`, rawJson: p.json })),
+    );
+    expect(restoredReverse.importedNotes).toBe(1);
+    expect(readPersonalNote("r")?.text.length).toBe(textLen);
+  });
+
+  it("Round 4 P1-02 boundary 2: two ~5.4 MB UTF-8 saved views + 1 note export completely without dropping views and restore 1/1 note + 2/2 views", () => {
+    const queryA = "甲".repeat(1_800_000);
+    const queryB = "乙".repeat(1_800_000);
+    const fileA = JSON.stringify({
+      version: 2,
+      notes: { vidShared: { text: "Note", tags: ["t"], updatedAt: "2026-11-27T08:00:00Z" } },
+      saved_views: [
+        {
+          id: "view-a",
+          name: "视图甲",
+          searchQuery: queryA,
+          providerFilter: "ALL",
+          bucketFilter: "ALL",
+          topicFilter: "ALL",
+          channelFilter: "ALL",
+          tagFilter: "ALL",
+          createdAt: "2026-11-27T08:00:00Z",
+        },
+      ],
+    });
+    const fileB = JSON.stringify({
+      version: 2,
+      notes: { vidShared: { text: "Note", tags: ["t"], updatedAt: "2026-11-27T08:00:00Z" } },
+      saved_views: [
+        {
+          id: "view-b",
+          name: "视图乙",
+          searchQuery: queryB,
+          providerFilter: "ALL",
+          bucketFilter: "ALL",
+          topicFilter: "ALL",
+          channelFilter: "ALL",
+          tagFilter: "ALL",
+          createdAt: "2026-11-27T09:00:00Z",
+        },
+      ],
+    });
+    expect(importStudyWorkspaceSnapshotJson(fileA).totalViews).toBe(1);
+    expect(importStudyWorkspaceSnapshotJson(fileB).totalViews).toBe(2);
+
+    const parts = exportStudyWorkspaceSnapshotParts();
+    expect(parts.length).toBeGreaterThanOrEqual(2);
+    for (const p of parts) {
+      expect(p.byteLength).toBeLessThanOrEqual(10 * 1024 * 1024);
+    }
+
+    localStorage.clear();
+    clearSavedContentViews();
+    const restored = importStudyWorkspaceSnapshotPayloads(
+      parts.map((p) => ({ name: `part-${p.partIndex}.json`, rawJson: p.json })),
+    );
+    expect(restored.totalNotes).toBe(1);
+    expect(restored.importedViews).toBe(2);
+    expect(restored.totalViews).toBe(2);
+    const views = readSavedContentViews();
+    expect(views).toHaveLength(2);
+    expect(views.find((v) => v.id === "view-a")?.searchQuery.length).toBe(1_800_000);
+    expect(views.find((v) => v.id === "view-b")?.searchQuery.length).toBe(1_800_000);
+  });
+
+  it("Round 4 P2 multi-volume UI: warns on partial volume selection and aborts atomically without partial writes if one selected file is corrupt", async () => {
+    vi.stubGlobal("fetch", () => okJson({}));
+    render(
+      <UiLanguageProvider>
+        <WorkspaceAiSettingsPanel />
+      </UiLanguageProvider>,
+    );
+    const fileInput = screen.getByLabelText("选择个人笔记 JSON 文件") as HTMLInputElement;
+
+    const part1Json = JSON.stringify({
+      version: 2,
+      part_index: 1,
+      total_parts: 2,
+      notes: { v1: { text: "Part 1 note", tags: [], updatedAt: "2026-11-27T08:00:00Z" } },
+      saved_views: [],
+    });
+    const part2Json = JSON.stringify({
+      version: 2,
+      part_index: 2,
+      total_parts: 2,
+      notes: { v2: { text: "Part 2 note", tags: [], updatedAt: "2026-11-27T08:00:00Z" } },
+      saved_views: [],
+    });
+
+    // 1) Uploading only part 2 of 2 explicitly warns missing part 1
+    const part2File = new File([part2Json], "part-2-of-2.json", { type: "application/json" });
+    Object.defineProperty(part2File, "text", { value: async () => part2Json });
+    fireEvent.change(fileInput, { target: { files: [part2File] } });
+    await waitFor(() => {
+      expect(screen.getByText(/缺少第 1 卷（共 2 卷）/)).toBeTruthy();
+    });
+
+    // 2) Atomic validation: uploading valid part 1 + corrupt `{` part 2 writes NOTHING new and names corrupt file
+    localStorage.clear();
+    const part1File = new File([part1Json], "part-1-of-2.json", { type: "application/json" });
+    Object.defineProperty(part1File, "text", { value: async () => part1Json });
+    const badFile = new File(["{"], "corrupt-part-2.json", { type: "application/json" });
+    Object.defineProperty(badFile, "text", { value: async () => "{" });
+    fireEvent.change(fileInput, { target: { files: [part1File, badFile] } });
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("corrupt-part-2.json");
+    });
+    expect(readPersonalNote("v1")).toBeNull();
+  });
+
+  it("Round 4 P2 clipboard & P3 label: reports clipboard write rejection instead of false 'Copied' and never labels HEURISTIC_ONLY+contains_heuristic_claims as pruned", async () => {
+    const pureHeuristic: AiResearchSession = {
+      session_id: "sess-heu-only",
+      question: "启发式测试？",
+      answer_status: "GROUNDED",
+      source_integrity_status: "VERIFIED",
+      fact_verification_state: "HEURISTIC_ONLY",
+      contains_heuristic_claims: true,
+      pinned: false,
+      refused: false,
+      scope_label_zh: "全库",
+      answer_zh: "纯启发式关联结论 [E1]。",
+      key_takeaways_zh: [],
+      action_items_zh: [],
+      citations: [
+        {
+          ref_label: "E1",
+          video_id: "vid1",
+          video_title: "Doc 1",
+          channel_name: "Ch",
+          evidence_id: "ev1",
+          start_ms: 1000,
+          end_ms: 2000,
+          timestamp_label: "00:01",
+          excerpt: "Excerpt",
+          verified: true,
+        },
+      ],
+      obsidian_markdown: "# 启发式",
+      provider: "demo-replay",
+      model: "demo-replay",
+      created_at: "2026-11-27T09:00:00Z",
+    };
+
+    const labelZh = researchTrustLabel("PARTIAL_OR_HEURISTIC", pureHeuristic, true);
+    const labelEn = researchTrustLabel("PARTIAL_OR_HEURISTIC", pureHeuristic, false);
+    expect(labelZh).toBe("启发式相关 · 请核对原话");
+    expect(labelZh).not.toContain("已裁剪");
+    expect(labelEn).toBe("Heuristic match · Verify sources");
+    expect(labelEn.toLowerCase()).not.toContain("pruned");
+
+    // Clipboard write rejection does NOT show Copied and shows alert
+    const origClipDesc = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn(async () => {
+          throw new DOMException("Clipboard blocked", "NotAllowedError");
+        }),
+      },
+    });
+    vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/v1/workspace-ai/research/sessions")) {
+        return okJson({
+          sessions: [pureHeuristic],
+          suggested_questions: [],
+          scope_options: { channels: [], topic_clusters: [], videos: [] },
+        });
+      }
+      return okJson({});
+    });
+
+    try {
+      render(
+        <UiLanguageProvider>
+          <WorkspaceAiResearchPanel onOpen={vi.fn()} />
+        </UiLanguageProvider>,
+      );
+
+      const copyPlainBtn = await screen.findByRole("button", { name: "复制纯文本提纲" });
+      fireEvent.click(copyPlainBtn);
+      await waitFor(() => {
+        expect(screen.getByRole("alert").textContent).toContain("未能写入系统剪贴板");
+      });
+      expect(screen.queryByRole("button", { name: "已复制纯文本提纲" })).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "复制双链问答" }));
+      await waitFor(() => {
+        expect(screen.getByRole("alert").textContent).toContain("未能写入系统剪贴板");
+      });
+      expect(screen.queryByRole("button", { name: "已复制双链问答" })).toBeNull();
+    } finally {
+      if (origClipDesc) {
+        Object.defineProperty(navigator, "clipboard", origClipDesc);
+      } else {
+        Reflect.deleteProperty(navigator, "clipboard");
+      }
+    }
   });
 });

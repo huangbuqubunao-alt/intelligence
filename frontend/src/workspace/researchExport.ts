@@ -58,7 +58,7 @@ export function researchTrustLabel(
   }
   if (
     session.fact_verification_state === "PARTIAL_PRUNED_HEURISTIC" ||
-    session.contains_heuristic_claims
+    (session.fact_verification_state === "PARTIAL_PRUNED" && session.contains_heuristic_claims)
   ) {
     return zh
       ? "部分未支持内容已裁剪 · 含启发式关联（请核对原话）"
@@ -69,7 +69,7 @@ export function researchTrustLabel(
       ? "部分未支持内容已裁剪（请核对引用）"
       : "Partially pruned · Verify cited excerpts";
   }
-  if (session.fact_verification_state === "HEURISTIC_ONLY") {
+  if (session.fact_verification_state === "HEURISTIC_ONLY" || session.contains_heuristic_claims) {
     return zh ? "启发式相关 · 请核对原话" : "Heuristic match · Verify sources";
   }
   return zh
