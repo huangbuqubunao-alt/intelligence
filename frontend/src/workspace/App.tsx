@@ -2190,17 +2190,23 @@ function Workspace() {
       onSelect: () => {
         const stamp = new Date().toISOString().slice(0, 10);
         const parts = exportStudyWorkspaceSnapshotParts();
-        const triggerPart = (partIndex: number, totalParts: number, json: string) => {
+        const triggerPart = (
+          partIndex: number,
+          totalParts: number,
+          exportBatchId: string,
+          json: string,
+        ) => {
           const blob = new Blob([json], {
             type: "application/json;charset=utf-8",
           });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
+          const batchTag = exportBatchId.replace(/[^A-Za-z0-9]/g, "").slice(0, 6) || "batch";
           a.href = url;
           a.download =
             totalParts === 1
               ? `intelligence-study-snapshot-${stamp}.json`
-              : `intelligence-study-snapshot-${stamp}-part-${partIndex}-of-${totalParts}.json`;
+              : `intelligence-study-snapshot-${stamp}-${batchTag}-part-${partIndex}-of-${totalParts}.json`;
           document.body.appendChild(a);
           a.click();
           a.remove();
@@ -2208,10 +2214,10 @@ function Workspace() {
         };
         parts.forEach((part, idx) => {
           if (idx === 0) {
-            triggerPart(part.partIndex, part.totalParts, part.json);
+            triggerPart(part.partIndex, part.totalParts, part.exportBatchId, part.json);
           } else {
             window.setTimeout(
-              () => triggerPart(part.partIndex, part.totalParts, part.json),
+              () => triggerPart(part.partIndex, part.totalParts, part.exportBatchId, part.json),
               idx * 180,
             );
           }

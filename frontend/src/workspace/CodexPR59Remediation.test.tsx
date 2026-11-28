@@ -17,10 +17,12 @@ import {
 } from "./researchExport";
 import { clearSavedContentViews, readSavedContentViews, saveContentView } from "./savedViews";
 import {
+  computeTextFingerprint,
   exportStudyWorkspaceSnapshotJson,
   exportStudyWorkspaceSnapshotParts,
   importStudyWorkspaceSnapshotJson,
   importStudyWorkspaceSnapshotPayloads,
+  SnapshotImportFileError,
 } from "./studyWorkspaceSnapshot";
 import { UiLanguageProvider } from "./uiLanguage";
 import {
@@ -781,7 +783,9 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
     const suffix = '"}}}';
     const maxBytes = 10 * 1024 * 1024;
     const textLen = maxBytes - prefix.length - suffix.length;
-    const singleMaxV1 = `${prefix}${"a".repeat(textLen)}${suffix}`;
+    const expectedText = "a".repeat(textLen);
+    const expectedFp = computeTextFingerprint(expectedText);
+    const singleMaxV1 = `${prefix}${expectedText}${suffix}`;
     expect(singleMaxV1.length).toBe(maxBytes);
 
     const impRes = importStudyWorkspaceSnapshotJson(singleMaxV1);
@@ -806,6 +810,7 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
     expect(restoredForward.incompleteSegmentedNotes).toBe(0);
     const noteForward = readPersonalNote("r");
     expect(noteForward?.text.length).toBe(textLen);
+    expect(computeTextFingerprint(noteForward?.text ?? "")).toBe(expectedFp);
     expect(noteForward?.tags).toEqual([]);
     expect(noteForward?.updatedAt).toBe(new Date(0).toISOString());
 
@@ -815,12 +820,15 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
       [...parts].reverse().map((p) => ({ name: `part-${p.partIndex}.json`, rawJson: p.json })),
     );
     expect(restoredReverse.importedNotes).toBe(1);
-    expect(readPersonalNote("r")?.text.length).toBe(textLen);
+    const noteReverse = readPersonalNote("r");
+    expect(computeTextFingerprint(noteReverse?.text ?? "")).toBe(expectedFp);
   });
 
   it("Round 4 P1-02 boundary 2: two ~5.4 MB UTF-8 saved views + 1 note export completely without dropping views and restore 1/1 note + 2/2 views", () => {
     const queryA = "甲".repeat(1_800_000);
     const queryB = "乙".repeat(1_800_000);
+    const fpA = computeTextFingerprint(queryA);
+    const fpB = computeTextFingerprint(queryB);
     const fileA = JSON.stringify({
       version: 2,
       notes: { vidShared: { text: "Note", tags: ["t"], updatedAt: "2026-11-27T08:00:00Z" } },
@@ -874,8 +882,8 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
     expect(restored.totalViews).toBe(2);
     const views = readSavedContentViews();
     expect(views).toHaveLength(2);
-    expect(views.find((v) => v.id === "view-a")?.searchQuery.length).toBe(1_800_000);
-    expect(views.find((v) => v.id === "view-b")?.searchQuery.length).toBe(1_800_000);
+    expect(computeTextFingerprint(views.find((v) => v.id === "view-a")?.searchQuery ?? "")).toBe(fpA);
+    expect(computeTextFingerprint(views.find((v) => v.id === "view-b")?.searchQuery ?? "")).toBe(fpB);
   });
 
   it("Round 4 P2 multi-volume UI: warns on partial volume selection and aborts atomically without partial writes if one selected file is corrupt", async () => {
@@ -1011,5 +1019,128 @@ describe("Codex PR #59 Remediation (P1-01..P1-04, P2-01..P2-09, P3-01)", () => {
         Reflect.deleteProperty(navigator, "clipboard");
       }
     }
+  });
+
+  it("Round 5 P1 cross-batch guard: isolates export batches (even in same millisecond), rejects mixing A1+B2 (fresh or legacy) with 0 writes, and detects tampered segments", async () => {
+    const backing = new Map<string, string>();
+    const storageProto = Object.getPrototypeOf(window.localStorage) as Storage;
+    vi.spyOn(storageProto, "getItem").mockImplementation((k: string) => backing.get(k) ?? null);
+    vi.spyOn(storageProto, "setItem").mockImplementation((k: string, v: string) => {
+      backing.set(k, String(v));
+    });
+    vi.spyOn(storageProto, "removeItem").mockImplementation((k: string) => {
+      backing.delete(k);
+    });
+    vi.spyOn(storageProto, "clear").mockImplementation(() => {
+      backing.clear();
+    });
+
+    const fixedIso = "2026-11-28T14:35:00.000Z";
+    vi.spyOn(Date.prototype, "toISOString").mockReturnValue(fixedIso);
+
+    const prefix = '{"version":1,"notes":{"r":{"text":"';
+    const suffix = '"}}}';
+    const maxBytes = 10 * 1024 * 1024;
+    const textLen = maxBytes - prefix.length - suffix.length;
+    const textA = `${"a".repeat(textLen - 99)}${"文".repeat(33)}${"x".repeat(66)}`; // exact length === textLen? Wait: make ASCII length match
+    const revBodyB = `${"a".repeat(textLen - 99)}${"z".repeat(99)}`;
+    const bodyA = `${"a".repeat(textLen - 99)}${"w".repeat(99)}`;
+    expect(bodyA.length).toBe(textLen);
+    expect(revBodyB.length).toBe(textLen);
+
+    // Export batch A
+    importStudyWorkspaceSnapshotJson(`${prefix}${bodyA}${suffix}`);
+    const partsA = exportStudyWorkspaceSnapshotParts();
+    expect(partsA.length).toBe(2);
+
+    // Export batch B at the EXACT same millisecond timestamp
+    localStorage.clear();
+    importStudyWorkspaceSnapshotJson(`${prefix}${revBodyB}${suffix}`);
+    const partsB = exportStudyWorkspaceSnapshotParts();
+    expect(partsB.length).toBe(2);
+    expect(partsA[0].exportBatchId).not.toBe(partsB[0].exportBatchId);
+
+    // 1) A1+A2 (reverse) -> exact A; B1+B2 (reverse) -> exact B
+    localStorage.clear();
+    importStudyWorkspaceSnapshotPayloads([
+      { name: "A2.json", rawJson: partsA[1].json },
+      { name: "A1.json", rawJson: partsA[0].json },
+    ]);
+    expect(computeTextFingerprint(readPersonalNote("r")?.text ?? "")).toBe(
+      computeTextFingerprint(bodyA),
+    );
+
+    localStorage.clear();
+    importStudyWorkspaceSnapshotPayloads([
+      { name: "B2.json", rawJson: partsB[1].json },
+      { name: "B1.json", rawJson: partsB[0].json },
+    ]);
+    expect(computeTextFingerprint(readPersonalNote("r")?.text ?? "")).toBe(
+      computeTextFingerprint(revBodyB),
+    );
+
+    // 2) Mixing A1 + B2 is rejected atomically with 0 notes persisted
+    localStorage.clear();
+    let mixedErr: unknown = null;
+    try {
+      importStudyWorkspaceSnapshotPayloads([
+        { name: "A1.json", rawJson: partsA[0].json },
+        { name: "B2.json", rawJson: partsB[1].json },
+      ]);
+    } catch (err) {
+      mixedErr = err;
+    }
+    expect(mixedErr).toBeInstanceOf(SnapshotImportFileError);
+    expect((mixedErr as SnapshotImportFileError).code).toBe("MIXED_SNAPSHOT_EXPORT_BATCHES");
+    expect(readPersonalNote("r")).toBeNull();
+
+    // 3) Legacy Round 4 format (no export_batch_id, differing only in exported_at) ALSO rejected
+    const stripBatch = (raw: string, ts: string) => {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      delete parsed.export_batch_id;
+      parsed.exported_at = ts;
+      return JSON.stringify(parsed);
+    };
+    expect(() =>
+      importStudyWorkspaceSnapshotPayloads([
+        { name: "legacyA1.json", rawJson: stripBatch(partsA[0].json, "2026-11-28T14:35:00.741Z") },
+        { name: "legacyB2.json", rawJson: stripBatch(partsB[1].json, "2026-11-28T14:35:08.861Z") },
+      ]),
+    ).toThrow("MIXED_SNAPSHOT_EXPORT_BATCHES");
+    expect(readPersonalNote("r")).toBeNull();
+
+    // 4) Tampered segment text within same batch triggers checksum error with 0 writes
+    const tamperedB2Obj = JSON.parse(partsB[1].json) as {
+      note_segments: Array<{ text_segment: string }>;
+    };
+    tamperedB2Obj.note_segments[0].text_segment =
+      "Q" + tamperedB2Obj.note_segments[0].text_segment.slice(1);
+    expect(() =>
+      importStudyWorkspaceSnapshotPayloads([
+        { name: "B1.json", rawJson: partsB[0].json },
+        { name: "B2-tampered.json", rawJson: JSON.stringify(tamperedB2Obj) },
+      ]),
+    ).toThrow("CORRUPTED_SEGMENT_CHECKSUM");
+    expect(readPersonalNote("r")).toBeNull();
+
+    // 5) Settings UI surfaces explicit cross-batch alert and preserves empty store
+    vi.stubGlobal("fetch", () => okJson({}));
+    backing.set("yia.ui-language", "zh-CN");
+    render(
+      <UiLanguageProvider>
+        <WorkspaceAiSettingsPanel />
+      </UiLanguageProvider>,
+    );
+    const fileInput = screen.getByLabelText("选择个人笔记 JSON 文件") as HTMLInputElement;
+    const fA1 = new File([partsA[0].json], "A1.json", { type: "application/json" });
+    const fB2 = new File([partsB[1].json], "B2.json", { type: "application/json" });
+    Object.defineProperty(fA1, "text", { value: async () => partsA[0].json });
+    Object.defineProperty(fB2, "text", { value: async () => partsB[1].json });
+    fireEvent.change(fileInput, { target: { files: [fA1, fB2] } });
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("来自 2 个不同的导出批次");
+    });
+    expect(readPersonalNote("r")).toBeNull();
+    void textA;
   });
 });

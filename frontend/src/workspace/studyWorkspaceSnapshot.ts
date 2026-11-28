@@ -15,6 +15,8 @@ export type SnapshotNoteSegment = {
   segment_index: number;
   total_segments: number;
   text_segment: string;
+  full_length?: number;
+  full_fingerprint?: string;
 };
 
 export type SnapshotSavedViewSegment = {
@@ -22,11 +24,14 @@ export type SnapshotSavedViewSegment = {
   segment_index: number;
   total_segments: number;
   search_query_segment: string;
+  full_length?: number;
+  full_fingerprint?: string;
 };
 
 export type StudyWorkspaceSnapshotPart = {
   partIndex: number;
   totalParts: number;
+  exportBatchId: string;
   noteCount: number;
   savedViewCount: number;
   byteLength: number;
@@ -55,12 +60,37 @@ export type StudyWorkspaceBatchImportResult = StudyWorkspaceImportResult & {
 export class SnapshotImportFileError extends Error {
   readonly fileName: string;
   readonly code: string;
+  readonly batchCount?: number;
 
-  constructor(code: string, fileName = "") {
+  constructor(code: string, fileName = "", batchCount?: number) {
     super(code);
     this.code = code;
     this.fileName = fileName;
+    this.batchCount = batchCount;
   }
+}
+
+export function computeTextFingerprint(text: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b1;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    h1 ^= code & 0xff;
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+    h1 ^= (code >>> 8) & 0xff;
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+
+    h2 = Math.imul(h2 ^ code, 0x85ebca6b) >>> 0;
+    h2 = ((h2 << 13) | (h2 >>> 19)) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, "0")}:${h2.toString(16).padStart(8, "0")}:${text.length}`;
+}
+
+function generateExportBatchId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `batch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function splitStringByUtf8Budget(text: string, maxSegmentJsonBytes: number): string[] {
@@ -71,7 +101,6 @@ function splitStringByUtf8Budget(text: string, maxSegmentJsonBytes: number): str
   let start = 0;
 
   while (start < text.length) {
-    // Lower bound at least 1 code point (2 UTF-16 code units if surrogate pair)
     let low = start + 1;
     if (
       low < text.length &&
@@ -145,6 +174,7 @@ function buildSnapshotPayloadString(
     pretty?: boolean;
     partIndex?: number;
     totalParts?: number;
+    exportBatchId?: string;
   } = {},
 ): string {
   const notesObj: Record<string, PersonalNote> = {};
@@ -155,6 +185,9 @@ function buildSnapshotPayloadString(
     version: 2,
     exported_at: exportedAt,
   };
+  if (options.exportBatchId) {
+    payload.export_batch_id = options.exportBatchId;
+  }
   if (typeof options.partIndex === "number" && typeof options.totalParts === "number") {
     payload.part_index = options.partIndex;
     payload.total_parts = options.totalParts;
@@ -182,6 +215,7 @@ export function exportStudyWorkspaceSnapshotParts(options: {
   const savedViews = readSavedContentViews();
   const noteEntries = Object.entries(notes);
   const exportedAt = new Date().toISOString();
+  const exportBatchId = generateExportBatchId();
 
   // Fast path: everything fits inside a single pretty v2 file
   if (noteEntries.length <= maxNotesPerPart) {
@@ -191,13 +225,17 @@ export function exportStudyWorkspaceSnapshotParts(options: {
       noteSegments: [],
       viewSegments: [],
     };
-    const pretty = buildSnapshotPayloadString(wholeDraft, exportedAt, { pretty: true });
+    const pretty = buildSnapshotPayloadString(wholeDraft, exportedAt, {
+      pretty: true,
+      exportBatchId,
+    });
     const prettyBytes = utf8ByteLength(pretty);
     if (prettyBytes <= maxBytes) {
       return [
         {
           partIndex: 1,
           totalParts: 1,
+          exportBatchId,
           noteCount: noteEntries.length,
           savedViewCount: savedViews.length,
           byteLength: prettyBytes,
@@ -213,6 +251,7 @@ export function exportStudyWorkspaceSnapshotParts(options: {
     buildSnapshotPayloadString(emptyDraft, exportedAt, {
       partIndex: reservePartIndex,
       totalParts: reservePartIndex,
+      exportBatchId,
     }),
   );
 
@@ -233,7 +272,6 @@ export function exportStudyWorkspaceSnapshotParts(options: {
     }
   };
 
-  // Exact verification helper for packing entries into one or more parts
   const appendVerifiedNotesDraft = (entries: Array<readonly [string, PersonalNote]>) => {
     let acc: Array<readonly [string, PersonalNote]> = [];
     for (const entry of entries) {
@@ -241,7 +279,7 @@ export function exportStudyWorkspaceSnapshotParts(options: {
       const probe = buildSnapshotPayloadString(
         { entries: candidate, views: [], noteSegments: [], viewSegments: [] },
         exportedAt,
-        { partIndex: reservePartIndex, totalParts: reservePartIndex },
+        { partIndex: reservePartIndex, totalParts: reservePartIndex, exportBatchId },
       );
       if (acc.length > 0 && (candidate.length > maxNotesPerPart || utf8ByteLength(probe) > maxBytes)) {
         drafts.push({ entries: acc, views: [], noteSegments: [], viewSegments: [] });
@@ -254,10 +292,12 @@ export function exportStudyWorkspaceSnapshotParts(options: {
       const tailProbe = buildSnapshotPayloadString(
         { entries: acc, views: [], noteSegments: [], viewSegments: [] },
         exportedAt,
-        { partIndex: reservePartIndex, totalParts: reservePartIndex },
+        { partIndex: reservePartIndex, totalParts: reservePartIndex, exportBatchId },
       );
       if (acc.length === 1 && utf8ByteLength(tailProbe) > maxBytes) {
         const [videoId, bigNote] = acc[0];
+        const fullFingerprint = computeTextFingerprint(bigNote.text);
+        const fullLength = bigNote.text.length;
         const sampleSkeleton = buildSnapshotPayloadString(
           {
             entries: [],
@@ -270,12 +310,14 @@ export function exportStudyWorkspaceSnapshotParts(options: {
                 segment_index: 9999,
                 total_segments: 9999,
                 text_segment: "",
+                full_length: fullLength,
+                full_fingerprint: fullFingerprint,
               },
             ],
             viewSegments: [],
           },
           exportedAt,
-          { partIndex: reservePartIndex, totalParts: reservePartIndex },
+          { partIndex: reservePartIndex, totalParts: reservePartIndex, exportBatchId },
         );
         const textBudget = maxBytes - utf8ByteLength(sampleSkeleton) - 32;
         const segments = splitStringByUtf8Budget(bigNote.text, textBudget);
@@ -291,6 +333,8 @@ export function exportStudyWorkspaceSnapshotParts(options: {
                 segment_index: idx + 1,
                 total_segments: segments.length,
                 text_segment: segText,
+                full_length: fullLength,
+                full_fingerprint: fullFingerprint,
               },
             ],
             viewSegments: [],
@@ -304,7 +348,6 @@ export function exportStudyWorkspaceSnapshotParts(options: {
 
   for (const [videoId, note] of noteEntries) {
     const pairBytes = utf8ByteLength(`${JSON.stringify(videoId)}:${JSON.stringify(note)}`) + 1;
-    // Check if this single note exceeds maxBytes on its own; if so, segment it losslessly
     if (emptyFrameBytes + pairBytes + 64 > maxBytes) {
       flushWholeNotesDraft();
       appendVerifiedNotesDraft([[videoId, note]]);
@@ -328,7 +371,6 @@ export function exportStudyWorkspaceSnapshotParts(options: {
     drafts.push({ entries: [], views: [], noteSegments: [], viewSegments: [] });
   }
 
-  // Pack savedViews individually (never bulk-dropped; segmented only if a single view exceeds maxBytes)
   for (const view of savedViews) {
     let placed = false;
     for (const draft of drafts) {
@@ -336,7 +378,7 @@ export function exportStudyWorkspaceSnapshotParts(options: {
       const probe = buildSnapshotPayloadString(
         { ...draft, views: [...draft.views, view] },
         exportedAt,
-        { partIndex: reservePartIndex, totalParts: reservePartIndex },
+        { partIndex: reservePartIndex, totalParts: reservePartIndex, exportBatchId },
       );
       if (utf8ByteLength(probe) <= maxBytes) {
         draft.views.push(view);
@@ -355,14 +397,16 @@ export function exportStudyWorkspaceSnapshotParts(options: {
     const soloProbe = buildSnapshotPayloadString(soloDraft, exportedAt, {
       partIndex: reservePartIndex,
       totalParts: reservePartIndex,
+      exportBatchId,
     });
     if (utf8ByteLength(soloProbe) <= maxBytes) {
       drafts.push(soloDraft);
       continue;
     }
 
-    // Single saved view exceeds maxBytes -> losslessly split searchQuery into dedicated viewSegments parts
     const { searchQuery, ...viewMeta } = view;
+    const fullFingerprint = computeTextFingerprint(searchQuery);
+    const fullLength = searchQuery.length;
     const sampleSkeleton = buildSnapshotPayloadString(
       {
         entries: [],
@@ -374,11 +418,13 @@ export function exportStudyWorkspaceSnapshotParts(options: {
             segment_index: 9999,
             total_segments: 9999,
             search_query_segment: "",
+            full_length: fullLength,
+            full_fingerprint: fullFingerprint,
           },
         ],
       },
       exportedAt,
-      { partIndex: reservePartIndex, totalParts: reservePartIndex },
+      { partIndex: reservePartIndex, totalParts: reservePartIndex, exportBatchId },
     );
     const queryBudget = maxBytes - utf8ByteLength(sampleSkeleton) - 32;
     const querySegments = splitStringByUtf8Budget(searchQuery, queryBudget);
@@ -393,6 +439,8 @@ export function exportStudyWorkspaceSnapshotParts(options: {
             segment_index: idx + 1,
             total_segments: querySegments.length,
             search_query_segment: segText,
+            full_length: fullLength,
+            full_fingerprint: fullFingerprint,
           },
         ],
       });
@@ -405,10 +453,12 @@ export function exportStudyWorkspaceSnapshotParts(options: {
     const json = buildSnapshotPayloadString(draft, exportedAt, {
       partIndex: totalParts > 1 ? partIndex : undefined,
       totalParts: totalParts > 1 ? totalParts : undefined,
+      exportBatchId,
     });
     return {
       partIndex,
       totalParts,
+      exportBatchId,
       noteCount: draft.entries.length,
       savedViewCount: draft.views.length,
       byteLength: utf8ByteLength(json),
@@ -483,7 +533,7 @@ export function exportStudyWorkspaceSnapshotJson(): string {
   return buildSnapshotPayloadString(
     { entries: Object.entries(notes), views: savedViews, noteSegments: [], viewSegments: [] },
     new Date().toISOString(),
-    { pretty: true },
+    { pretty: true, exportBatchId: generateExportBatchId() },
   );
 }
 
@@ -523,6 +573,19 @@ function isValidViewSegment(raw: unknown): raw is SnapshotSavedViewSegment {
   );
 }
 
+function resolveBatchIdentity(
+  obj: Record<string, unknown>,
+  fileIndex: number,
+): string {
+  if (typeof obj.export_batch_id === "string" && obj.export_batch_id.trim().length > 0) {
+    return `batch:${obj.export_batch_id.trim()}`;
+  }
+  if (typeof obj.exported_at === "string" && obj.exported_at.trim().length > 0) {
+    return `exported_at:${obj.exported_at.trim()}`;
+  }
+  return `anon:${fileIndex}`;
+}
+
 export function importStudyWorkspaceSnapshotPayloads(
   rawFiles: ReadonlyArray<{ name?: string; rawJson: string }>,
 ): StudyWorkspaceBatchImportResult {
@@ -530,18 +593,22 @@ export function importStudyWorkspaceSnapshotPayloads(
     throw new SnapshotImportFileError("EMPTY_STUDY_SNAPSHOT_LIST");
   }
 
-  // Phase 1: Parse and validate EVERY file atomically before writing anything to localStorage
+  // Phase 1: Parse and validate EVERY file atomically & enforce export-batch isolation before writing localStorage
   const parsedFiles: Array<{
+    fileName: string;
+    batchKey: string;
     obj: Record<string, unknown>;
     notesObj: Record<string, unknown>;
     viewsArr: unknown[];
     noteSegments: SnapshotNoteSegment[];
     viewSegments: SnapshotSavedViewSegment[];
   }> = [];
-  const expectedTotals = new Set<number>();
-  const seenPartIndices = new Set<number>();
 
-  for (const item of rawFiles) {
+  const multiPartBatchKeys = new Set<string>();
+  const batchVolumeTrackers = new Map<string, { expectedTotal: number; seen: Set<number> }>();
+
+  for (let fileIdx = 0; fileIdx < rawFiles.length; fileIdx += 1) {
+    const item = rawFiles[fileIdx];
     const fileName = item.name ?? "";
     const rawJson = item.rawJson;
     if (!rawJson || utf8ByteLength(rawJson) > MAX_STUDY_SNAPSHOT_BYTES) {
@@ -568,19 +635,6 @@ export function importStudyWorkspaceSnapshotPayloads(
       throw new SnapshotImportFileError("TOO_MANY_PERSONAL_NOTES", fileName);
     }
 
-    if (
-      typeof obj.total_parts === "number" &&
-      Number.isInteger(obj.total_parts) &&
-      obj.total_parts > 1 &&
-      typeof obj.part_index === "number" &&
-      Number.isInteger(obj.part_index) &&
-      obj.part_index >= 1 &&
-      obj.part_index <= obj.total_parts
-    ) {
-      expectedTotals.add(obj.total_parts);
-      seenPartIndices.add(obj.part_index);
-    }
-
     const noteSegments = Array.isArray(obj.note_segments)
       ? obj.note_segments.filter(isValidNoteSegment)
       : [];
@@ -588,7 +642,44 @@ export function importStudyWorkspaceSnapshotPayloads(
       ? obj.saved_view_segments.filter(isValidViewSegment)
       : [];
 
+    const hasPartMeta =
+      typeof obj.total_parts === "number" &&
+      Number.isInteger(obj.total_parts) &&
+      obj.total_parts > 1 &&
+      typeof obj.part_index === "number" &&
+      Number.isInteger(obj.part_index) &&
+      obj.part_index >= 1 &&
+      obj.part_index <= obj.total_parts;
+    const isSegmentedFile = noteSegments.length > 0 || viewSegments.length > 0;
+    const batchKey = resolveBatchIdentity(obj, fileIdx);
+
+    if (hasPartMeta || isSegmentedFile) {
+      multiPartBatchKeys.add(batchKey);
+      if (multiPartBatchKeys.size > 1) {
+        throw new SnapshotImportFileError(
+          "MIXED_SNAPSHOT_EXPORT_BATCHES",
+          fileName,
+          multiPartBatchKeys.size,
+        );
+      }
+      if (hasPartMeta) {
+        const totalParts = obj.total_parts as number;
+        const partIdx = obj.part_index as number;
+        const tracker = batchVolumeTrackers.get(batchKey) ?? {
+          expectedTotal: totalParts,
+          seen: new Set<number>(),
+        };
+        if (tracker.expectedTotal !== totalParts) {
+          throw new SnapshotImportFileError("MIXED_SNAPSHOT_EXPORT_BATCHES", fileName, 2);
+        }
+        tracker.seen.add(partIdx);
+        batchVolumeTrackers.set(batchKey, tracker);
+      }
+    }
+
     parsedFiles.push({
+      fileName,
+      batchKey,
       obj,
       notesObj: notesCandidate as Record<string, unknown>,
       viewsArr: Array.isArray(obj.saved_views) ? obj.saved_views : [],
@@ -597,37 +688,53 @@ export function importStudyWorkspaceSnapshotPayloads(
     });
   }
 
-  // Detect missing shard indices when files come from a declared multi-part set
   let expectedTotalParts: number | null = null;
   const missingPartIndices: number[] = [];
-  if (expectedTotals.size === 1) {
-    expectedTotalParts = Array.from(expectedTotals)[0];
+  if (batchVolumeTrackers.size === 1) {
+    const tracker = Array.from(batchVolumeTrackers.values())[0];
+    expectedTotalParts = tracker.expectedTotal;
     for (let idx = 1; idx <= expectedTotalParts; idx += 1) {
-      if (!seenPartIndices.has(idx)) {
+      if (!tracker.seen.has(idx)) {
         missingPartIndices.push(idx);
       }
     }
   }
 
-  // Group and reassemble segmented notes across all uploaded parts
-  const noteSegGroups = new Map<string, SnapshotNoteSegment[]>();
-  const viewSegGroups = new Map<string, SnapshotSavedViewSegment[]>();
+  // Group segmented notes & views strictly by (batchKey, id) so segments across distinct exports can never stitch
+  const noteSegGroups = new Map<
+    string,
+    { videoId: string; fileName: string; segs: SnapshotNoteSegment[] }
+  >();
+  const viewSegGroups = new Map<
+    string,
+    { viewId: string; fileName: string; segs: SnapshotSavedViewSegment[] }
+  >();
   for (const pf of parsedFiles) {
     for (const seg of pf.noteSegments) {
-      const list = noteSegGroups.get(seg.video_id) ?? [];
-      list.push(seg);
-      noteSegGroups.set(seg.video_id, list);
+      const groupKey = `${pf.batchKey}::${seg.video_id}`;
+      const existing = noteSegGroups.get(groupKey) ?? {
+        videoId: seg.video_id,
+        fileName: pf.fileName,
+        segs: [],
+      };
+      existing.segs.push(seg);
+      noteSegGroups.set(groupKey, existing);
     }
     for (const seg of pf.viewSegments) {
-      const list = viewSegGroups.get(seg.view.id) ?? [];
-      list.push(seg);
-      viewSegGroups.set(seg.view.id, list);
+      const groupKey = `${pf.batchKey}::${seg.view.id}`;
+      const existing = viewSegGroups.get(groupKey) ?? {
+        viewId: seg.view.id,
+        fileName: pf.fileName,
+        segs: [],
+      };
+      existing.segs.push(seg);
+      viewSegGroups.set(groupKey, existing);
     }
   }
 
   const reassembledNotes: Record<string, PersonalNote> = {};
   let incompleteSegmentedNotes = 0;
-  for (const [videoId, segs] of noteSegGroups.entries()) {
+  for (const { videoId, fileName, segs } of noteSegGroups.values()) {
     const total = segs[0].total_segments;
     const byIdx = new Map<number, SnapshotNoteSegment>();
     for (const seg of segs) {
@@ -643,11 +750,19 @@ export function importStudyWorkspaceSnapshotPayloads(
     let tags: string[] = [];
     let updatedAt = new Date(0).toISOString();
     let complete = true;
+    const expectedLen = byIdx.get(1)?.full_length;
+    const expectedFp = byIdx.get(1)?.full_fingerprint;
     for (let idx = 1; idx <= total; idx += 1) {
       const partSeg = byIdx.get(idx);
       if (!partSeg) {
         complete = false;
         break;
+      }
+      if (
+        (typeof expectedLen === "number" && partSeg.full_length !== expectedLen) ||
+        (typeof expectedFp === "string" && partSeg.full_fingerprint !== expectedFp)
+      ) {
+        throw new SnapshotImportFileError("CORRUPTED_SEGMENT_CHECKSUM", fileName);
       }
       fullText += partSeg.text_segment;
       if (Array.isArray(partSeg.tags) && partSeg.tags.length > 0 && tags.length === 0) {
@@ -661,12 +776,18 @@ export function importStudyWorkspaceSnapshotPayloads(
       incompleteSegmentedNotes += 1;
       continue;
     }
+    if (
+      (typeof expectedLen === "number" && fullText.length !== expectedLen) ||
+      (typeof expectedFp === "string" && computeTextFingerprint(fullText) !== expectedFp)
+    ) {
+      throw new SnapshotImportFileError("CORRUPTED_SEGMENT_CHECKSUM", fileName);
+    }
     reassembledNotes[videoId] = { text: fullText, tags, updatedAt };
   }
 
   const reassembledViews: SavedContentView[] = [];
   let incompleteSegmentedViews = 0;
-  for (const [, segs] of viewSegGroups.entries()) {
+  for (const { fileName, segs } of viewSegGroups.values()) {
     const total = segs[0].total_segments;
     const byIdx = new Map<number, SnapshotSavedViewSegment>();
     for (const seg of segs) {
@@ -680,17 +801,31 @@ export function importStudyWorkspaceSnapshotPayloads(
     }
     let fullQuery = "";
     let complete = true;
+    const expectedLen = byIdx.get(1)?.full_length;
+    const expectedFp = byIdx.get(1)?.full_fingerprint;
     for (let idx = 1; idx <= total; idx += 1) {
       const partSeg = byIdx.get(idx);
       if (!partSeg) {
         complete = false;
         break;
       }
+      if (
+        (typeof expectedLen === "number" && partSeg.full_length !== expectedLen) ||
+        (typeof expectedFp === "string" && partSeg.full_fingerprint !== expectedFp)
+      ) {
+        throw new SnapshotImportFileError("CORRUPTED_SEGMENT_CHECKSUM", fileName);
+      }
       fullQuery += partSeg.search_query_segment;
     }
     if (!complete) {
       incompleteSegmentedViews += 1;
       continue;
+    }
+    if (
+      (typeof expectedLen === "number" && fullQuery.length !== expectedLen) ||
+      (typeof expectedFp === "string" && computeTextFingerprint(fullQuery) !== expectedFp)
+    ) {
+      throw new SnapshotImportFileError("CORRUPTED_SEGMENT_CHECKSUM", fileName);
     }
     const meta = segs[0].view;
     reassembledViews.push({

@@ -5682,13 +5682,16 @@ export function WorkspaceAiSettingsPanel({
     setPersonalNoteCount(count);
     setSavedViewCount(viewCount);
     const stamp = new Date().toISOString().slice(0, 10);
-    const wrapped = parts.map((part) => ({
-      filename:
-        part.totalParts === 1
-          ? `intelligence-personal-notes-${stamp}.json`
-          : `intelligence-personal-notes-${stamp}-part-${part.partIndex}-of-${part.totalParts}.json`,
-      part,
-    }));
+    const wrapped = parts.map((part) => {
+      const batchTag = part.exportBatchId.replace(/[^A-Za-z0-9]/g, "").slice(0, 6) || "batch";
+      return {
+        filename:
+          part.totalParts === 1
+            ? `intelligence-personal-notes-${stamp}.json`
+            : `intelligence-personal-notes-${stamp}-${batchTag}-part-${part.partIndex}-of-${part.totalParts}.json`,
+        part,
+      };
+    });
     setExportedSnapshotParts(wrapped.length > 1 ? wrapped : []);
     wrapped.forEach(({ filename, part }, idx) => {
       if (idx === 0) {
@@ -5857,6 +5860,22 @@ export function WorkspaceAiSettingsPanel({
             : `Merged ${result.importedNotes} personal note(s); total now ${result.totalNotes}.${conflictSuffixEn}`,
       );
     } catch (err) {
+      if (err instanceof SnapshotImportFileError && err.code === "MIXED_SNAPSHOT_EXPORT_BATCHES") {
+        setNotesBackupError(
+          zh
+            ? `未能导入个人笔记：检测到所选分卷来自 ${err.batchCount ?? "多个"} 个不同的导出批次，已中止本次导入以避免混拼损坏正文（本机原有数据未受影响）。请全选同一套备份的全部分卷文件后重试。`
+            : `Could not import personal notes: selected backup volumes belong to ${err.batchCount ?? "multiple"} different export batches. Import was aborted to prevent cross-batch corruption (local data unchanged). Select all volumes from the same export batch together.`,
+        );
+        return;
+      }
+      if (err instanceof SnapshotImportFileError && err.code === "CORRUPTED_SEGMENT_CHECKSUM") {
+        setNotesBackupError(
+          zh
+            ? `未能导入个人笔记：分段记录校验失败（${err.fileName || "所选分卷"} 内容已损坏或缺失对应片段），本次导入已整体中止，本机原有数据未受影响。`
+            : `Could not import personal notes: segmented entry checksum verification failed (${err.fileName || "selected file"}). Import was aborted and local data was not modified.`,
+        );
+        return;
+      }
       if (err instanceof SnapshotImportFileError && err.fileName) {
         setNotesBackupError(
           zh
