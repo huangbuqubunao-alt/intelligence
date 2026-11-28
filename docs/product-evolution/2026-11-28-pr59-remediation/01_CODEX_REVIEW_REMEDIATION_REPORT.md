@@ -1,9 +1,10 @@
-# Intelligence · PR #59 独立终审整改交付报告（Round 2 Ready）
+# Intelligence · PR #59 独立终审整改交付报告（Round 3 Ready）
 
 - **目标分支**：`antigravity/autonomous-product-evolution-wave8-20261127`（[PR #59](https://github.com/huangbuqubunao-alt/intelligence/pull/59)，保持 Draft）
 - **仓库 `main` 基线**：`f7b97134a9fafd3e8e447851a4237bdc66f7e60e`（全程未修改）
 - **第 44 项整提交回退锚点**：`f4da98e4`（干净 `git revert f3cd5563`，已验证阅读器回归简洁克制）
-- **最新已验证代码基线（`VERIFIED_CODE_SHA_R2`）**：`81c16adb1be072cb3353d4b7194a4b6fae947e80`
+- **上一轮已审计代码头（`VERIFIED_CODE_SHA_R2`）**：`81c16adb1be072cb3353d4b7194a4b6fae947e80`（交付头 `edf86fc6a2759a8c36ec0dd4dbfdc9593de9d7d8`）
+- **最新已验证代码基线（`VERIFIED_CODE_SHA_R3`）**：`2b0c4d6b40856a89fed7d4c21c2f1b837db1f574`
 - **日期**：2026-11-28（Asia/Shanghai）
 
 ---
@@ -36,12 +37,22 @@
 
 ---
 
-## 三、复审全量验证证据（均运行于 `VERIFIED_CODE_SHA_R2 = 81c16adb`）
+## 三、第三轮定向收口（针对 Codex Round 2 `B / HOLD` 仅剩 3 项反例）
 
-- **前端构建与静态检查**：`npx tsc --noEmit` 0 错误；`npm run build`（`vite v5.4.19`）`889ms` 构建成功。
-- **前端自动化测试全集**：`npx vitest run --poolOptions.forks.minForks=1 --poolOptions.forks.maxForks=3` → **102/102 测试文件、1370/1370 用例全部通过（`52.15s`）**。
+| 复审反例 | 触发根因 | 本轮精确收口方案 | Round 3 验证依据 |
+| :--- | :--- | :--- | :--- |
+| **P1-02** 10,001 条与大中文快照导出不可恢复 + 配额未覆盖分支 | 单份导出整库直出不检查累计 `>10,000` 条与 UTF-8 真实字节超 10 MiB；`notesPersisted=false` 且 `viewsPersisted=true` 时落入普通提示 | 1. 新增按真实 UTF-8 字节（10 MiB）与单卷条数（10,000 条）分卷导出并支持 `<input multiple>` 多卷联合恢复，绝不截断已有笔记；<br>2. 设置页同步提供「分卷单独下载」保底按钮，导入端明确处理 `(notesPersisted, viewsPersisted)` 全部 4 种结果组合；<br>3. `importPersonalNotesJson` / `importStudyWorkspaceSnapshotJson` 统一按 `utf8ByteLength` 校验。 | 真机 Chrome 实测：10,001 条分 2 卷（747,941 B / 226 B）清空后 10,001 完整恢复；两篇 180 万中文字符分 2 卷（各 5,400,221 B）清空后 2/2 无损恢复；真机填满 Chrome 5.2M UTF-16 配额后导入触发 `role="alert"` 明确报出「未能保存个人笔记」与仅合并 1 个视图；`CodexPR59Remediation.test.tsx` 覆盖全 4 种组合。 |
+| **P1-03** 同正文推进修订时间倒退与 2 月 30 日非法历日 | 同正文同标签提前 `continue` 未同步更新较新有效 `updatedAt`；浏览器原生 `Date.parse` 把 `2030-02-30` 顺延解析为 3 月有效日期 | 1. 同正文同标签且流入日期有效且更晚时更新持久化 `updatedAt`（不增加正文变更计数），更早则计入 `skippedOlderNotes` 并在设置页显式提示；<br>2. 实现严格公历历法与闰年校验，拒绝 `2030-02-30`、`2026-02-29`、`2026-04-31` 等不存在日期并保留现有记录。 | 真机 Chrome 顺序上传 `1月A → 3月A → 2月B → 2030-02-30`，确认界面依次报出跳过 1 条旧修订与 1 条无效时间冲突，最终落盘 `A` @ `2026-03-01T00:00:00Z`；单元测试验证全部 6 种排列组合与闰年边界。 |
+| **P1-04** `NEEDS_REVERIFICATION` 会话单篇出口仍可复制/下载且纯文本漏标等级 | 单篇「复制纯文本提纲」「复制双链问答」「下载 .md」按钮写在信任分级门禁之外，且纯文本直接拼接 `answer_zh` 英文写死 `Verified citations` | 1. 统一以 `classifyResearchSessionTrust` 控制全部 5 个单篇出口，对 `NEEDS_REVERIFICATION` 与无可核验引用会话隐藏全部复制/下载/沉淀/批注按钮并展示暂停说明（保留同范围继续追问）；<br>2. `formatPlainTextResearchBrief` 首部注入精确 `证据等级` 提示、仅输出有效引用并在非严格态不使用「已核验引用」标题。 | 真机 `#Research` 实测：Demo `PARTIAL_PRUNED_HEURISTIC` 复制纯文本含 `证据等级：部分未支持内容已裁剪 · 含启发式关联（请核对原话）`；模拟恢复 `NEEDS_REVERIFICATION` 会话后确认全部 5 个导出与入库按钮数为 `0`；`CodexPR59Remediation.test.tsx` 校验实际剪贴板与下载 Blob 文本。 |
+
+---
+
+## 四、复审全量验证证据（均运行于 `VERIFIED_CODE_SHA_R3 = 2b0c4d6b`）
+
+- **前端构建与静态检查**：`npx tsc --noEmit` 0 错误；`vite v5.4.19` 生产构建 `960ms` 通过。
+- **前端自动化测试全集**：`npx vitest run --poolOptions.forks.minForks=1 --poolOptions.forks.maxForks=3` → **102/102 测试文件、1372/1372 用例全部通过（`53.60s`）**。
 - **后端静态检查与全量回归**：
   - `uv lock --check`（107 packages）、`ruff check src tests scripts`（All checks passed）、`mypy src`（138 source files 0 error）、`scripts/ci_test_manifest.py verify`（`7401 collected / 7190 runnable`）；
-  - 6 个核心单元/集成/E2E 套件（`test_contracts.py`、`test_public_beta_demo_showcase.py`、`test_workspace_intelligence_hub.py`、`test_fast_read_api.py`、`test_final_blocker_closure.py`、`test_po_demo.py`）：**131 passed in 230.50s**。
-- **真实 Chrome 双标签页及多场景实机验收**（`http://127.0.0.1:8799/`）：
-  - 完成双标签同步与不覆写、#Research 启发式与多出处批注、快捷键弹窗 `Tab` 循环锁定、以及 `1440px` / `390px` 首页紧凑布局与深浅色实机检验；`0` 控制台错误、`0` 页面异常、`0` 失败 HTTP 请求、`0` 静默生成 POST；8 张截图归档于 `docs/product-evolution/2026-11-28-pr59-remediation/screenshots/`。
+  - 7 个核心单元/集成/E2E 套件（`test_contracts.py`、`test_public_beta_demo_showcase.py`、`test_workspace_intelligence_hub.py`、`test_research_lite.py`、`test_fast_read_api.py`、`test_final_blocker_closure.py`、`test_po_demo.py`）：**139 passed in 228.63s**。
+- **真实 Chrome 实机验收**（`http://127.0.0.1:8799/` 独立 Showcase Demo）：
+  - 完成 10,001 条与两篇 5.4 MB UTF-8 中文笔记分卷导出/空库恢复、真实存储配额超限告警、v1 三文件时戳回放与 2 月 30 日拦截、以及 `#Research` 启发式纯文本与恢复 `NEEDS_REVERIFICATION` 全 5 出口阻断实测；`0` 控制台错误、`0` 页面异常、`0` HTTP ≥ 400 请求。
